@@ -10,6 +10,5 @@ terraform {
 }
 
 provider "proxmox" {
-  endpoint = "https://192.168.0.232:8006"
-  insecure = "true"
+  # Configure endpoint, API token and TLS through PROXMOX_VE_* environment variables.
 }

@@ -57,6 +57,7 @@ out/
 # Environment variables and secrets
 # ==========================================
 .env
+.envrc
 .env.*
 !.env.example
 *.pem

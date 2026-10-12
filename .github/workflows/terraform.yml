@@ -1,0 +1,80 @@
+name: Terraform Plan
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Serialize plans for the shared HCP workspace, including manual runs.
+concurrency:
+  group: terraform-proxmox-lab
+  cancel-in-progress: false
+
+jobs:
+  terraform:
+    name: Terraform checks and plan
+    # Only repository branches are eligible; never use pull_request_target.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: proxmox-infra
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: "1.15.9"
+          terraform_wrapper: false
+
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
+
+      - name: Check required configuration
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+          PROXMOX_VE_API_TOKEN: ${{ secrets.PROXMOX_VE_API_TOKEN }}
+          PROXMOX_VE_ENDPOINT: ${{ vars.PROXMOX_VE_ENDPOINT }}
+          PROXMOX_VE_INSECURE: ${{ vars.PROXMOX_VE_INSECURE }}
+        run: |
+          for variable in TF_TOKEN_app_terraform_io PROXMOX_VE_API_TOKEN PROXMOX_VE_ENDPOINT PROXMOX_VE_INSECURE; do
+            if [[ -z "${!variable}" ]]; then
+              echo "::error::Missing required GitHub secret or variable: $variable"
+              exit 1
+            fi
+          done
+          case "$PROXMOX_VE_INSECURE" in
+            true|false) ;;
+            *) echo "::error::PROXMOX_VE_INSECURE must be true or false"; exit 1 ;;
+          esac
+
+      - name: Terraform Init
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+        run: terraform init -input=false -lockfile=readonly -no-color
+
+      - name: Terraform Validate
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+          PROXMOX_VE_ENDPOINT: ${{ vars.PROXMOX_VE_ENDPOINT }}
+          PROXMOX_VE_API_TOKEN: ${{ secrets.PROXMOX_VE_API_TOKEN }}
+          PROXMOX_VE_INSECURE: ${{ vars.PROXMOX_VE_INSECURE }}
+        run: terraform plan -input=false -lock-timeout=5m -no-color
