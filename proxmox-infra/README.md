@@ -154,7 +154,7 @@ public key as the GitHub variable. Keep tokens out of source files and shell his
 To load the public key for local planning without keeping it in a repository file:
 
 ```bash
-export TF_VAR_test_vm_ssh_public_key="$(gh variable get TEST_VM_SSH_PUBLIC_KEY --repo Drake3001/zpi)"
+export TF_VAR_test_vm_ssh_public_key="$(gh variable get TEST_VM_SSH_PUBLIC_KEY --repo Drake3001/ZPI-4money)"
 ```
 
 The public key is not a secret and can appear in Terraform plans and HCP state.
