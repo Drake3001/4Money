@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -12,6 +12,17 @@
 
   <ItemGroup>
     <Folder Include="Controllers\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ZPI4M.Banking\ZPI4M.Banking.csproj" />
+    <ProjectReference Include="..\ZPI4M.Expense\ZPI4M.Expense.csproj" />
+    <ProjectReference Include="..\ZPI4M.Grouping\ZPI4M.Grouping.csproj" />
+    <ProjectReference Include="..\ZPI4M.Limits\ZPI4M.Limits.csproj" />
+    <ProjectReference Include="..\ZPI4M.Notifications\ZPI4M.Notifications.csproj" />
+    <ProjectReference Include="..\ZPI4M.Receipt\ZPI4M.Receipt.csproj" />
+    <ProjectReference Include="..\ZPI4M.Reports\ZPI4M.Reports.csproj" />
+    <ProjectReference Include="..\ZPI4M.User\ZPI4M.User.csproj" />
   </ItemGroup>
 
 </Project>
