@@ -2,7 +2,7 @@
 
 This directory contains the Terraform configuration for the Proxmox lab.
 Git records the declared configuration, HCP Terraform stores the shared state,
-and GitHub Actions runs configuration checks and produces a plan for review.
+and GitHub Actions checks pull requests and deploys approved master commits.
 
 Terraform reads the available Proxmox nodes and declares one test VM: a full
 clone of Debian template 140 on `dell`, with VMID 250. Existing VMs and LXC
@@ -18,9 +18,11 @@ containers remain outside this configuration.
 | `test-vm.tf` | Declares the test VM and its cloud-init settings. |
 | `outputs.tf` | Exposes the test VM's ID, name, and node. |
 | `variables.tf` | Declares and validates the public SSH key supplied at runtime. |
-| `scripts/configure-test-access.py` | Reviews or applies the limited test ACLs on the Proxmox host. |
+| `scripts/configure-test-access.py` | Reviews or applies the limited test ACLs on the Proxmox host; it is not part of CI. |
+| `scripts/check-plan.py` | Validates plan JSON against the approved VM scope without printing its values. |
 | `.terraform.lock.hcl` | Records the selected provider version and checksums; keep it in Git. |
-| `../.github/workflows/terraform.yml` | Defines the GitHub Actions checks and plan. |
+| `../.github/workflows/terraform.yml` | Defines PR checks and a speculative plan. |
+| `../.github/workflows/terraform-deploy.yml` | Plans and applies the exact master commit after merge. |
 
 The HCP workspace uses **Local execution mode**. Terraform commands execute on
 the developer's computer or the self-hosted runner; HCP stores and locks the
@@ -48,7 +50,9 @@ repository variable `TEST_VM_SSH_PUBLIC_KEY`; keep its private part on VM 205.
 Contributors connect to VM 205 through Tailscale, then use SSH to the test VMs
 over the LAN. The test VMs do not need their own Tailscale registration for this
 access path, provided VM 205 can reach them and their SSH service is available.
-Guest agent support is enabled and requires the QEMU guest agent in the image.
+Guest agent support is enabled, but IP discovery is disabled so provisioning a
+stopped VM does not wait for a guest agent. Enabling discovery later requires
+verifying the guest installation and reviewing the required API permissions.
 To start the VM through Terraform, change `started` to `true` and review and
 apply the resulting plan. Expanding the virtual disk may also require guest
 partition and filesystem expansion, depending on the image's cloud-init setup.
@@ -63,42 +67,64 @@ partition and filesystem expansion, depending on the image's cloud-init setup.
 4. Review the **Terraform checks and plan** job, especially the proposed changes
    in the **Terraform Plan** log. Review any proposed creation, replacement, or
    deletion of resources before approving the change.
-5. After approval, merge the PR. Merging records the accepted configuration in
-   Git; the current pipeline does not deploy it.
+5. After approval, merge the PR. The push to `master` starts **Terraform Deploy**:
+   it creates a fresh plan, checks its scope, and applies that saved plan. There
+   is no second deployment approval. Review deletions and replacements in the PR.
 
-## GitHub Actions pipeline
+## GitHub Actions pipelines
 
-The **Terraform Plan** workflow runs when a PR targeting `master` is opened,
-updated with new commits, or reopened. It also supports manual execution through
-**Actions → Terraform Plan → Run workflow**, selecting a trusted branch.
-Manual execution requires the workflow to exist on the default branch.
+**Terraform Plan** runs for PRs opened, updated, or reopened against `master`.
+Fork PRs are skipped. Its `Terraform checks and plan` job is a required merge
+check. It checks runner tools, runs the deployment safeguard tests, formatting,
+initialization, validation, and planning, then validates the plan scope. It does
+not apply changes. Manual execution remains available for trusted branches.
 
-The job skips fork PRs. There is no path filter, so all eligible PRs trigger it.
-There is no `push` trigger or deployment job: a push without an open PR, or a
-merge to `master`, does not start this workflow by itself.
+**Terraform Deploy** runs on every push to `master`, including merges, without a
+path filter. It supports **Actions → Terraform Deploy → Run workflow**, but
+only when `master` is selected. Manual execution requires the workflow to be
+present on the default branch. Both workflows use `self-hosted`, `Linux`, and
+`X64` labels, matching `dell-runner` on VM 205, and run from `proxmox-infra/`.
+The PR job has a 20-minute limit; the deployment job has a 45-minute limit.
 
-The job uses runner labels `self-hosted`, `Linux`, and `X64`, matching the existing
-`dell-runner` on the project's shared VM 205. Commands run in `proxmox-infra/`
-using Bash, with a 20-minute job timeout.
+The deployment runs the following steps in one job:
 
-| Step | Behavior |
-| --- | --- |
-| Checkout | Fetches the code without persisting Git credentials. |
-| Setup Terraform | Installs the pinned CLI version. Actions are pinned to commit SHAs. |
-| Format | Runs `terraform fmt -check -recursive`; fails on formatting differences without editing files. |
-| Check required configuration | Checks that required secrets and variables are present and that the TLS flag is `true` or `false`. |
-| Init | Connects to HCP and installs providers using the committed lockfile; `-lockfile=readonly` prevents lockfile updates in CI. |
-| Validate | Checks configuration validity against the provider schema. |
-| Plan | Reads the shared state and Proxmox API, then prints proposed changes without applying them. |
+1. Checkout the exact event commit, check dependencies and credentials, and run
+   safeguard tests, `fmt`, `init -lockfile=readonly`, and `validate`.
+2. Run `terraform plan -detailed-exitcode -out=deployment.tfplan`. Exit code `0`
+   means no changes and skips apply; `1` fails the job; `2` permits further checks.
+3. Stream `terraform show -json` to the shared scope checker. Managed resources
+   must be bpg/proxmox VMs with known IDs 250–255 on `dell`, both before and after
+   a change. Creation, update, deletion, and replacement are allowed. Imports,
+   unknown identities, other resource types, and out-of-scope VMs fail the job.
+   Data sources and output changes are permitted; even no-op managed resources
+   are checked.
+4. Confirm that the event commit is still HEAD of `master`. A superseded run
+   skips apply and records that fact in the job summary. An API error fails closed.
+5. Apply the saved plan, with no replanning or interactive approval. Terraform
+   retains HCP state locking and waits up to five minutes for the lock.
+6. Remove the temporary plan directory in an `always()` cleanup step.
 
-Steps run in order, and a failure stops subsequent steps. Noninteractive flags
-prevent the job from waiting for terminal input. The plan is available in the
-Actions log; the workflow does not save a plan artifact for later application.
+The readable plan is in **Terraform Plan** step logs, and safe operation counts
+are in the run summary. Replacements count as both a create and a delete.
+Saved plans may contain sensitive values: they are kept with restrictive file
+permissions in a unique runner temporary directory and are not uploaded as
+artifacts. Full JSON is never printed by the policy checker. Cleanup runs on
+normal completion or failure; a host/process crash may leave temporary files
+for an administrator to remove.
 
-The `terraform-proxmox-lab` concurrency group allows one active workflow run at
-a time and does not cancel an active run. New events can replace a pending run.
-HCP state locking also coordinates Terraform operations started outside CI;
-the plan waits up to five minutes to acquire the state lock.
+Deployment concurrency uses `terraform-proxmox-lab-deploy`, with active runs
+never cancelled automatically. GitHub can replace an older pending run with a
+newer one; the objective is to converge to current `master`, not deploy every
+intermediate commit. A new merge during an active apply is handled by the next
+deployment. PR groups are separate, per PR, so PR activity cannot replace a
+pending deployment. HCP locking coordinates commands across both workflows
+and developer computers; a PR may need rerunning if the lock wait expires.
+
+Protect `master` with one PR approval, stale approvals dismissed after new
+commits, the required `Terraform checks and plan` check, an up-to-date branch,
+and enforcement for administrators. Force pushes and branch deletion remain
+blocked. The first merge containing the deployment workflow activates it and
+will provision VM 250 if that is still the reviewed plan.
 
 ## Runtime credentials and connection settings
 
@@ -107,14 +133,15 @@ GitHub Actions reads the following repository settings from
 
 | Kind | Name | Purpose or value |
 | --- | --- | --- |
-| Secret | `TF_API_TOKEN` | HCP token with access to `proxmox-lab` and the permissions needed for CLI planning and state locking. |
+| Secret | `TF_API_TOKEN` | HCP Terraform user or team token with access to `proxmox-lab` and the permissions needed for CLI planning, state writes, and state locking. Organization tokens are not supported by Terraform CLI. |
 | Secret | `PROXMOX_VE_API_TOKEN` | Proxmox API token in the format `USER@REALM!TOKENID=SECRET`. |
 | Variable | `PROXMOX_VE_ENDPOINT` | Proxmox HTTPS API URL, including port `8006`. |
 | Variable | `PROXMOX_VE_INSECURE` | `true` while using the current certificate without TLS verification; use `false` with a trusted certificate. |
 | Variable | `TEST_VM_SSH_PUBLIC_KEY` | Single OpenSSH public key used for guest access from VM 205. |
 
 The workflow maps `TF_API_TOKEN` to `TF_TOKEN_app_terraform_io` for `init` and
-`plan`. Proxmox connection settings are passed to the provider for `plan`.
+`plan` and `apply`. Proxmox connection settings are passed to the provider for
+planning and application.
 The public key is passed as `TF_VAR_test_vm_ssh_public_key` and validated by
 Terraform. Missing settings cause the job to fail before initialization.
 
@@ -133,35 +160,49 @@ export TF_VAR_test_vm_ssh_public_key="$(gh variable get TEST_VM_SSH_PUBLIC_KEY -
 The public key is not a secret and can appear in Terraform plans and HCP state.
 The private key is not supplied to Terraform or GitHub Actions.
 
-The runner needs Bash, unzip, HTTPS access to GitHub, Terraform downloads, the
+The runner needs Bash, Python 3, git, curl, unzip, HTTPS access to GitHub, Terraform downloads, the
 provider registry and HCP, plus network access to the Proxmox API. Its GitHub
 Actions Runner installation must support the Node.js runtime used by the pinned
 actions.
 
-## Applying changes
+On the Ubuntu runner, an administrator can install the required tools with
+`sudo apt-get update` followed by `sudo apt-get install -y unzip curl git python3`.
+Install runner dependencies during host maintenance; Terraform jobs run as
+the runner's regular user and do not need sudo.
 
-The current pipeline ends at `plan`. A successful job means the configuration
-is valid and its changes can be planned; it does not mean those changes have
-been deployed. Changes to outputs are also only persisted by an apply.
+If `setup-terraform` reports that `unzip` cannot be found, check that it is
+installed and available on the runner's PATH. If `terraform init` reports
+`unauthorized` for HCP, verify the type, validity, and organization access of
+the token stored in `TF_API_TOKEN`, then rerun the failed job after updating
+the secret. Its value must be the token itself, without a `Bearer` prefix.
 
-When an apply is explicitly authorized, it can be performed locally from a
-clean checkout of the reviewed `master` revision with the same HCP workspace
-and connection settings:
+## Deployment failures and recovery
 
-```bash
-terraform init -input=false -lockfile=readonly
-terraform apply
-```
+After merge, inspect **Terraform Deploy**, not just the PR check. Success with
+an applied plan means Terraform completed and wrote state to HCP; success with
+no changes means the workspace already matches the configuration. A superseded
+run is also successful but explicitly reports that it skipped application.
 
-`terraform apply` calculates a fresh plan and asks for confirmation. Review that
-plan before approving it: infrastructure or state may have changed since the
-PR plan. The CI log is not a saved plan that this command reuses.
+For a failed deployment, fix the cause and use **Run workflow** on `master` or
+**Re-run failed jobs** for the current master commit. The entire deployment job
+runs again and generates a fresh plan. A rerun of an older commit is skipped
+by the HEAD check. Never try to reuse a temporary plan from a failed run.
 
-The runner needs no Proxmox administrative SSH access or additional Linux sudo
-permissions to provision this VM. The provider uses its API token to clone and
-configure the VM. Introducing further managed resources, expanding API
-permissions, importing existing machines, or adding an automated apply job
-requires separate approval.
+Terraform does not automatically roll back a partially completed apply. Inspect
+Proxmox and HCP state before retrying. If a VM was cloned but not recorded in
+state, investigate and explicitly approve recovery rather than blindly
+recreating, importing, or deleting it. A stale-plan or lock error stops the job;
+there is no automatic `force-unlock` or bypass of state locking. Check that no
+operation is active before an administrator investigates a lingering lock.
+
+Local planning remains supported. Reserve local apply for explicitly approved
+recovery work, using the reviewed master revision and the same workspace and
+credentials. Coordinate with CI to avoid a concurrent deployment. Changes
+outside VMID 250–255, new managed resource types, imports, or additional API
+permissions require a separate reviewed change to the policy and access scope.
+
+The runner uses the API token and needs no Proxmox root SSH key or extra Linux
+sudo privileges to provision VMs. Administrative ACL setup remains separate.
 
 ## Test API permissions
 

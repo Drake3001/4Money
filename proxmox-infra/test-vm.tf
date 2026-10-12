@@ -56,5 +56,8 @@ resource "proxmox_virtual_environment_vm" "test" {
   # Requires the QEMU guest agent to be installed in the guest image.
   agent {
     enabled = true
+    wait_for_ip {
+      disabled = true
+    }
   }
 }
