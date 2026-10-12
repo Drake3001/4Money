@@ -6,11 +6,13 @@ CREATE TABLE "user"."user" (
     password_hash TEXT         NOT NULL,
     email         TEXT,
     phone         TEXT,
-    birthday      DATE         NOT NULL,
+    birth_date    DATE         NOT NULL,
     created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     icon          TEXT,
     refresh_token TEXT         DEFAULT NULL,
-    tink_user_id  TEXT         DEFAULT NULL
+    tink_user_id  TEXT         DEFAULT NULL,
+    CONSTRAINT c_user_birth_date_not_in_future
+        CHECK (birth_date <= CURRENT_DATE)
 );
 
 CREATE TABLE "grouping"."group" (
@@ -19,15 +21,21 @@ CREATE TABLE "grouping"."group" (
     icon          TEXT,
     weekly_limit  NUMERIC(18,2) DEFAULT NULL,
     monthly_limit NUMERIC(18,2) DEFAULT NULL,
-    year_limit    NUMERIC(18,2) DEFAULT NULL
+    year_limit    NUMERIC(18,2) DEFAULT NULL,
+    CONSTRAINT c_group_weekly_limit_above_zero
+        CHECK (weekly_limit > 0),
+    CONSTRAINT c_group_monthly_limit_above_zero
+        CHECK (monthly_limit > 0),
+    CONSTRAINT c_group_year_limit_above_zero
+        CHECK (year_limit > 0)
 );
 
 CREATE TABLE expense.category (
     _id         UUID NOT NULL PRIMARY KEY,
     name        TEXT NOT NULL,
     description TEXT,
-    icon        TEXT,
-    color       TEXT
+    icon        TEXT DEFAULT NULL,
+    color       TEXT DEFAULT NULL
 );
 
 CREATE TABLE receipt.receipt (
@@ -55,11 +63,15 @@ CREATE TABLE banking.bank_transaction (
     _id                 UUID          NOT NULL PRIMARY KEY,
     fk_bank_account_id  UUID          NOT NULL,
     amount              NUMERIC(18,2) NOT NULL,
-    status              TEXT          NOT NULL,   -- Booked / Pending
+    status              TEXT          NOT NULL,
     description         TEXT,
     date                DATE          NOT NULL,
     currency_code       TEXT          NOT NULL,
     tink_transaction_id TEXT          NOT NULL,
+    CONSTRAINT c_bank_transaction_amount_above_zero
+        CHECK (amount > 0),
+    CONSTRAINT c_bank_transaction_status_valid
+        CHECK (status IN ('Booked', 'Pending', 'Cancelled')),
     CONSTRAINT c_bank_transaction_fk_bank_account_id
         FOREIGN KEY (fk_bank_account_id) REFERENCES banking.bank_account (_id)
 );
@@ -73,6 +85,8 @@ CREATE TABLE expense.expense (
     merchant               TEXT,
     amount                 NUMERIC(18,2) NOT NULL,
     transaction_date       TIMESTAMP     NOT NULL,
+    CONSTRAINT c_expense_amount_above_zero
+        CHECK (amount > 0),
     CONSTRAINT c_expense_fk_group_id
         FOREIGN KEY (fk_group_id) REFERENCES "grouping"."group" (_id),
     CONSTRAINT c_expense_fk_bank_transaction_id
@@ -89,6 +103,10 @@ CREATE TABLE expense.expense_item (
     name           TEXT          NOT NULL,
     unit_price     NUMERIC(18,2) NOT NULL,
     quantity       NUMERIC(18,3) NOT NULL,
+    CONSTRAINT c_expense_item_unit_price_above_zero
+        CHECK (unit_price > 0),
+    CONSTRAINT c_expense_item_quantity_above_zero
+        CHECK (quantity > 0),
     CONSTRAINT c_expense_item_fk_expense_id
         FOREIGN KEY (fk_expense_id) REFERENCES expense.expense (_id),
     CONSTRAINT c_expense_item_fk_category_id
@@ -113,6 +131,8 @@ CREATE TABLE "grouping".expense_share (
     fk_user_id    UUID         NOT NULL,
     fk_expense_id UUID         NOT NULL,
     percentage    NUMERIC(5,2) NOT NULL,
+    CONSTRAINT c_expense_share_percentage_between_zero_and_hundred
+        CHECK (percentage >= 0 AND percentage <= 100),
     CONSTRAINT c_expense_share_fk_user_id
         FOREIGN KEY (fk_user_id) REFERENCES "user"."user" (_id),
     CONSTRAINT c_expense_share_fk_expense_id
@@ -135,6 +155,12 @@ CREATE TABLE limits.category_group_limit (
     weekly_limit   NUMERIC(18,2) DEFAULT NULL,
     monthly_limit  NUMERIC(18,2) DEFAULT NULL,
     year_limit     NUMERIC(18,2) DEFAULT NULL,
+    CONSTRAINT c_category_group_limit_weekly_limit_above_zero
+        CHECK (weekly_limit > 0),
+    CONSTRAINT c_category_group_limit_monthly_limit_above_zero
+        CHECK (monthly_limit > 0),
+    CONSTRAINT c_category_group_limit_year_limit_above_zero
+        CHECK (year_limit > 0),
     CONSTRAINT c_category_group_limit_fk_category_id
         FOREIGN KEY (fk_category_id) REFERENCES expense.category (_id),
     CONSTRAINT c_category_group_limit_fk_group_id

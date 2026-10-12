@@ -3,6 +3,10 @@
 ##
 ## Get latest from `dotnet new gitignore`
 
+# Keep ZPI4M.User
+!ZPI4M.User/
+!**/ZPI4M.User/**
+
 # dotenv files
 .env
 
@@ -22,9 +26,6 @@ mono_crash.*
 # Build results
 [Dd]ebug/
 
-# Keep ZPI4M.User
-!ZPI4M.User/
-!**/ZPI4M.User/**
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
