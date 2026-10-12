@@ -1,1 +1,13 @@
-<Solution />
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ZPI4M.Api/ZPI4M.Api.csproj" />
+    <Project Path="src/ZPI4M.Banking/ZPI4M.Banking.csproj" />
+    <Project Path="src/ZPI4M.Expense/ZPI4M.Expense.csproj" />
+    <Project Path="src/ZPI4M.Grouping/ZPI4M.Grouping.csproj" />
+    <Project Path="src/ZPI4M.Limits/ZPI4M.Limits.csproj" />
+    <Project Path="src/ZPI4M.Notifications/ZPI4M.Notifications.csproj" />
+    <Project Path="src/ZPI4M.Receipt/ZPI4M.Receipt.csproj" />
+    <Project Path="src/ZPI4M.Reports/ZPI4M.Reports.csproj" />
+    <Project Path="src/ZPI4M.User/ZPI4M.User.csproj" />
+  </Folder>
+</Solution>

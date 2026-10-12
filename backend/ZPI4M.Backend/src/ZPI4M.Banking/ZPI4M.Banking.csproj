@@ -16,4 +16,8 @@
     <Folder Include="Services\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\ZPI4M.Expense\ZPI4M.Expense.csproj" />
+  </ItemGroup>
+
 </Project>
