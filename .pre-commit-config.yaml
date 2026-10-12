@@ -1,0 +1,39 @@
+minimum_pre_commit_version: "4.6.2"
+default_install_hook_types: [pre-commit, prepare-commit-msg, commit-msg]
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-merge-conflict
+        args: [--assume-in-merge]
+      - id: detect-private-key
+
+  - repo: local
+    hooks:
+      - id: dotnet-format
+        name: .NET format and style (no build)
+        entry: python tools/hooks/dotnet_format.py
+        language: python
+        files: ^backend/.*\.cs$
+        require_serial: true
+      - id: clickup-prepare-message
+        name: Add ClickUp task from branch
+        entry: python tools/hooks/clickup_message.py prepare
+        language: python
+        stages: [prepare-commit-msg]
+        always_run: true
+        verbose: true
+        require_serial: true
+      - id: clickup-validate-message
+        name: Check ClickUp commit description
+        entry: python tools/hooks/clickup_message.py validate
+        language: python
+        stages: [commit-msg]
+        always_run: true
+        require_serial: true

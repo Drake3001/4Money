@@ -25,7 +25,7 @@
 │   ├── Directory.Packages.props
 │   ├── Directory.Build.props
 │   ├── NuGet.Config
-│   └── .editorconfig 
+│   └── .editorconfig
 ├── frontend/       # web application code  
 ├── mobile/         # mobile application code  
 └── workers/        # python modules
@@ -33,3 +33,7 @@
 ### Proxmox infrastructure
 
 Terraform configuration and GitHub Actions setup: [proxmox-infra/README.md](proxmox-infra/README.md).
+
+### Local Git hooks
+
+Hook installation, formatting checks, and ClickUp integration: [tools/README.md](tools/README.md).
