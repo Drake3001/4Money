@@ -51,8 +51,9 @@ jobs:
           PROXMOX_VE_API_TOKEN: ${{ secrets.PROXMOX_VE_API_TOKEN }}
           PROXMOX_VE_ENDPOINT: ${{ vars.PROXMOX_VE_ENDPOINT }}
           PROXMOX_VE_INSECURE: ${{ vars.PROXMOX_VE_INSECURE }}
+          TF_VAR_test_vm_ssh_public_key: ${{ vars.TEST_VM_SSH_PUBLIC_KEY }}
         run: |
-          for variable in TF_TOKEN_app_terraform_io PROXMOX_VE_API_TOKEN PROXMOX_VE_ENDPOINT PROXMOX_VE_INSECURE; do
+          for variable in TF_TOKEN_app_terraform_io PROXMOX_VE_API_TOKEN PROXMOX_VE_ENDPOINT PROXMOX_VE_INSECURE TF_VAR_test_vm_ssh_public_key; do
             if [[ -z "${!variable}" ]]; then
               echo "::error::Missing required GitHub secret or variable: $variable"
               exit 1
@@ -77,4 +78,5 @@ jobs:
           PROXMOX_VE_ENDPOINT: ${{ vars.PROXMOX_VE_ENDPOINT }}
           PROXMOX_VE_API_TOKEN: ${{ secrets.PROXMOX_VE_API_TOKEN }}
           PROXMOX_VE_INSECURE: ${{ vars.PROXMOX_VE_INSECURE }}
+          TF_VAR_test_vm_ssh_public_key: ${{ vars.TEST_VM_SSH_PUBLIC_KEY }}
         run: terraform plan -input=false -lock-timeout=5m -no-color
