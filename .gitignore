@@ -146,3 +146,9 @@ crash.*.log
 *.auto.tfvars.json
 .terraform.tfvars
 credentials.tfrc.json
+
+.ruff_cache/
+
+# Worker local inputs, outputs, history, models and interpreter
+/workers/extraction_worker/data/
+/workers/extraction_worker/.cache/

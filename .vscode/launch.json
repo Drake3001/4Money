@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Extraction worker",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/workers/extraction_worker/main.py",
+      "python": "${workspaceFolder}/workers/extraction_worker/.venv/Scripts/python.exe",
+      "cwd": "${workspaceFolder}/workers/extraction_worker",
+      "console": "integratedTerminal"
+    }
+  ]
+}
