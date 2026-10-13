@@ -1,19 +1,36 @@
 # Local Git hooks
 
-Python 3.10+ and Git are required. Backend C# changes also require a compatible
-.NET 10+ SDK. Install the pinned tooling from the repository root:
+uv and Git are required. The tools project requires Python 3.10+; uv can
+download a compatible interpreter if needed. Backend C# changes also require a
+compatible .NET 10+ SDK. Install the pinned tooling from the repository root:
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.txt
-.venv/bin/python tools/hooks/install.py
+uv sync --project tools --only-group pre-commit --locked
+uv run --project tools --only-group pre-commit --locked python tools/hooks/install.py
 ```
 
-On Windows, use `.venv\Scripts\python.exe` instead of `.venv/bin/python`.
+The same commands work on Windows. `--project tools` selects the tools project
+without changing the working directory.
 The installer checks for existing hooks and `core.hooksPath` before installing;
 resolve a conflict explicitly rather than overwriting someone else's hooks.
-Keep `.venv` available: installed hooks use that Python environment.
+Keep `tools/.venv` available: installed hooks use that Python environment,
+without requiring you to activate it or invoke uv for each commit.
 The first run downloads pinned hook environments, which are cached afterwards.
+
+`tools/pyproject.toml` defines the `pre-commit` dependency group, and
+`tools/uv.lock` records its resolved dependencies. Both belong in Git;
+`tools/.venv` is ignored. The tools project is not a distributable package and
+has no runtime dependencies. Future Python backend modules use separate uv
+projects and environments. Hook repository versions remain pinned in the root
+`.pre-commit-config.yaml`; pre-commit manages their environments separately.
+
+When migrating from the previous pip setup, reinstall the hooks using the
+commands above. Confirm that all three files in Git's hooks directory reference
+`tools/.venv` before removing the old root `.venv`, and check that no other tools
+depend on it. Installation does not delete the old environment automatically.
+Routine commands use `--locked` to reject an outdated lockfile. After an
+intentional dependency change, run `uv lock --project tools`, review the
+manifest and lockfile, then synchronize and reinstall the hooks.
 
 The `pre-commit` stage fixes whitespace and final newlines, preserves Markdown
 hard line breaks, checks YAML and merge markers, and detects private keys.
@@ -40,7 +57,7 @@ your edits. Format and stage the intended hunks manually in that case.
 Run all formatting and hygiene hooks, including after changing EditorConfig:
 
 ```bash
-.venv/bin/pre-commit run --all-files
+uv run --project tools --only-group pre-commit --locked pre-commit run --all-files
 ```
 
 This command can modify files. Review them before staging. The current branch
@@ -49,14 +66,14 @@ arrive. Hook configuration does not create or merge the backend layout.
 
 `prepare-commit-msg` adds the ClickUp task from the branch before the commit
 editor opens; `commit-msg` rejects a task prefix with no description. See
-[ClickUp conventions](../clickup.md). Local hooks can be skipped or uninstalled;
+[ClickUp conventions](#clickup-branch-and-commit-conventions). Local hooks can be skipped or uninstalled;
 they do not replace CI or repository access controls. No GitHub workflow is
 changed by this hook setup.
 
 Test the custom hook logic without committing project code:
 
 ```bash
-python3 -m unittest discover -s tools/hooks/tests -v
+uv run --project tools --only-group pre-commit --locked python -m unittest discover -s tools/hooks/tests -v
 ```
 
 
