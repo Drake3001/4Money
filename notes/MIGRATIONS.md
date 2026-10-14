@@ -28,7 +28,7 @@
 
 # migracje - CO KAŻDY ROBI LOKALNIE
 1. jak zrobicie połączenie z bazą to musicie zrobić zarejestrować migracje
-2. z poziomu folderu `ZPI4M.Backend`, rejestrujecie pustą migrację baseline w bazie (to jest stworzenie połączenie po prostu, w bazie nic się nie zmieni):
+2. z poziomu folderu `ZPI4M.Backend`, rejestrujecie stan bazy z ostatniej dostępnej migracji:
     `dotnet ef database update --project src/ZPI4M.User --startup-project src/ZPI4M.Api --context UserDbContext`
 
 # migracje - ogólnie
