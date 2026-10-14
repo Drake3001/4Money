@@ -129,8 +129,11 @@ build/
 *.dylib
 bin/
 
+# .NET intermediate build output
+obj/
 
-# Terraform 
+
+# Terraform
 .terraform/
 *.tfstate
 *.tfstate.*

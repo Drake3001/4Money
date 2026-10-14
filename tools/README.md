@@ -1,5 +1,7 @@
 # Local Git hooks
 
+Polska instrukcja dla deweloperów: [konfiguracja pre-commit](../notes/precommit_notes.md).
+
 uv and Git are required. The tools project requires Python 3.10+; uv can
 download a compatible interpreter if needed. Backend C# changes also require a
 compatible .NET 10+ SDK. Install the pinned tooling from the repository root:
@@ -60,21 +62,59 @@ Run all formatting and hygiene hooks, including after changing EditorConfig:
 uv run --project tools --only-group pre-commit --locked pre-commit run --all-files
 ```
 
-This command can modify files. Review them before staging. The current branch
-has no backend C# projects yet, so its .NET hook is skipped until those files
-arrive. Hook configuration does not create or merge the backend layout.
+This command can modify files. Review them before staging. The .NET hook is
+skipped when there are no C# files. Hook configuration does not create or merge
+the backend layout.
 
 `prepare-commit-msg` adds the ClickUp task from the branch before the commit
 editor opens; `commit-msg` rejects a task prefix with no description. See
 [ClickUp conventions](#clickup-branch-and-commit-conventions). Local hooks can be skipped or uninstalled;
-they do not replace CI or repository access controls. No GitHub workflow is
-changed by this hook setup.
+they do not replace CI or repository access controls.
 
-Test the custom hook logic without committing project code:
+# Backend CI
+
+The workflow runs repository hygiene checks independently of the backend:
+whitespace, final newlines, YAML, merge markers, and private-key detection.
+It does not execute hook tests or commit-message hooks.
+
+The backend job uses a .NET 10 SDK container on the existing self-hosted Linux
+runner, which must support Docker containers. The container installs Python 3
+for the CI helper; it requires access to the image’s system package repositories.
+GitHub, NuGet and the container registry must also be reachable. Same-repository
+PRs targeting master and manual workflow runs are supported.
+
+Backend detection uses tracked files, ignoring stale untracked build directories.
+Before the backend is merged, the summary explicitly reports checks as not run.
+Once present, a missing solution fails. The job restores, builds Release once,
+verifies style/whitespace, then executes unit and integration projects without
+rebuilding. Compiler/analyzer errors and formatting violations fail the check;
+other build warnings remain visible without being promoted to errors.
+
+Test projects under `backend/ZPI4M.Backend/tests/` must belong to the solution
+and end in `.UnitTests.csproj` or `.IntegrationTests.csproj`. Every test in each
+project runs; category annotations are not required. Suites without projects
+report **not configured**. Existing projects must produce TRX results with at
+least one executed test. Missing reports, zero executed tests, and test failures
+fail CI. Available reports are uploaded even after failure and retained for
+seven days. Database provisioning is not configured yet; integration tests must
+supply their own fixtures and must not rely on a developer's local database.
+
+Equivalent local checks, after the backend is merged:
 
 ```bash
-uv run --project tools --only-group pre-commit --locked python -m unittest discover -s tools/hooks/tests -v
+dotnet restore backend/ZPI4M.Backend/ZPI4M.Backend.slnx
+dotnet build backend/ZPI4M.Backend/ZPI4M.Backend.slnx --configuration Release --no-restore
+dotnet format style backend/ZPI4M.Backend/ZPI4M.Backend.slnx --severity warn --verify-no-changes --no-restore
+dotnet format whitespace backend/ZPI4M.Backend/ZPI4M.Backend.slnx --verify-no-changes --no-restore
+python tools/ci/backend_checks.py detect
+python tools/ci/backend_checks.py unit --results .cache/backend-results
+python tools/ci/backend_checks.py integration --results .cache/backend-results
 ```
+
+Use a new or empty results directory for each run; the helper rejects existing
+project result directories to prevent stale reports from hiding missing tests.
+On Linux, use `python3` if `python` is unavailable. All commands run from the
+repository root.
 
 
 # ClickUp branch and commit conventions

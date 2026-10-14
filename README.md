@@ -112,4 +112,6 @@ Terraform configuration and GitHub Actions setup: [proxmox-infra/README.md](prox
 
 ### Local Git hooks
 
+Polska instrukcja konfiguracji: [notes/precommit_notes.md](notes/precommit_notes.md).
+
 Hook installation, formatting checks, and ClickUp integration: [tools/README.md](tools/README.md).

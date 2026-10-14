@@ -4,18 +4,48 @@ on:
   pull_request:
     branches: [master]
     types: [opened, reopened, synchronize]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: backend-pr-${{ github.event.pull_request.number }}
+  group: backend-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  hygiene:
+    name: Repository hygiene
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: "0.9.4"
+          enable-cache: false
+
+      - name: Install locked tooling
+        run: uv sync --project tools --only-group pre-commit --locked --python 3.12
+
+      - name: Check repository hygiene
+        shell: bash
+        run: |
+          status=0
+          for hook in trailing-whitespace end-of-file-fixer check-yaml check-merge-conflict detect-private-key; do
+            uv run --project tools --only-group pre-commit --locked pre-commit run "$hook" --all-files || status=1
+          done
+          exit "$status"
+
   backend:
     name: Backend checks
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     container:
       image: mcr.microsoft.com/dotnet/sdk:10.0
@@ -33,26 +63,35 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Detect backend
-        id: detect
+      - name: Install CI helper runtime
         run: |
-          if [[ ! -d backend/ZPI4M.Backend ]]; then
-            echo "Backend not present — checks skipped"
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if [[ ! -f backend/ZPI4M.Backend/ZPI4M.Backend.slnx ]]; then
-            echo "::error::Backend exists but ZPI4M.Backend.slnx is missing."
-            exit 1
-          fi
-          echo "present=true" >> "$GITHUB_OUTPUT"
+          apt-get update
+          apt-get install -y --no-install-recommends python3
+
+      - name: Detect backend and validate test layout
+        id: detect
+        run: python3 tools/ci/backend_checks.py detect
+
+      - name: Prepare test results directory
+        if: steps.detect.outputs.present == 'true'
+        run: |
+          directory=$(mktemp -d "$RUNNER_TEMP/backend-results.XXXXXXXXXX")
+          echo "BACKEND_RESULTS=$directory" >> "$GITHUB_ENV"
 
       - name: Restore backend
+        id: restore
         if: steps.detect.outputs.present == 'true'
         working-directory: backend/ZPI4M.Backend
         run: dotnet restore ZPI4M.Backend.slnx
 
-      - name: Check style
+      - name: Build backend
+        id: build
+        if: steps.detect.outputs.present == 'true'
+        working-directory: backend/ZPI4M.Backend
+        run: dotnet build ZPI4M.Backend.slnx --configuration Release --no-restore
+
+      - name: Check style and whitespace
+        id: style
         if: steps.detect.outputs.present == 'true'
         working-directory: backend/ZPI4M.Backend
         run: |
@@ -60,11 +99,43 @@ jobs:
           dotnet format whitespace ZPI4M.Backend.slnx --verify-no-changes --no-restore
 
       - name: Run unit tests
-        if: steps.detect.outputs.present == 'true'
-        working-directory: backend/ZPI4M.Backend
-        run: dotnet test ZPI4M.Backend.slnx --configuration Release --no-restore --filter "Category=Unit"
+        id: unit
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: python3 tools/ci/backend_checks.py unit --results "$BACKEND_RESULTS"
 
       - name: Run integration tests
-        if: steps.detect.outputs.present == 'true'
-        working-directory: backend/ZPI4M.Backend
-        run: dotnet test ZPI4M.Backend.slnx --configuration Release --no-restore --filter "Category=Integration"
+        id: integration
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: python3 tools/ci/backend_checks.py integration --results "$BACKEND_RESULTS"
+
+      - name: Summarize backend checks
+        if: always()
+        env:
+          DETECT: ${{ steps.detect.outcome }}
+          RESTORE: ${{ steps.restore.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          STYLE: ${{ steps.style.outcome }}
+          UNIT: ${{ steps.unit.outcome }}
+          INTEGRATION: ${{ steps.integration.outcome }}
+        run: |
+          {
+            echo '| Step | Status |'
+            echo '| --- | --- |'
+            echo "| Backend detection | $DETECT |"
+            echo "| Restore | $RESTORE |"
+            echo "| Release build | $BUILD |"
+            echo "| Style and whitespace | $STYLE |"
+            echo "| Unit test runner | $UNIT |"
+            echo "| Integration test runner | $INTEGRATION |"
+            echo ''
+            echo 'Test availability and executed counts are reported above; a successful runner step can report a suite as not configured.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test results
+        if: ${{ always() && env.BACKEND_RESULTS != '' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backend-test-results
+          path: ${{ env.BACKEND_RESULTS }}/**/*.trx
+          if-no-files-found: ignore
+          retention-days: 7
