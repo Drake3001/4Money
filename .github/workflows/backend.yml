@@ -35,6 +35,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Trust checked-out workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Install locked tooling
         run: uv sync --project tools --only-group pre-commit --locked --python 3.12
 
@@ -66,14 +69,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install CI helper runtime
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends python3
+      - name: Trust checked-out workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Detect backend and validate test layout
+      - name: Detect backend
         id: detect
-        run: python3 tools/ci/backend_checks.py detect
+        run: bash tools/ci/backend_checks.sh detect
 
       - name: Prepare test results directory
         if: steps.detect.outputs.present == 'true'
@@ -98,18 +99,20 @@ jobs:
         if: steps.detect.outputs.present == 'true'
         working-directory: backend/ZPI4M.Backend
         run: |
-          dotnet format style ZPI4M.Backend.slnx --severity warn --verify-no-changes --no-restore
-          dotnet format whitespace ZPI4M.Backend.slnx --verify-no-changes --no-restore
+          status=0
+          dotnet format style ZPI4M.Backend.slnx --severity warn --verify-no-changes --no-restore || status=1
+          dotnet format whitespace ZPI4M.Backend.slnx --verify-no-changes --no-restore || status=1
+          exit "$status"
 
       - name: Run unit tests
         id: unit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: python3 tools/ci/backend_checks.py unit --results "$BACKEND_RESULTS"
+        run: bash tools/ci/backend_checks.sh unit --results "$BACKEND_RESULTS"
 
       - name: Run integration tests
         id: integration
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: python3 tools/ci/backend_checks.py integration --results "$BACKEND_RESULTS"
+        run: bash tools/ci/backend_checks.sh integration --results "$BACKEND_RESULTS"
 
       - name: Summarize backend checks
         if: always()
@@ -131,7 +134,7 @@ jobs:
             echo "| Unit test runner | $UNIT |"
             echo "| Integration test runner | $INTEGRATION |"
             echo ''
-            echo 'Test availability and executed counts are reported above; a successful runner step can report a suite as not configured.'
+            echo 'Project availability and dotnet exit statuses are reported above. Missing suites are not configured; empty projects may pass.'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload test results

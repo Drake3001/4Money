@@ -101,7 +101,9 @@ formatowanie nie oznacza, że backend się kompiluje lub że jego testy przechod
 CI osobno sprawdza higienę repozytorium oraz wykonuje restore, build Release,
 sprawdzenie formatowania i testy backendu. CI nie uruchamia testów hooków.
 Oba zadania CI działają w kontenerach Docker: higiena w obrazie Python/uv,
-a backend w obrazie SDK .NET. Zależności instalowane przez workflow trafiają
+a backend w obrazie SDK .NET, używając poleceń dotnet i skryptu Bash bez
+instalowania Pythona. Oba joby konfigurują Git safe.directory dla katalogu
+repozytorium po checkout, bez zapisywania poświadczeń. Zależności instalowane przez workflow trafiają
 do kontenerów. Na maszynie runnera wymagane są runner GitHub Actions oraz Docker;
 nie trzeba instalować tam uv, Pythona ani SDK .NET na potrzeby tych kontroli.
 Środowisko i cache narzędzi CI są oddzielone od lokalnego `tools/.venv`.
@@ -109,7 +111,16 @@ Kontenery nadal korzystają z procesora, pamięci i dysku maszyny runnera.
 Projekty testowe pod `backend/ZPI4M.Backend/tests/` muszą być dodane do rozwiązania
 oraz kończyć się na `.UnitTests.csproj` albo `.IntegrationTests.csproj`.
 W każdym projekcie uruchamiane są wszystkie testy, bez wymogu kategorii.
-Brak projektów oznacza „not configured”; istniejący projekt z zerową liczbą
-wykonanych testów powoduje błąd. Raporty TRX są przechowywane przez siedem dni.
+Skrypt wybiera śledzone projekty po tych nazwach, bez parsowania rozwiązania XML.
+Inne nazwy nie są wybierane. Brak projektów oznacza „not configured”; wynik
+istniejącego projektu zależy od kodu wyjścia dotnet test, więc pusty projekt
+może przejść. Raporty TRX nie są parsowane ani wymagane do sukcesu; dostępne
+raporty są przechowywane przez siedem dni. Wszystkie projekty są uruchamiane
+mimo błędu jednego z nich, a testy integracyjne działają również po błędzie
+formatowania lub testów jednostkowych, jeśli build przeszedł.
+Lokalnie: `bash tools/ci/backend_checks.sh detect` oraz
+`bash tools/ci/backend_checks.sh unit --results .cache/backend-results`
+(dla integracyjnych: `integration`). Skrypt raportuje dostępność projektów
+i wynik poleceń, bez liczenia wykonanych testów.
 
 Hooki można lokalnie pominąć, dlatego nie zastępują kontroli CI.

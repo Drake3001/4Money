@@ -126,21 +126,25 @@ class MasterGuardTests(unittest.TestCase):
         sha = "a" * 40
         for returned, expected in ((sha, True), ("b" * 40, False)):
             response = io.BytesIO(json.dumps({"object": {"type": "commit", "sha": returned}}).encode())
-            with patch.object(head.urllib.request, "urlopen", return_value=response):
-                self.assertEqual(head.current_master("Drake3001/zpi", sha, "not-a-real-token"), expected)
+            with patch.object(head.urllib.request, "urlopen", return_value=response) as request:
+                self.assertEqual(head.current_master("Drake3001/ZPI-4money", sha, "not-a-real-token"), expected)
+                self.assertEqual(
+                    request.call_args.args[0].full_url,
+                    "https://api.github.com/repos/Drake3001/ZPI-4money/git/ref/heads/master",
+                )
 
     def test_api_failure_and_invalid_response_fail_closed(self):
         with patch.object(head.urllib.request, "urlopen", side_effect=urllib.error.URLError("offline")):
             with self.assertRaises(urllib.error.URLError):
-                head.current_master("Drake3001/zpi", "a" * 40, "not-a-real-token")
+                head.current_master("Drake3001/ZPI-4money", "a" * 40, "not-a-real-token")
         with patch.object(head.urllib.request, "urlopen", return_value=io.BytesIO(b'{"object":{"type":"tag","sha":"invalid"}}')):
             with self.assertRaises(ValueError):
-                head.current_master("Drake3001/zpi", "a" * 40, "not-a-real-token")
+                head.current_master("Drake3001/ZPI-4money", "a" * 40, "not-a-real-token")
 
     def test_missing_authentication_fails_before_network(self):
         with patch.object(head.urllib.request, "urlopen") as request:
             with self.assertRaises(ValueError):
-                head.current_master("Drake3001/zpi", "a" * 40, "")
+                head.current_master("Drake3001/ZPI-4money", "a" * 40, "")
             request.assert_not_called()
 
 

@@ -81,14 +81,15 @@ Both jobs run in Docker containers on the existing self-hosted Linux runner.
 Repository hygiene uses `ghcr.io/astral-sh/uv:0.9.4-python3.12-bookworm`, which
 supplies uv, Python, Git and Bash. Its virtual environment and caches live under
 `/tmp` inside the container; CI does not reuse the developer's `tools/.venv`.
-The backend uses `mcr.microsoft.com/dotnet/sdk:10.0` and installs Python 3 inside
-that container for the CI helper.
+The backend uses `mcr.microsoft.com/dotnet/sdk:10.0` with native .NET commands
+and a small Bash helper; it does not install Python or system packages.
+Both jobs trust only the checked-out workspace through Git safe.directory
+after checkout, keeping credentials persistence disabled.
 
 The VM needs the GitHub Actions runner and Docker with permission to run
 containers; uv, Python and .NET do not need to be installed on the VM for these
-checks. GitHub, PyPI, NuGet, the container registries and the SDK image's system
-package repositories must be reachable. Containers still use the VM's CPU,
-memory and disk. Same-repository PRs targeting master and manual workflow runs
+checks. GitHub, PyPI, NuGet and the container registries must be reachable.
+Containers still use the VM's CPU, memory and disk. Same-repository PRs targeting master and manual workflow runs
 are supported. Change dependency images and installation steps in the workflow,
 rather than modifying the VM's language tooling.
 
@@ -100,13 +101,16 @@ rebuilding. Compiler/analyzer errors and formatting violations fail the check;
 other build warnings remain visible without being promoted to errors.
 
 Test projects under `backend/ZPI4M.Backend/tests/` must belong to the solution
-and end in `.UnitTests.csproj` or `.IntegrationTests.csproj`. Every test in each
-project runs; category annotations are not required. Suites without projects
-report **not configured**. Existing projects must produce TRX results with at
-least one executed test. Missing reports, zero executed tests, and test failures
-fail CI. Available reports are uploaded even after failure and retained for
-seven days. Database provisioning is not configured yet; integration tests must
-supply their own fixtures and must not rely on a developer's local database.
+and end in `.UnitTests.csproj` or `.IntegrationTests.csproj`. The Bash helper
+selects tracked projects by those suffixes, without parsing solution XML.
+Projects with other names are not selected. Every test in each selected project
+runs; category annotations are not required. Suites without projects report
+**not configured**. Success follows the exit code of `dotnet test`; empty
+projects may pass. Reports are not parsed or required for success. All selected
+projects are attempted, even after a project fails, and integration tests run
+after unit or formatting failures when the build succeeded. Available TRX
+reports are uploaded even after failure and retained for seven days. Database
+provisioning is not configured yet; integration tests must supply their own fixtures and must not rely on a developer's local database.
 
 Equivalent local checks, after the backend is merged:
 
@@ -115,15 +119,17 @@ dotnet restore backend/ZPI4M.Backend/ZPI4M.Backend.slnx
 dotnet build backend/ZPI4M.Backend/ZPI4M.Backend.slnx --configuration Release --no-restore
 dotnet format style backend/ZPI4M.Backend/ZPI4M.Backend.slnx --severity warn --verify-no-changes --no-restore
 dotnet format whitespace backend/ZPI4M.Backend/ZPI4M.Backend.slnx --verify-no-changes --no-restore
-python tools/ci/backend_checks.py detect
-python tools/ci/backend_checks.py unit --results .cache/backend-results
-python tools/ci/backend_checks.py integration --results .cache/backend-results
+bash tools/ci/backend_checks.sh detect
+bash tools/ci/backend_checks.sh unit --results .cache/backend-results
+bash tools/ci/backend_checks.sh integration --results .cache/backend-results
 ```
 
-Use a new or empty results directory for each run; the helper rejects existing
-project result directories to prevent stale reports from hiding missing tests.
-On Linux, use `python3` if `python` is unavailable. All commands run from the
-repository root.
+Use a fresh results directory for each run to keep reports separate. CI creates
+one automatically and uses separate subdirectories for each project. All
+commands run from the repository root. The helper reports project availability
+and command outcomes, not executed-test counts. Restore and build the solution
+after adding test projects; solution membership is a convention enforced by
+.NET build/test behavior rather than custom XML validation.
 
 
 # ClickUp branch and commit conventions
