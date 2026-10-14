@@ -61,6 +61,17 @@ def test_exif_orientation():
         assert image.getexif().get(274) is None
 
 
+def test_phone_mpo_uses_primary_photo_as_one_receipt_page():
+    output = BytesIO()
+    with Image.new("RGB", (40, 20), "white") as primary, Image.new("RGB", (10, 5), "black") as auxiliary:
+        primary.save(output, format="MPO", save_all=True, append_images=[auxiliary])
+    source = SourceFile(output.getvalue(), "image/jpeg", "phone.JPEG")
+    document = prepare_document([source])
+    assert len(document.pages) == 1
+    assert (document.pages[0].width, document.pages[0].height) == (40, 20)
+    assert document.sources[0].content == source.content
+
+
 @pytest.mark.parametrize("dpi", [72, 200])
 def test_pdf_rendering(dpi):
     source = pdf_source()

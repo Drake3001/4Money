@@ -109,6 +109,88 @@ Ocena korzysta z ręcznych wzorców luźnych zdjęć i tworzy `evaluation/report
 `report.json`. Jest heurystycznym audytem dopasowania nazw i kwot, bez roli parsera
 lub pomiaru CER/WER.
 
+## Zbiór testowy z Google Drive
+
+`dataset.py` pobiera nowe JPEG/PNG/PDF z publicznego folderu Drive i sprawdza
+ręcznie przygotowane wzorce. Domyślny link wskazuje folder Receipts użytkownika.
+Nie wymaga przeglądarki, OAuth ani cookies. Zależność jest opcjonalna:
+
+```powershell
+uv pip install --python .venv/Scripts/python.exe -e ".[dataset]"
+```
+
+Z katalogu repozytorium:
+
+```powershell
+# Pobierz nowe zdjęcia i przygotuj raport dla agenta.
+.\workers\extraction_worker\dataset.ps1
+
+# Sprawdź opisy po ręcznym uzupełnieniu, bez internetu.
+.\workers\extraction_worker\dataset.ps1 -CheckOnly
+```
+
+Można też uruchomić `dataset.py` przyciskiem Run Python File, z interpreterem
+workera, albo przez `.venv/Scripts/python.exe dataset.py`. Opcje Python:
+`--check-only`, `--drive-url`, `--input-dir`, `--report-dir`.
+Wrapper PowerShell przyjmuje `-DriveUrl`, jeśli zmieni się folder.
+
+Raport `.cache/dataset/report.md` zawiera listę zadań dla agenta, pełne ścieżki
+zdjęć i błędy pól, np. `items[0].quantity`. `report.json` zawiera te same dane
+do dalszego przetwarzania. JSON-y nie są generowane automatycznie: agent lub
+użytkownik przepisuje zdjęcia, użytkownik sprawdza treść, a skrypt ponownie
+sprawdza strukturę. Brak TXT jest informacją, nie błędem blokującym.
+Kod wyjścia 1 oznacza braki, błędy struktury/układu albo problem pobierania;
+0 oznacza brak takich problemów, nie potwierdzenie treści opisów.
+`review_status: "pending_user_review"` oznacza opis przygotowany przez agenta,
+który użytkownik ma jeszcze sprawdzić. Raport pokazuje te przypadki osobno;
+po sprawdzeniu można ustawić `review_status: "reviewed"`. Status nie blokuje
+eksperymentów i nie jest potwierdzeniem jakości OCR.
+
+W `deposits` kwoty są dodatnie. Gdy e-paragon nie drukuje ilości lub ceny
+jednostkowej kaucji, `quantity` i `unit_price` mają wartość `null`, a wydrukowana
+kwota pozostaje w `total`. Opcjonalne `deposit_returns` zapisuje zwroty opakowań
+z ujemnymi `unit_price`/`total`; nie należy ich dodawać do rabatów produktów.
+Kwota płatności obejmuje sumę produktów, kaucje wydane i ujemne zwroty.
+
+Układ danych (taki sam na Drive i lokalnie, z opisami przechowywanymi lokalnie):
+
+```text
+data/input/
+  pojedynczy.jpg
+  pojedynczy.expected.json
+  pojedynczy.expected.txt
+  dlugi-paragon/
+    01.jpg
+    02.jpg
+  dlugi-paragon.expected.json
+  dlugi-paragon.expected.txt
+```
+
+Dla folderu jeden JSON opisuje cały paragon. Ma `source: "dlugi-paragon"`
+i `sources: ["01.jpg", "02.jpg"]`, w kolejności alfabetycznej zgodnej z runnerem.
+Stosuj numery z zerami wiodącymi. Gdy zdjęcia mają wspólne fragmenty, każdą
+pozycję zakupową przepisz raz. Dodanie/usunięcie zdjęcia wykrywa walidator,
+a ocena OCR pomija wzorzec z nieaktualną listą `sources`. Luźne zdjęcia zachowują
+dotychczasowy format. Głębsze podfoldery są zgłaszane jako nieobsługiwane.
+
+Skrypt pobiera tylko media; nie pobiera opisów z Drive i nie nadpisuje lokalnych
+zdjęć ani JSON-ów. Pobrania są sprawdzane przed umieszczeniem w `input`, błędy
+pojedynczego pliku nie zatrzymują pozostałych. JPEG z dodatkowym obrazem MPO
+(np. mapa HDR z telefonu) jest obsługiwany; przygotowanie OCR używa głównego obrazu.
+
+Stan w `.cache/dataset/sync-state.json` przechowuje ID Drive i SHA-256 lokalnych
+plików. Istniejące zdjęcia są przy pierwszym uruchomieniu przyjmowane bez
+ponownego pobierania — skrypt nie potwierdza, że ich bajty są identyczne z Drive.
+Różne ID pod tą samą nazwą, duplikaty nazw oraz lokalne zmiany są zgłaszane.
+Przyjmujemy, że zdjęć na Drive nie podmieniasz w miejscu: zmiany treści pod tym
+samym ID nie są wykrywane bez ponownego pobierania. Zmieniony materiał dodaj jako
+nowy przypadek z nową nazwą. Skrypt nie usuwa lokalnych danych po usunięciu na Drive.
+
+Publiczne listowanie `gdown` zależy od strony Google i może przestać działać lub
+trafić na limit pobrań. Taki błąd trafia do raportu, a lokalna walidacja nadal działa.
+Uruchamiaj jedną synchronizację naraz. Zdjęcia, wzorce, raporty i stan pozostają
+w katalogach ignorowanych przez Git.
+
 ## Testy
 
 Uruchomienie z katalogu workera:

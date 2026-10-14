@@ -388,8 +388,17 @@ def write_evaluation(run_dir: Path, references_dir: Path, results=None) -> Path 
         try:
             reference = json.loads(path.read_text(encoding="utf-8"))
             source = reference["source"]
-            if Path(source).name != source:
-                raise ValueError("Reference source must be a filename")
+            if Path(source).name != source or source in (".", ".."):
+                raise ValueError("Reference source must be a filename or receipt folder name")
+            if (references_dir / source).is_dir():
+                from extraction.runner import MIME_TYPES
+
+                sources = sorted(
+                    p.name for p in (references_dir / source).iterdir()
+                    if p.is_file() and p.suffix.lower() in MIME_TYPES
+                )
+                if reference.get("sources") != sources:
+                    raise ValueError("Reference sources must match the receipt folder's ordered files")
             raw_path = run_dir / source / "result.json"
             if results is not None and source in results:
                 raw = results[source].output

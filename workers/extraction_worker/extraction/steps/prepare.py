@@ -104,7 +104,10 @@ def prepare_document(
             else:
                 with Image.open(BytesIO(source.content)) as image:
                     expected = "JPEG" if source.mime_type == "image/jpeg" else "PNG"
-                    if image.format != expected:
+                    # Phone JPEGs can include additional gain-map images (MPO).
+                    # Use their primary frame, like a normal photo viewer.
+                    accepted = {"JPEG", "MPO"} if expected == "JPEG" else {"PNG"}
+                    if image.format not in accepted:
                         raise PreparationError(
                             "invalid_file",
                             f"Image format does not match MIME type: {source.name}",
