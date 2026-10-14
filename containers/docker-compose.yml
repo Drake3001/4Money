@@ -1,9 +1,8 @@
 name: zpi4m
 
 services:
-  zpi4m-db:
+  postgres-db:
     image: postgres:15-alpine
-    container_name: zpi4m-db
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
