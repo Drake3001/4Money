@@ -209,3 +209,44 @@ def test_report_skips_missing_ocr_and_cannot_overwrite(tmp_path):
 def test_no_references_do_not_create_output(tmp_path):
     assert write_evaluation(tmp_path, tmp_path) is None
     assert not (tmp_path / "evaluation").exists()
+
+
+def test_aldi_star_and_reference_tax_suffix_are_supported():
+    data = reference()
+    data["items"][0].update(name="REKLAMÓWKA T-SHIRT", tax_code="A")
+    result = audit_receipt(data, raw([line("REKLAMÓWKA T-SHIRT A", 10), line("1SZT * 3,95 3,95 A", 10, 200)]))
+    assert result["items"][0]["name_status"] == "match"
+    assert result["numeric_field_counts"] == {"match": 4}
+    wrong = audit_receipt(data, raw([line("REKLAMÓWKA T-SHIRT B", 10)]))
+    assert wrong["items"][0]["name_status"] == "approximate"
+
+
+def test_split_purchase_fragments_are_joined_without_borrowing_next_row():
+    data = reference()
+    data["items"].append({**data["items"][0], "name": "Bułka", "unit_price": "2.00", "before_discount": "2.00", "total": "2.00"})
+    result = audit_receipt(data, raw([
+        line("Napój mlecz. F", 10), line("1szt. x3,95", 12, 200), line("3,95C", 12, 350),
+        line("Bułka", 30), line("1 x2,00 2,00C", 30, 200)]))
+    assert [item["fields"]["total"]["observed"] for item in result["items"]] == [["3.95"], ["2.00"]]
+
+
+def test_unprinted_total_is_derived_only_from_observed_numbers():
+    data = reference()
+    data["items"][0].update(discount="-0.95", total="3.00", total_is_printed=False)
+    result = audit_receipt(data, raw([line("Napój mlecz. F", 10), line("1 x3,95 3,95C", 10, 200), line("OPUST -0,95", 35)]))
+    item = result["items"][0]
+    assert item["fields"]["total"]["status"] == "not_printed"
+    assert item["computed_total"]["observed"] == ["3.00"]
+    assert result["numeric_field_counts"] == {"match": 4}
+    wrong = audit_receipt(data, raw([line("Napój mlecz. F", 10), line("1 x3,95 3,95C", 10, 200), line("OPUST -0,90", 35)]))
+    assert wrong["items"][0]["computed_total"]["status"] == "different"
+
+
+def test_merchant_is_matched_only_in_header_and_keeps_diacritic_errors():
+    data = {**reference(), "store": "Żabka"}
+    result = audit_receipt(data, raw([line('Sklep "ŻABKA" nr Z123', 0), line("PARAGON FISKALNY", 15), line("Napój mlecz. F", 30)]))
+    assert result["merchant"]["status"] == "match"
+    approximate = audit_receipt(data, raw([line('Sklep "ZABKA"', 0), line("PARAGON FISKALNY", 15), line("Napój mlecz. F", 30)]))
+    assert approximate["merchant"]["status"] == "approximate"
+    footer = audit_receipt(data, raw([line("PARAGON FISKALNY", 0), line("Napój mlecz. F", 30), line("ŻABKA reklama", 100)]))
+    assert footer["merchant"]["status"] == "missing"

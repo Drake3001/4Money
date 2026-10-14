@@ -15,7 +15,7 @@ from extraction.reporting import to_dict
 NAME_THRESHOLD = 0.65
 NUMBER = r"\d+(?:[.,]\d+)?"
 PURCHASE = re.compile(
-    rf"(?<![\w.,])({NUMBER})(?:\s*(?:szt\.?|kg|g|l))?\s*[x×]\s*({NUMBER})\s+({NUMBER})(?![\d.,])",
+    rf"(?<![\w.,])({NUMBER})(?:\s*(?:szt\.?|kg|g|l))?\s*[x×*]\s*({NUMBER})\s+({NUMBER})(?![\d.,])",
     re.IGNORECASE,
 )
 MONEY = re.compile(r"(?<![\w.,])-?\s*\d+[.,]\d{2}(?!\d)")
@@ -79,6 +79,11 @@ def _name_score(item: dict, line: dict) -> float:
                 re.sub(rf"\s+{re.escape(marker)}\s*$", "", text, flags=re.IGNORECASE)
             )
         )
+    tax_code = item.get("tax_code")
+    if tax_code:
+        candidates.append(normalize_name(re.sub(
+            rf"\s+{re.escape(tax_code)}\s*$", "", text, flags=re.IGNORECASE
+        )))
     return max(
         SequenceMatcher(None, expected, candidate, autojunk=False).ratio()
         for candidate in candidates
@@ -128,6 +133,54 @@ def _check(expected: str, observed: list[Decimal]) -> dict:
         "observed": [str(value) for value in values],
         "status": status,
     }
+
+
+def _purchase_fragments(index, anchors, lines):
+    """Assign each fragment once by geometry, without using expected prices."""
+    if index not in anchors:
+        return []
+    fragments = []
+    for line in lines:
+        distances = []
+        for owner, candidate in anchors.items():
+            if line["page"] != candidate["page"]:
+                continue
+            dy = line["y"] - candidate["slope"] * (line["x"] - candidate["x"]) - candidate["y"]
+            distances.append((abs(dy) / max(candidate["height"], line["height"]), owner))
+        if distances:
+            distance, owner = min(distances)
+            if owner == index and distance <= 0.85:
+                fragments.append(line)
+    return sorted(fragments, key=lambda line: line["x"])
+
+
+def _merchant(reference, lines, anchors):
+    expected = reference.get("store")
+    if not expected:
+        return {"expected": None, "observed": None, "status": "not_available"}
+    header = []
+    first_anchor = min((a["y"] for a in anchors.values() if a["page"] == 1), default=float("inf"))
+    for line in lines:
+        if line["page"] != 1 or line["y"] >= first_anchor:
+            continue
+        if normalize_name(line["text"]).startswith("paragonfiskalny"):
+            break
+        header.append(line)
+    target = normalize_name(expected)
+    candidates = []
+    length = len(re.findall(r"[\w]+", expected))
+    for line in header:
+        words = re.findall(r"[\w]+", line["text"], flags=re.UNICODE)
+        for start in range(len(words) - length + 1):
+            word = " ".join(words[start:start + length])
+            score = SequenceMatcher(None, target, normalize_name(word), autojunk=False).ratio()
+            candidates.append((score, word, line))
+    if not candidates or max(c[0] for c in candidates) < 0.75:
+        return {"expected": expected, "observed": None, "status": "missing", "scope": "header"}
+    score, word, line = max(candidates, key=lambda candidate: candidate[0])
+    return {"expected": expected, "observed": word,
+            "status": "match" if score == 1 else "approximate", "similarity": round(score, 4),
+            "scope": "header", "evidence": {"text": line["text"], "box": line["box"], "page": line["page"]}}
 
 
 def audit_receipt(reference: dict, raw: OCRResult | dict) -> dict:
@@ -194,10 +247,11 @@ def audit_receipt(reference: dict, raw: OCRResult | dict) -> dict:
                 if abs(projected_y(line) - anchor["y"])
                 <= 0.5 * max(anchor["height"], line["height"])
             ]
+        purchase_lines = _purchase_fragments(index, anchors, lines)
+        purchase_text = " ".join(line["text"] for line in purchase_lines)
         patterns = [
             tuple(_decimal(value) for value in match.groups())
-            for line in purchase_lines
-            for match in PURCHASE.finditer(line["text"])
+            for match in PURCHASE.finditer(purchase_text)
         ]
         for field, position in (
             ("quantity", 0),
@@ -226,7 +280,16 @@ def audit_receipt(reference: dict, raw: OCRResult | dict) -> dict:
                 for match in MONEY.finditer(line["text"])
                 if _decimal(match.group()) >= 0
             ]
-            entry["fields"]["total"] = _check(item["total"], totals)
+            if item.get("total_is_printed", True):
+                entry["fields"]["total"] = _check(item["total"], totals)
+            else:
+                entry["fields"]["total"] = {"expected": item["total"], "observed": [], "status": "not_printed"}
+                gross = entry["fields"]["before_discount"]
+                discount = entry["fields"]["discount"]
+                values = [Decimal(gross["observed"][0]) + Decimal(discount["observed"][0])] if (
+                    len(gross["observed"]) == len(discount["observed"]) == 1
+                ) else []
+                entry["computed_total"] = {**_check(item["total"], values), "basis": "observed_gross_plus_discount"}
         else:
             # No printed discount to score. The third purchase number is total.
             entry["fields"]["total"] = _check(
@@ -236,6 +299,7 @@ def audit_receipt(reference: dict, raw: OCRResult | dict) -> dict:
             {"text": line["text"], "page": line["page"], "box": line["box"]}
             for line in window
         ]
+        entry["purchase_evidence"] = [{"text": line["text"], "page": line["page"], "box": line["box"]} for line in purchase_lines]
         entry["reference_uncertainties"] = [
             uncertain
             for uncertain in reference.get("uncertain_fields", [])
@@ -262,6 +326,7 @@ def audit_receipt(reference: dict, raw: OCRResult | dict) -> dict:
     counters = Counter(entry["name_status"] for entry in items)
     fields = Counter(
         check["status"] for entry in items for check in entry["fields"].values()
+        if check["status"] != "not_printed"
     )
     return {
         "source": reference["source"],
@@ -271,6 +336,8 @@ def audit_receipt(reference: dict, raw: OCRResult | dict) -> dict:
         "expected_item_count": len(items),
         "name_counts": dict(counters),
         "numeric_field_counts": dict(fields),
+        "derived_field_counts": dict(Counter(item["computed_total"]["status"] for item in items if "computed_total" in item)),
+        "merchant": _merchant(reference, lines, anchors),
         "document_values": {**amounts, **dates},
         "items": items,
     }
@@ -288,15 +355,17 @@ def _markdown(report: dict) -> str:
         "Nazwy ignorują wielkość liter, odstępy i interpunkcję; zachowują polskie znaki.",
         "Dopasowanie przybliżone wskazuje kandydata (próg 0,65), a nie poprawny odczyt.",
         "Liczby sprawdzamy w obszarze przy dopasowanym produkcie. Kilka różnych wartości oznacza niejednoznaczność.",
+        "Fragmenty wiersza zakupowego łączymy według położenia; obsługujemy x, × i *. Kod podatkowy na końcu nazwy oddzielamy tylko zgodnie ze wzorcem.",
+        "Kwoty oznaczone jako niewydrukowane oceniamy osobno przez obliczenie z odczytanych danych; nie wliczamy ich do odczytu liczb.",
         "Nie zgadujemy cyfr, nie poprawiamy nazw i nie liczymy CER/WER całego zdjęcia.",
         "",
-        "| Paragon | Pozycje wzorca | Nazwy zgodne | Przybliżone | Brak nazwy | Liczby zgodne | Inne / brak / niejednoznaczne |",
-        "|---|---:|---:|---:|---:|---:|---:|",
+        "| Paragon | Sklep | Pozycje wzorca | Nazwy zgodne | Przybliżone | Brak nazwy | Liczby zgodne | Inne / brak / niejednoznaczne | Obliczone zgodne |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for case in report["cases"]:
         names, fields = case["name_counts"], case["numeric_field_counts"]
         output.append(
-            f"| {_cell(case['source'])} | {case['expected_item_count']} | {names.get('match', 0)} | {names.get('approximate', 0)} | {names.get('missing', 0)} | {fields.get('match', 0)} | {sum(fields.values()) - fields.get('match', 0)} |"
+            f"| {_cell(case['source'])} | {case['merchant']['status']} | {case['expected_item_count']} | {names.get('match', 0)} | {names.get('approximate', 0)} | {names.get('missing', 0)} | {fields.get('match', 0)} | {sum(fields.values()) - fields.get('match', 0)} | {case['derived_field_counts'].get('match', 0)} |"
         )
     for case in report["cases"]:
         output.extend(
@@ -313,11 +382,14 @@ def _markdown(report: dict) -> str:
             output.append(
                 f"- {field}: `{value['expected']}` — {'znaleziono' if value['present_in_document'] else 'brak'}."
             )
+        merchant = case["merchant"]
+        output.extend(["", f"Sklep (marka w nagłówku): `{_cell(merchant['expected'])}` ← `{_cell(merchant['observed'] or 'brak')}` — {merchant['status']}.",
+                       "Brak dopasowania marki w nagłówku nie dowodzi błędu OCR: marka może nie być wydrukowana."])
         output.extend(
             [
                 "",
-                "| # | Nazwa oczekiwana | Fragment OCR | Nazwa | Ilość | Cena jedn. | Przed rabatem | Rabat | Końcowa kwota |",
-                "|---:|---|---|---|---|---|---|---|---|",
+                "| # | Nazwa oczekiwana | Fragment OCR | Nazwa | Ilość | Cena jedn. | Przed rabatem | Rabat | Końcowa kwota wydrukowana | Obliczona kwota |",
+                "|---:|---|---|---|---|---|---|---|---|---|",
             ]
         )
         for item in case["items"]:
@@ -340,6 +412,7 @@ def _markdown(report: dict) -> str:
             output.append(
                 f"| {item['number']} | {_cell(item['expected_name'])} | {_cell(item['observed_name'] or 'brak')} | {item['name_status']} | "
                 + " | ".join(checks)
+                + " | " + (_cell(f"{item['computed_total']['status']}: {item['computed_total']['expected']} ← {', '.join(item['computed_total']['observed']) or 'brak danych'}") if "computed_total" in item else "—")
                 + " |"
             )
         uncertain = [
@@ -356,8 +429,9 @@ def _markdown(report: dict) -> str:
             "## Jak interpretować",
             "",
             "`match`: zgodne po opisanej normalizacji; `approximate`: podobny fragment do ręcznej kontroli;",
-            "`missing`: nie znaleziono; `different`: jedna odczytana wartość różni się od wzorca;",
+            "`missing`: audyt nie przypisał wartości do pozycji (nie dowodzi braku w OCR); `different`: jedna odczytana wartość różni się od wzorca;",
             "`ambiguous`: kilka różnych wartości w obszarze — brak pewnego przypisania.",
+            "`not_printed`: kwota niewydrukowana według adnotacji; jej obliczenie jest osobną kontrolą, nie odczytem OCR.",
             "",
             "Okna przestrzenne i dopasowanie nazw są heurystyką. Przechylone kolumny, brak nazwy lub brak granicy",
             "między ostatnim produktem a podsumowaniem mogą mieszać liczby. Szczegóły i współrzędne są w report.json.",
@@ -378,7 +452,8 @@ def write_evaluation(run_dir: Path, references_dir: Path, results=None) -> Path 
     if not references:
         return None
     report = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "audit_settings": {"purchase_max_distance_in_heights": 0.85, "merchant_threshold": 0.75, "merchant_scope": "header"},
         "run": run_dir.name,
         "name_threshold": NAME_THRESHOLD,
         "cases": [],

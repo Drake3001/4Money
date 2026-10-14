@@ -8,7 +8,6 @@ from extraction.runner import run_batch
 from extraction.steps.docscan import DocscanStep
 from extraction.steps.prepare import PrepareDocumentStep
 from extraction.steps.rapidocr import RapidOCRStep
-from extraction.steps.uvdoc import UVDocStep
 
 WORKER_DIR = Path(__file__).resolve().parent
 INPUT_DIR = WORKER_DIR / "data" / "input"
@@ -22,8 +21,7 @@ def build_pipeline():
     return Pipeline(
         [
             ("prepare", PrepareDocumentStep(pdf_dpi=PDF_DPI)),
-            ("docscan", DocscanStep()),
-            ("UVDoc", UVDocStep()),
+            # ("docscan", DocscanStep()),
             ("ocr", RapidOCRStep()),
         ]
     )

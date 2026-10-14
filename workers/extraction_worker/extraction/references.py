@@ -60,6 +60,8 @@ def validate_reference(value, source=None, sources=None):
                 errors.append(f"items[{index}]: expected an object")
                 continue
             text(item, "name", prefix)
+            if "total_is_printed" in item and not isinstance(item["total_is_printed"], bool):
+                errors.append(f"{prefix}total_is_printed: expected a boolean")
             text(item, "unit", prefix, nullable=True)
             number(item, "quantity", prefix, nonnegative=True)
             for key in ("unit_price", "before_discount", "discount", "total"):

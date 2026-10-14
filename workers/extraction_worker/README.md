@@ -22,7 +22,8 @@ Ustawienia w `main.py`:
 | `DEBUG` | Zapis obrazów po poszczególnych krokach |
 | `EXPERIMENT` | `None`: zwykły pipeline; `"preprocessing"`: porównanie wariantów |
 
-Obecna konfiguracja łączy przygotowanie, docscan, UVDoc i RapidOCR. Modele ładują się
+Obecna konfiguracja łączy przygotowanie, docscan i RapidOCR. UVDoc pozostaje
+dostępny w eksperymencie preprocessingu. Modele ładują się
 przy pierwszym użyciu i są ponownie wykorzystywane. Błąd paragonu nie zatrzymuje
 pozostałych; kod wyjścia 1 sygnalizuje niepowodzenie.
 
@@ -108,6 +109,17 @@ perspektywę przy braku narożników, a UVDoc może zniekształcić treść.
 Ocena korzysta z ręcznych wzorców luźnych zdjęć i tworzy `evaluation/report.md` oraz
 `report.json`. Jest heurystycznym audytem dopasowania nazw i kwot, bez roli parsera
 lub pomiaru CER/WER.
+
+Audyt v2 obsługuje `x`, `×` i `*`, łączy fragmenty wiersza zakupowego według
+geometrii i przypisuje każdy fragment do najwyżej jednej dopasowanej nazwy.
+Usuwa przy porównaniu tylko zgodny ze wzorcem, osobno wydrukowany kod podatku.
+Markę z `store` sprawdza w nagłówku pierwszej strony; brak dopasowania nie
+oznacza automatycznie błędu OCR ani nie identyfikuje prawnej nazwy sprzedawcy.
+Pole pozycji `total_is_printed: false` oznacza niewydrukowaną kwotę końcową.
+Nie jest ona liczona jako odczyt OCR: osobna kontrola sprawdza sumę odczytanej
+kwoty przed rabatem i odczytanego rabatu. Bez tego pola zachowujemy dotychczasowe
+założenie, że kwota jest wydrukowana. `missing` oznacza brak przypisania przez
+audyt, a nie potwierdzony brak wartości w surowym tekście OCR.
 
 ## Zbiór testowy z Google Drive
 
