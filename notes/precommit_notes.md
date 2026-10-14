@@ -100,6 +100,12 @@ formatowanie nie oznacza, że backend się kompiluje lub że jego testy przechod
 
 CI osobno sprawdza higienę repozytorium oraz wykonuje restore, build Release,
 sprawdzenie formatowania i testy backendu. CI nie uruchamia testów hooków.
+Oba zadania CI działają w kontenerach Docker: higiena w obrazie Python/uv,
+a backend w obrazie SDK .NET. Zależności instalowane przez workflow trafiają
+do kontenerów. Na maszynie runnera wymagane są runner GitHub Actions oraz Docker;
+nie trzeba instalować tam uv, Pythona ani SDK .NET na potrzeby tych kontroli.
+Środowisko i cache narzędzi CI są oddzielone od lokalnego `tools/.venv`.
+Kontenery nadal korzystają z procesora, pamięci i dysku maszyny runnera.
 Projekty testowe pod `backend/ZPI4M.Backend/tests/` muszą być dodane do rozwiązania
 oraz kończyć się na `.UnitTests.csproj` albo `.IntegrationTests.csproj`.
 W każdym projekcie uruchamiane są wszystkie testy, bez wymogu kategorii.

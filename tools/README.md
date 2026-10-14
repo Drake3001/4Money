@@ -77,11 +77,20 @@ The workflow runs repository hygiene checks independently of the backend:
 whitespace, final newlines, YAML, merge markers, and private-key detection.
 It does not execute hook tests or commit-message hooks.
 
-The backend job uses a .NET 10 SDK container on the existing self-hosted Linux
-runner, which must support Docker containers. The container installs Python 3
-for the CI helper; it requires access to the image’s system package repositories.
-GitHub, NuGet and the container registry must also be reachable. Same-repository
-PRs targeting master and manual workflow runs are supported.
+Both jobs run in Docker containers on the existing self-hosted Linux runner.
+Repository hygiene uses `ghcr.io/astral-sh/uv:0.9.4-python3.12-bookworm`, which
+supplies uv, Python, Git and Bash. Its virtual environment and caches live under
+`/tmp` inside the container; CI does not reuse the developer's `tools/.venv`.
+The backend uses `mcr.microsoft.com/dotnet/sdk:10.0` and installs Python 3 inside
+that container for the CI helper.
+
+The VM needs the GitHub Actions runner and Docker with permission to run
+containers; uv, Python and .NET do not need to be installed on the VM for these
+checks. GitHub, PyPI, NuGet, the container registries and the SDK image's system
+package repositories must be reachable. Containers still use the VM's CPU,
+memory and disk. Same-repository PRs targeting master and manual workflow runs
+are supported. Change dependency images and installation steps in the workflow,
+rather than modifying the VM's language tooling.
 
 Backend detection uses tracked files, ignoring stale untracked build directories.
 Before the backend is merged, the summary explicitly reports checks as not run.
