@@ -1,0 +1,6 @@
+@ZPI4M.Api_HostAddress = http://localhost:5283
+
+GET {{ZPI4M.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

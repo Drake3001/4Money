@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ZPI4M.Banking\ZPI4M.Banking.csproj" />
+    <ProjectReference Include="..\ZPI4M.Expense\ZPI4M.Expense.csproj" />
+    <ProjectReference Include="..\ZPI4M.Grouping\ZPI4M.Grouping.csproj" />
+    <ProjectReference Include="..\ZPI4M.Limits\ZPI4M.Limits.csproj" />
+    <ProjectReference Include="..\ZPI4M.Receipt\ZPI4M.Receipt.csproj" />
+    <ProjectReference Include="..\ZPI4M.User\ZPI4M.User.csproj" />
+  </ItemGroup>
+
+</Project>
