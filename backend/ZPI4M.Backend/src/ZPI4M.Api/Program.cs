@@ -1,5 +1,5 @@
-using Microsoft.EntityFrameworkCore;
 using DotNetEnv;
+using Microsoft.EntityFrameworkCore;
 using ZPI4M.Database;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,14 +16,14 @@ builder.Services.AddOpenApi();
 // Add database context
 var dbConnectionString = Environment.GetEnvironmentVariable("DB_LOCAL_CONNECTION_STRING");
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(dbConnectionString, npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "public")));
+	options.UseNpgsql(dbConnectionString, npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "public")));
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+	app.MapOpenApi();
 }
 
 app.UseHttpsRedirection();
