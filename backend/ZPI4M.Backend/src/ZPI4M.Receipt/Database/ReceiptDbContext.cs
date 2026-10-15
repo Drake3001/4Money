@@ -16,21 +16,8 @@ public partial class ReceiptDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Models.Receipt>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("receipt_pkey");
-
-            entity.ToTable("receipt", "receipt");
-
-            entity.Property(e => e.Id)
-                .ValueGeneratedNever()
-                .HasColumnName("_id");
-            entity.Property(e => e.ExtractionResult)
-                .HasColumnType("jsonb")
-                .HasColumnName("extraction_result");
-            entity.Property(e => e.S3Link).HasColumnName("s3_link");
-        });
-
+        base.OnModelCreating(modelBuilder);
+        ReceiptConfiguration.Configure(modelBuilder);
         OnModelCreatingPartial(modelBuilder);
     }
 
