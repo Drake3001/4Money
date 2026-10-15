@@ -14,4 +14,13 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\ZPI4M.Banking\ZPI4M.Banking.csproj" />
+    <ProjectReference Include="..\ZPI4M.Expense\ZPI4M.Expense.csproj" />
+    <ProjectReference Include="..\ZPI4M.Grouping\ZPI4M.Grouping.csproj" />
+    <ProjectReference Include="..\ZPI4M.Limits\ZPI4M.Limits.csproj" />
+    <ProjectReference Include="..\ZPI4M.Receipt\ZPI4M.Receipt.csproj" />
+    <ProjectReference Include="..\ZPI4M.User\ZPI4M.User.csproj" />
+  </ItemGroup>
+
 </Project>

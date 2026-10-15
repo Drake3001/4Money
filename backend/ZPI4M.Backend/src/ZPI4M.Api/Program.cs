@@ -16,7 +16,7 @@ builder.Services.AddOpenApi();
 // Add database context
 var dbConnectionString = Environment.GetEnvironmentVariable("DB_LOCAL_CONNECTION_STRING");
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(dbConnectionString, npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory")), "public");
+    options.UseNpgsql(dbConnectionString, npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "public")));
 
 var app = builder.Build();
 

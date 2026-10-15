@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ZPI4M.Banking\ZPI4M.Banking.csproj" />
+    <ProjectReference Include="..\ZPI4M.Database\ZPI4M.Database.csproj" />
     <ProjectReference Include="..\ZPI4M.Expense\ZPI4M.Expense.csproj" />
     <ProjectReference Include="..\ZPI4M.Grouping\ZPI4M.Grouping.csproj" />
     <ProjectReference Include="..\ZPI4M.Limits\ZPI4M.Limits.csproj" />

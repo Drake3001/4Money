@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/ZPI4M.Api/ZPI4M.Api.csproj" />
     <Project Path="src/ZPI4M.Banking/ZPI4M.Banking.csproj" />
+    <Project Path="src/ZPI4M.Database/ZPI4M.Database.csproj" Id="138a12da-b62a-4818-816e-a396a8eaabba" />
     <Project Path="src/ZPI4M.Expense/ZPI4M.Expense.csproj" />
     <Project Path="src/ZPI4M.Grouping/ZPI4M.Grouping.csproj" />
     <Project Path="src/ZPI4M.Limits/ZPI4M.Limits.csproj" />

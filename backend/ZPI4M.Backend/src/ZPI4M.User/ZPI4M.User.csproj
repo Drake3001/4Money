@@ -9,7 +9,6 @@
   <ItemGroup>
     <Folder Include="ApiControllers\" />
     <Folder Include="DTOs\" />
-    <Folder Include="Database\" />
     <Folder Include="Repositories\" />
     <Folder Include="Services\" />
   </ItemGroup>
