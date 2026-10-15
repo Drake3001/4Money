@@ -1,0 +1,126 @@
+name: Terraform Deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Serialize deployments without cancelling an active apply.
+concurrency:
+  group: terraform-proxmox-lab-deploy
+  cancel-in-progress: false
+
+jobs:
+  terraform:
+    name: Terraform deployment
+    # Manual deployments are also restricted to the protected branch.
+    if: github.ref == 'refs/heads/master'
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: proxmox-infra
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Check runner tools
+        run: |
+          for tool in git unzip curl python3; do
+            if ! command -v "$tool" > /dev/null; then
+              echo "::error::Missing runner dependency: $tool. Install it during host maintenance."
+              exit 1
+            fi
+          done
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: "1.15.9"
+          terraform_wrapper: false
+
+      - name: Test deployment safeguards
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
+
+      - name: Check required configuration
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+          PROXMOX_VE_API_TOKEN: ${{ secrets.PROXMOX_VE_API_TOKEN }}
+          PROXMOX_VE_ENDPOINT: ${{ vars.PROXMOX_VE_ENDPOINT }}
+          PROXMOX_VE_INSECURE: ${{ vars.PROXMOX_VE_INSECURE }}
+          TF_VAR_test_vm_ssh_public_key: ${{ vars.TEST_VM_SSH_PUBLIC_KEY }}
+        run: |
+          for variable in TF_TOKEN_app_terraform_io PROXMOX_VE_API_TOKEN PROXMOX_VE_ENDPOINT PROXMOX_VE_INSECURE TF_VAR_test_vm_ssh_public_key; do
+            if [[ -z "${!variable}" ]]; then
+              echo "::error::Missing required GitHub secret or variable: $variable"
+              exit 1
+            fi
+          done
+          case "$PROXMOX_VE_INSECURE" in
+            true|false) ;;
+            *) echo "::error::PROXMOX_VE_INSECURE must be true or false"; exit 1 ;;
+          esac
+
+      - name: Prepare private plan directory
+        run: |
+          directory=$(mktemp -d "$RUNNER_TEMP/proxmox-plan.XXXXXXXXXX")
+          echo "TF_PLAN_DIR=$directory" >> "$GITHUB_ENV"
+
+      - name: Terraform Init
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+        run: terraform init -input=false -lockfile=readonly -no-color
+
+      - name: Terraform Validate
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        id: plan
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+          PROXMOX_VE_ENDPOINT: ${{ vars.PROXMOX_VE_ENDPOINT }}
+          PROXMOX_VE_API_TOKEN: ${{ secrets.PROXMOX_VE_API_TOKEN }}
+          PROXMOX_VE_INSECURE: ${{ vars.PROXMOX_VE_INSECURE }}
+          TF_VAR_test_vm_ssh_public_key: ${{ vars.TEST_VM_SSH_PUBLIC_KEY }}
+        run: bash scripts/ci-plan.sh
+
+      - name: Check current master before apply
+        id: head
+        if: steps.plan.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/check-current-master.py
+
+      - name: Terraform Apply
+        if: steps.plan.outputs.has_changes == 'true' && steps.head.outputs.current == 'true'
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+          PROXMOX_VE_ENDPOINT: ${{ vars.PROXMOX_VE_ENDPOINT }}
+          PROXMOX_VE_API_TOKEN: ${{ secrets.PROXMOX_VE_API_TOKEN }}
+          PROXMOX_VE_INSECURE: ${{ vars.PROXMOX_VE_INSECURE }}
+        run: |
+          terraform apply -input=false -lock-timeout=5m -no-color "$TF_PLAN_DIR/deployment.tfplan"
+          echo "Applied commit $GITHUB_SHA. State is stored in HCP Terraform." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Clean up saved plan
+        if: always()
+        run: |
+          directory="${TF_PLAN_DIR:-}"
+          suffix="${directory#"$RUNNER_TEMP/proxmox-plan."}"
+          if [[ "$directory" == "$RUNNER_TEMP"/proxmox-plan.* && "$suffix" =~ ^[A-Za-z0-9]+$ ]]; then
+            rm -rf -- "$directory"
+          fi

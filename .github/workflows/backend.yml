@@ -1,0 +1,161 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hygiene:
+    name: Repository hygiene
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64]
+    container:
+      image: ghcr.io/astral-sh/uv:0.9.4-python3.12-bookworm
+      options: --user 1000:1000
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      UV_PYTHON_DOWNLOADS: never
+      UV_PROJECT_ENVIRONMENT: /tmp/zpi-tools-venv
+      UV_CACHE_DIR: /tmp/uv-cache
+      PRE_COMMIT_HOME: /tmp/pre-commit
+    steps:
+      - name: Prepare writable home
+        run: |
+          directory=$(mktemp -d /tmp/zpi-home.XXXXXXXXXX)
+          echo "HOME=$directory" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Trust checked-out workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Install locked tooling
+        run: uv sync --project tools --only-group pre-commit --locked --python 3.12
+
+      - name: Check repository hygiene
+        run: |
+          status=0
+          for hook in trailing-whitespace end-of-file-fixer check-yaml check-merge-conflict detect-private-key; do
+            uv run --project tools --only-group pre-commit --locked pre-commit run "$hook" --all-files || status=1
+          done
+          exit "$status"
+
+  backend:
+    name: Backend checks
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64]
+    container:
+      image: mcr.microsoft.com/dotnet/sdk:10.0
+      options: --user 1000:1000
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_HOME: /tmp/dotnet-home
+      NUGET_PACKAGES: /tmp/nuget-packages
+
+    steps:
+      - name: Prepare writable home
+        run: |
+          directory=$(mktemp -d /tmp/zpi-home.XXXXXXXXXX)
+          echo "HOME=$directory" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Trust checked-out workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Detect backend
+        id: detect
+        run: bash tools/ci/backend_checks.sh detect
+
+      - name: Prepare test results directory
+        if: steps.detect.outputs.present == 'true'
+        run: |
+          directory=$(mktemp -d "$RUNNER_TEMP/backend-results.XXXXXXXXXX")
+          echo "BACKEND_RESULTS=$directory" >> "$GITHUB_ENV"
+
+      - name: Restore backend
+        id: restore
+        if: steps.detect.outputs.present == 'true'
+        working-directory: backend/ZPI4M.Backend
+        run: dotnet restore ZPI4M.Backend.slnx
+
+      - name: Build backend
+        id: build
+        if: steps.detect.outputs.present == 'true'
+        working-directory: backend/ZPI4M.Backend
+        run: dotnet build ZPI4M.Backend.slnx --configuration Release --no-restore
+
+      - name: Check style and whitespace
+        id: style
+        if: steps.detect.outputs.present == 'true'
+        working-directory: backend/ZPI4M.Backend
+        run: |
+          status=0
+          dotnet format style ZPI4M.Backend.slnx --severity warn --exclude-diagnostics IDE0005 --verify-no-changes --no-restore || status=1
+          dotnet format whitespace ZPI4M.Backend.slnx --verify-no-changes --no-restore || status=1
+          exit "$status"
+
+      - name: Run unit tests
+        id: unit
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: bash tools/ci/backend_checks.sh unit --results "$BACKEND_RESULTS"
+
+      - name: Run integration tests
+        id: integration
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: bash tools/ci/backend_checks.sh integration --results "$BACKEND_RESULTS"
+
+      - name: Summarize backend checks
+        if: always()
+        env:
+          DETECT: ${{ steps.detect.outcome }}
+          RESTORE: ${{ steps.restore.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          STYLE: ${{ steps.style.outcome }}
+          UNIT: ${{ steps.unit.outcome }}
+          INTEGRATION: ${{ steps.integration.outcome }}
+        run: |
+          {
+            echo '| Step | Status |'
+            echo '| --- | --- |'
+            echo "| Backend detection | $DETECT |"
+            echo "| Restore | $RESTORE |"
+            echo "| Release build | $BUILD |"
+            echo "| Style and whitespace | $STYLE |"
+            echo "| Unit test runner | $UNIT |"
+            echo "| Integration test runner | $INTEGRATION |"
+            echo ''
+            echo 'Project availability and dotnet exit statuses are reported above. Missing suites are not configured; empty projects may pass.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test results
+        if: ${{ always() && env.BACKEND_RESULTS != '' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backend-test-results
+          path: ${{ env.BACKEND_RESULTS }}/**/*.trx
+          if-no-files-found: ignore
+          retention-days: 7
