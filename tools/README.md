@@ -37,16 +37,16 @@ manifest and lockfile, then synchronize and reinstall the hooks.
 The `pre-commit` stage fixes whitespace and final newlines, preserves Markdown
 hard line breaks, checks YAML and merge markers, and detects private keys.
 It formats staged backend C# files using `dotnet format style` and `whitespace`
-with `--no-restore`. It does not build, run backend tests, or perform full code
+after a successful solution restore, then uses `--no-restore` for both formatting passes.
+Automatic import removal (IDE0005) is excluded to preserve necessary imports. It does not build, run backend tests, or perform full code
 analysis. Exactly one `.slnx` or `.sln` is discovered recursively under `backend/`,
 so the hook supports both the documented layout and a nested backend solution.
 No C# changes means no .NET invocation; missing or ambiguous solutions fail
 when C# files are present. Do not treat a successful formatting hook as proof
 that code compiles or that every analyzer diagnostic was checked.
 
-After merging the backend layout, run `dotnet restore PATH_TO_SOLUTION` once,
-and again after changing package/project dependencies. Restore errors stop the
-format hook with a reminder; it never implicitly downloads NuGet packages.
+The hook restores NuGet dependencies before formatting and may download packages.
+A restore failure stops the hook before formatting; resolve the restore error and retry.
 Rules live in `backend/.editorconfig`; nested EditorConfig files can override
 them and should be reviewed when integrating the backend branch.
 
@@ -77,7 +77,12 @@ The workflow runs repository hygiene checks independently of the backend:
 whitespace, final newlines, YAML, merge markers, and private-key detection.
 It does not execute hook tests or commit-message hooks.
 
-Both jobs run in Docker containers on the existing self-hosted Linux runner.
+Both jobs run in Docker containers as UID/GID 1000:1000, matching the existing
+self-hosted runner account mikka. Each job creates a writable temporary home before
+checkout. Backend CLI state and NuGet packages also live under /tmp.
+Before rollout, stop the idle runner service, repair ownership of its _work directory
+with `sudo chown -R mikka:mikka /home/mikka/actions-runner/_work`, then restart it.
+Do not run this ownership repair while jobs are active.
 Repository hygiene uses `ghcr.io/astral-sh/uv:0.9.4-python3.12-bookworm`, which
 supplies uv, Python, Git and Bash. Its virtual environment and caches live under
 `/tmp` inside the container; CI does not reuse the developer's `tools/.venv`.
@@ -117,7 +122,7 @@ Equivalent local checks, after the backend is merged:
 ```bash
 dotnet restore backend/ZPI4M.Backend/ZPI4M.Backend.slnx
 dotnet build backend/ZPI4M.Backend/ZPI4M.Backend.slnx --configuration Release --no-restore
-dotnet format style backend/ZPI4M.Backend/ZPI4M.Backend.slnx --severity warn --verify-no-changes --no-restore
+dotnet format style backend/ZPI4M.Backend/ZPI4M.Backend.slnx --severity warn --exclude-diagnostics IDE0005 --verify-no-changes --no-restore
 dotnet format whitespace backend/ZPI4M.Backend/ZPI4M.Backend.slnx --verify-no-changes --no-restore
 bash tools/ci/backend_checks.sh detect
 bash tools/ci/backend_checks.sh unit --results .cache/backend-results

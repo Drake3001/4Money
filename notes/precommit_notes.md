@@ -41,7 +41,7 @@ dotnet restore backend/ZPI4M.Backend/ZPI4M.Backend.slnx
 ```
 
 Powtórz restore po zmianach paczek NuGet albo referencji między projektami.
-Hook C# używa `--no-restore`, więc nie pobiera paczek samodzielnie. Przed scaleniem
+Hook C# wykonuje restore przed formatowaniem i może pobierać paczki NuGet. Błąd restore zatrzymuje formatowanie. Automatyczne usuwanie importów (IDE0005) jest wyłączone. Przed scaleniem
 backendu możesz zainstalować pozostałe hooki; bez plików C# formatter nie uruchamia .NET.
 
 ## Co dzieje się przy commicie

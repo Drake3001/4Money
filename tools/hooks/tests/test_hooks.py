@@ -154,13 +154,16 @@ class DotnetTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 formatter.format_files(self.root, [self.source()])
 
-    def test_only_supplied_files_no_restore_no_build_or_staging(self):
+    def test_restore_then_format_only_supplied_files_without_build_or_staging(self):
         source = self.source()
         with patch.object(formatter.shutil, "which", return_value="dotnet"), patch.object(formatter.subprocess, "run") as run:
-            run.side_effect = [subprocess.CompletedProcess([], 0, "10.0.111\n", ""), subprocess.CompletedProcess([], 0), subprocess.CompletedProcess([], 0)]
+            run.side_effect = [subprocess.CompletedProcess([], 0, "10.0.111\n", ""), subprocess.CompletedProcess([], 0), subprocess.CompletedProcess([], 0), subprocess.CompletedProcess([], 0)]
             self.assertEqual(formatter.format_files(self.root, [source]), 0)
-            self.assertEqual(len(run.call_args_list), 3)
-            for call in run.call_args_list[1:]:
+            self.assertEqual(len(run.call_args_list), 4)
+            self.assertEqual(run.call_args_list[1].args[0][:2], ["dotnet", "restore"])
+            self.assertIn("--exclude-diagnostics", run.call_args_list[2].args[0])
+            self.assertIn("IDE0005", run.call_args_list[2].args[0])
+            for call in run.call_args_list[2:]:
                 args = call.args[0]
                 self.assertIn("--no-restore", args)
                 self.assertIn("./Source With Spaces.cs", args)

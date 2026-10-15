@@ -1,4 +1,4 @@
-"""Format only the C# files supplied by pre-commit; never stage or restore."""
+"""Format only the C# files supplied by pre-commit; restore dependencies first, never stage."""
 
 import os
 import shutil
@@ -37,11 +37,15 @@ def format_files(root, filenames):
     sdk = subprocess.run(["dotnet", "--version"], cwd=solution.parent, env=environment, capture_output=True, text=True)
     if sdk.returncode or not sdk.stdout.strip().split(".")[0].isdigit() or int(sdk.stdout.strip().split(".")[0]) < 10:
         raise ValueError("A compatible .NET 10+ SDK is required; also check the repository's global.json.")
+    restore = subprocess.run(["dotnet", "restore", str(solution)], cwd=solution.parent, env=environment)
+    if restore.returncode:
+        print("Dependency restore failed; no formatting was attempted.", file=sys.stderr)
+        return restore.returncode
     includes = ["./" + os.path.relpath(path, solution.parent) for path in files]
     for command in ("style", "whitespace"):
         arguments = ["dotnet", "format", command, str(solution), "--no-restore", "--include", *includes]
         if command == "style":
-            arguments.extend(["--severity", "warn"])
+            arguments.extend(["--severity", "warn", "--exclude-diagnostics", "IDE0005"])
         result = subprocess.run(arguments, cwd=solution.parent, env=environment)
         if result.returncode:
             print(f"Formatting failed. Run dotnet restore {solution.relative_to(root)} from the repository root, resolve the reported errors, and retry.", file=sys.stderr)
