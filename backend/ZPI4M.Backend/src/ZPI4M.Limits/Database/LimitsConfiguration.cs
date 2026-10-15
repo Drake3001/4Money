@@ -6,7 +6,7 @@ using ZPI4M.Limits.Models;
 
 namespace ZPI4M.Limits.Database
 {
-    internal class LimitsConfiguration
+    public static class LimitsConfiguration
     {
         public static void Configure(ModelBuilder modelBuilder)
         {

@@ -6,7 +6,7 @@ using ZPI4M.User.Models;
 
 namespace ZPI4M.User.Database
 {
-    internal class UserConfiguration
+    public static class UserConfiguration
     {
         public static void Configure(ModelBuilder modelBuilder)
         {

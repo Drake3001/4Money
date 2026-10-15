@@ -17,8 +17,8 @@ public partial class LimitsDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
        base.OnModelCreating(modelBuilder);
-        LimitsConfiguration.Configure(modelBuilder);
-        OnModelCreatingPartial(modelBuilder);
+       LimitsConfiguration.Configure(modelBuilder);
+       OnModelCreatingPartial(modelBuilder);
     }
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);

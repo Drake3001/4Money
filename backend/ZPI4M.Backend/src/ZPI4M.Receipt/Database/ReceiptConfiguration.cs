@@ -6,7 +6,7 @@ using ZPI4M.Receipt.Models;
 
 namespace ZPI4M.Receipt.Database
 {
-    internal class ReceiptConfiguration
+    public static class ReceiptConfiguration
     {
         public static void Configure(ModelBuilder modelBuilder)
         {

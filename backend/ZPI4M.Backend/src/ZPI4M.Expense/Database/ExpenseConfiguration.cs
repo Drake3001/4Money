@@ -6,7 +6,7 @@ using ZPI4M.Expense.Models;
 
 namespace ZPI4M.Expense.Database
 {
-    internal class ExpenseConfiguration
+    public static class ExpenseConfiguration
     {
         public static void Configure(ModelBuilder modelBuilder)
         {

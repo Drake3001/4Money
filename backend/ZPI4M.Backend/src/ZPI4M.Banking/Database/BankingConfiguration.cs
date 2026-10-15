@@ -6,7 +6,7 @@ using ZPI4M.Banking.Models;
 
 namespace ZPI4M.Banking.Database;
 
-internal class BankingConfiguration
+public static class BankingConfiguration
 {
     public static void Configure(ModelBuilder modelBuilder)
     {

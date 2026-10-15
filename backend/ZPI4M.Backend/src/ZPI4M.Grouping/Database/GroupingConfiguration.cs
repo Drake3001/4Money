@@ -6,7 +6,7 @@ using ZPI4M.Grouping.Models;
 
 namespace ZPI4M.Grouping.Database
 {
-    internal class GroupingConfiguration
+    public static class GroupingConfiguration
     {
         public static void Configure(ModelBuilder modelBuilder)
         {
