@@ -18,13 +18,10 @@ public partial class LimitsDbContext : DbContext
     {
         modelBuilder.Entity<CategoryGroupLimit>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("category_group_limit_pkey");
+            entity.HasKey(e => new { e.FkCategoryId, e.FkGroupId }).HasName("category_group_limit_pkey");
 
             entity.ToTable("category_group_limit", "limits");
 
-            entity.Property(e => e.Id)
-                .ValueGeneratedNever()
-                .HasColumnName("_id");
             entity.Property(e => e.FkCategoryId).HasColumnName("fk_category_id");
             entity.Property(e => e.FkGroupId).HasColumnName("fk_group_id");
             entity.Property(e => e.MonthlyLimit)

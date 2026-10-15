@@ -22,13 +22,10 @@ public partial class GroupingDbContext : DbContext
     {
         modelBuilder.Entity<ExpenseShare>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("expense_share_pkey");
+            entity.HasKey(e => new { e.FkExpenseId, e.FkUserId }).HasName("expense_share_pkey");
 
             entity.ToTable("expense_share", "grouping");
 
-            entity.Property(e => e.Id)
-                .ValueGeneratedNever()
-                .HasColumnName("_id");
             entity.Property(e => e.FkExpenseId).HasColumnName("fk_expense_id");
             entity.Property(e => e.FkUserId).HasColumnName("fk_user_id");
             entity.Property(e => e.Percentage)
@@ -63,15 +60,12 @@ public partial class GroupingDbContext : DbContext
 
         modelBuilder.Entity<GroupMember>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("group_member_pkey");
+            entity.HasKey(e => new { e.FkUserId, e.FkGroupId }).HasName("group_member_pkey");
 
             entity.ToTable("group_member", "grouping");
 
-            entity.Property(e => e.Id)
-                .ValueGeneratedNever()
-                .HasColumnName("_id");
-            entity.Property(e => e.FkGroupId).HasColumnName("fk_group_id");
             entity.Property(e => e.FkUserId).HasColumnName("fk_user_id");
+            entity.Property(e => e.FkGroupId).HasColumnName("fk_group_id");
             entity.Property(e => e.IsAdmin).HasColumnName("is_admin");
 
             entity.HasOne(d => d.FkGroup).WithMany(p => p.GroupMembers)

@@ -24,6 +24,8 @@ public partial class BankingDbContext : DbContext
 
             entity.ToTable("bank_account", "banking");
 
+            entity.HasIndex(e => new { e.FkUserId, e.FinancialInstitutionId, e.Number }, "c_bank_account_unique_fk_user_id_financial_institution_id_numbe").IsUnique();
+
             entity.Property(e => e.Id)
                 .ValueGeneratedNever()
                 .HasColumnName("_id");
@@ -43,6 +45,8 @@ public partial class BankingDbContext : DbContext
             entity.HasKey(e => e.Id).HasName("bank_transaction_pkey");
 
             entity.ToTable("bank_transaction", "banking");
+
+            entity.HasIndex(e => e.TinkTransactionId, "c_bank_transaction_unique_tink_transaction_id").IsUnique();
 
             entity.Property(e => e.Id)
                 .ValueGeneratedNever()

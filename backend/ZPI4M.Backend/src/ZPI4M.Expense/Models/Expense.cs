@@ -19,7 +19,7 @@ public partial class Expense
 
     public decimal Amount { get; set; }
 
-    public DateTime TransactionDate { get; set; }
+    public DateTime TransactionTime { get; set; }
 
     public virtual ICollection<ExpenseItem> ExpenseItems { get; set; } = new List<ExpenseItem>();
 }

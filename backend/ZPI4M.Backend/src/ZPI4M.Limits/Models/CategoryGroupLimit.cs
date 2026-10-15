@@ -5,8 +5,6 @@ namespace ZPI4M.Limits.Models;
 
 public partial class CategoryGroupLimit
 {
-    public Guid Id { get; set; }
-
     public Guid FkCategoryId { get; set; }
 
     public Guid FkGroupId { get; set; }

@@ -16,15 +16,15 @@
 1. do modułów, które posiadają modele należy dodać 2 paczki (drugie też w `ZPI4M.Api`):
    1. `dotnet add package Npgsql.EntityFrameworkCore.PostgreSQL --version 10.0.3`
    2. `dotnet add package Microsoft.EntityFrameworkCore.Design --version 10.0.4`
-2. generowanie modeli (przykład dla Expense):
+2. generowanie modeli (przykład dla Expense - z poziomu folderu `src/ZPI4M.Expense`):
    1. ustawić w terminalu zmienne na czas sesji, przykład powershell:
       1. `$env:POSTGRES_USER="TWOJ_USER"`
       2. `$env:POSTGRES_PASSWORD="TWOJE_HASLO"`
    2. `dotnet ef dbcontext scaffold "Host=localhost;Port=5434;Database=zpi4m_db;Username=$env:POSTGRES_USER;Password=$env:POSTGRES_PASSWORD" Npgsql.EntityFrameworkCore.PostgreSQL --schema expense --context ExpenseDbContext --output-dir Models --context-dir Database --force --no-onconfiguring`
 3. po wygenerowaniu, należy dodać przedrostek Models. w dwóch miejscach, które visual podkreśli na czerwono w poniższych plikach:
-   1. `ZPI4M.Expense/Repositories`
-   2. `ZPI4M.Receipt/Repositories`
-   3. `ZPI4M.User/Repositories`
+   1. `ZPI4M.Expense/Database/ExpenseDbContext.cs`
+   2. `ZPI4M.Receipt/ReceiptDbContext.cs`
+   3. `ZPI4M.User/userDbContext.cs`
 
 # migracje - CO KAŻDY ROBI LOKALNIE
 1. jak zrobicie połączenie z bazą to musicie zrobić zarejestrować migracje

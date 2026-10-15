@@ -9,11 +9,11 @@ public partial class Category
 
     public string Name { get; set; } = null!;
 
-    public string? Description { get; set; }
+    public string Description { get; set; } = null!;
 
-    public string? Icon { get; set; }
+    public string Icon { get; set; } = null!;
 
-    public string? Color { get; set; }
+    public string Color { get; set; } = null!;
 
     public virtual ICollection<ExpenseItem> ExpenseItems { get; set; } = new List<ExpenseItem>();
 }

@@ -19,7 +19,7 @@ public partial class BankAccount
 
     public string CurrencyCode { get; set; } = null!;
 
-    public string? Iban { get; set; }
+    public string Iban { get; set; } = null!;
 
     public string? CredentialsId { get; set; }
 

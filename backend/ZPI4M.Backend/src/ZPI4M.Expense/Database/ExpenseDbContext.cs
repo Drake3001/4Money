@@ -26,6 +26,8 @@ public partial class ExpenseDbContext : DbContext
 
             entity.ToTable("category", "expense");
 
+            entity.HasIndex(e => e.Name, "c_category_unique_name").IsUnique();
+
             entity.Property(e => e.Id)
                 .ValueGeneratedNever()
                 .HasColumnName("_id");
@@ -52,9 +54,9 @@ public partial class ExpenseDbContext : DbContext
             entity.Property(e => e.FkReceiptId).HasColumnName("fk_receipt_id");
             entity.Property(e => e.Merchant).HasColumnName("merchant");
             entity.Property(e => e.Name).HasColumnName("name");
-            entity.Property(e => e.TransactionDate)
+            entity.Property(e => e.TransactionTime)
                 .HasColumnType("timestamp without time zone")
-                .HasColumnName("transaction_date");
+                .HasColumnName("transaction_time");
         });
 
         modelBuilder.Entity<ExpenseItem>(entity =>

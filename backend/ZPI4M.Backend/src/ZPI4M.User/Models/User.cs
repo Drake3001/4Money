@@ -23,11 +23,15 @@ public partial class User
 
     public DateTime CreatedAt { get; set; }
 
+    public DateTime? LastLoginTime { get; set; }
+
+    public bool IsActive { get; set; }
+
     public string? Icon { get; set; }
 
     public string? RefreshToken { get; set; }
 
-    public DateTime? RefreshTokenExpiryDate { get; set; }
+    public DateTime? RefreshTokenExpiryTime { get; set; }
 
     public string? TinkUserId { get; set; }
 }
