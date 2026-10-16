@@ -16,7 +16,7 @@
 1. do modułów, które posiadają modele należy dodać 2 paczki (drugie też w `ZPI4M.Api` oraz oba w `ZPI4M.Database`):
    1. `dotnet add package Npgsql.EntityFrameworkCore.PostgreSQL --version 10.0.3`
    2. `dotnet add package Microsoft.EntityFrameworkCore.Design --version 10.0.4`
-2. generowanie modeli (przykład dla Expense - z poziomu folderu `src/ZPI4M.Expense`):
+2. generowanie modeli (przykład dla Expense - z poziomu folderu `src/modules/ZPI4M.Expense`):
    1. ustawić w terminalu zmienne na czas sesji, przykład powershell:
       1. `$env:POSTGRES_USER="TWOJ_USER"`
       2. `$env:POSTGRES_PASSWORD="TWOJE_HASLO"`
@@ -25,6 +25,19 @@
    1. `ZPI4M.Expense/Database/ExpenseDbContext.cs`
    2. `ZPI4M.Receipt/ReceiptDbContext.cs`
    3. `ZPI4M.User/userDbContext.cs`
+4. Dodatkowo aby nasze podejście z jednym `AppDbContext` do migracji działało trzeba stworzyć (niestety ręcznie) tzw konfiugracje modeli:
+   1. wyciąć zawartośc metody `OnModelCreating` z db kontekkstu dla danego modułu
+   2. stworzyć plik `ZPI4M.Expense/Database/ExpenseConfiguration.cs` - `public static class ExpenseConfiguration`
+   3. w stworzonej klasie metodę `public static void Configure(ModelBuilder modelBuilder)` i tam wkleić zawartość tego co było wycięte w 1 punkcie
+   4. po operacjach metoda z 1 punktu powinna wyglądać tak:
+      ```
+      protected override void OnModelCreating(ModelBuilder modelBuilder)
+	   {
+         base.OnModelCreating(modelBuilder);
+         ExpenseConfiguration.Configure(modelBuilder);
+         OnModelCreatingPartial(modelBuilder);
+	   }
+      ```
 
 # migracje - CO KAŻDY ROBI LOKALNIE
 1. jak zrobicie połączenie z bazą to musicie zarejestrować pierwszą migrację

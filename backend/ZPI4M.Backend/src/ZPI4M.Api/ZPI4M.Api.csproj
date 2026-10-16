@@ -21,15 +21,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ZPI4M.Banking\ZPI4M.Banking.csproj" />
+    <ProjectReference Include="..\modules\ZPI4M.Banking\ZPI4M.Banking.csproj" />
     <ProjectReference Include="..\ZPI4M.Database\ZPI4M.Database.csproj" />
-    <ProjectReference Include="..\ZPI4M.Expense\ZPI4M.Expense.csproj" />
-    <ProjectReference Include="..\ZPI4M.Grouping\ZPI4M.Grouping.csproj" />
-    <ProjectReference Include="..\ZPI4M.Limits\ZPI4M.Limits.csproj" />
-    <ProjectReference Include="..\ZPI4M.Notifications\ZPI4M.Notifications.csproj" />
-    <ProjectReference Include="..\ZPI4M.Receipt\ZPI4M.Receipt.csproj" />
-    <ProjectReference Include="..\ZPI4M.Reports\ZPI4M.Reports.csproj" />
-    <ProjectReference Include="..\ZPI4M.User\ZPI4M.User.csproj" />
+    <ProjectReference Include="..\modules\ZPI4M.Expense\ZPI4M.Expense.csproj" />
+    <ProjectReference Include="..\modules\ZPI4M.Grouping\ZPI4M.Grouping.csproj" />
+    <ProjectReference Include="..\modules\ZPI4M.Limits\ZPI4M.Limits.csproj" />
+    <ProjectReference Include="..\modules\ZPI4M.Notifications\ZPI4M.Notifications.csproj" />
+    <ProjectReference Include="..\modules\ZPI4M.Receipt\ZPI4M.Receipt.csproj" />
+    <ProjectReference Include="..\modules\ZPI4M.Reports\ZPI4M.Reports.csproj" />
+    <ProjectReference Include="..\modules\ZPI4M.User\ZPI4M.User.csproj" />
   </ItemGroup>
 
 </Project>

@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-IGNORED = {"bin", "obj", ".git", ".venv", ".terraform"}
+IGNORED = {"bin", "obj", ".git", ".venv", ".terraform", ".vs"}
 
 
 def find_solution(root):
