@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/ZPI4M.Shared/ZPI4M.Shared.csproj" />
     <Project Path="src/ZPI4M.Api/ZPI4M.Api.csproj" />
     <Project Path="src/ZPI4M.Database/ZPI4M.Database.csproj" Id="138a12da-b62a-4818-816e-a396a8eaabba" />
   </Folder>

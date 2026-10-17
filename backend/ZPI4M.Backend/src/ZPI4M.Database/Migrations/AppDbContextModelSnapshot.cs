@@ -247,7 +247,7 @@ namespace ZPI4M.Database.Migrations
                     b.ToTable("expense_item", "expense");
                 });
 
-            modelBuilder.Entity("ZPI4M.Grouping.Models.ExpenseShare", b =>
+            modelBuilder.Entity("ZPI4M.Expense.Models.ExpenseShare", b =>
                 {
                     b.Property<Guid>("FkExpenseId")
                         .HasColumnType("uuid")
@@ -265,7 +265,7 @@ namespace ZPI4M.Database.Migrations
                     b.HasKey("FkExpenseId", "FkUserId")
                         .HasName("expense_share_pkey");
 
-                    b.ToTable("expense_share", "grouping");
+                    b.ToTable("expense_share", "expense");
                 });
 
             modelBuilder.Entity("ZPI4M.Grouping.Models.Group", b =>

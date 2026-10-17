@@ -79,6 +79,19 @@ namespace ZPI4M.Expense.Database
 					.OnDelete(DeleteBehavior.ClientSetNull)
 					.HasConstraintName("c_expense_item_fk_expense_id");
 			});
+
+			modelBuilder.Entity<ExpenseShare>(entity =>
+			{
+				entity.HasKey(e => new { e.FkExpenseId, e.FkUserId }).HasName("expense_share_pkey");
+
+				entity.ToTable("expense_share", "expense");
+
+				entity.Property(e => e.FkExpenseId).HasColumnName("fk_expense_id");
+				entity.Property(e => e.FkUserId).HasColumnName("fk_user_id");
+				entity.Property(e => e.Percentage)
+					.HasPrecision(5, 2)
+					.HasColumnName("percentage");
+			});
 		}
 	}
 }

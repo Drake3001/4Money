@@ -25,4 +25,8 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\ZPI4M.Shared\ZPI4M.Shared.csproj" />
+  </ItemGroup>
+
 </Project>

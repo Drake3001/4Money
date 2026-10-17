@@ -10,19 +10,6 @@ namespace ZPI4M.Grouping.Database
 	{
 		public static void Configure(ModelBuilder modelBuilder)
 		{
-			modelBuilder.Entity<ExpenseShare>(entity =>
-			{
-				entity.HasKey(e => new { e.FkExpenseId, e.FkUserId }).HasName("expense_share_pkey");
-
-				entity.ToTable("expense_share", "grouping");
-
-				entity.Property(e => e.FkExpenseId).HasColumnName("fk_expense_id");
-				entity.Property(e => e.FkUserId).HasColumnName("fk_user_id");
-				entity.Property(e => e.Percentage)
-					.HasPrecision(5, 2)
-					.HasColumnName("percentage");
-			});
-
 			modelBuilder.Entity<Group>(entity =>
 			{
 				entity.HasKey(e => e.Id).HasName("group_pkey");

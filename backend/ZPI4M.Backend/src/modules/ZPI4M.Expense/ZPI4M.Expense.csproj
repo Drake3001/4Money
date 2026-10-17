@@ -13,6 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\ZPI4M.Shared\ZPI4M.Shared.csproj" />
     <ProjectReference Include="..\ZPI4M.Grouping\ZPI4M.Grouping.csproj" />
     <ProjectReference Include="..\ZPI4M.User\ZPI4M.User.csproj" />
   </ItemGroup>

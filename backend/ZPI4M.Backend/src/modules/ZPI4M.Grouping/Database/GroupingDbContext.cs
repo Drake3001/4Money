@@ -12,8 +12,6 @@ public partial class GroupingDbContext : DbContext
 	{
 	}
 
-	public virtual DbSet<ExpenseShare> ExpenseShares { get; set; }
-
 	public virtual DbSet<Group> Groups { get; set; }
 
 	public virtual DbSet<GroupMember> GroupMembers { get; set; }

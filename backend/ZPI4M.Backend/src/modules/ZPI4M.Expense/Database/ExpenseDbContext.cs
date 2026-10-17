@@ -18,6 +18,8 @@ public partial class ExpenseDbContext : DbContext
 
 	public virtual DbSet<ExpenseItem> ExpenseItems { get; set; }
 
+	public virtual DbSet<ExpenseShare> ExpenseShares { get; set; }
+
 	protected override void OnModelCreating(ModelBuilder modelBuilder)
 	{
 		base.OnModelCreating(modelBuilder);

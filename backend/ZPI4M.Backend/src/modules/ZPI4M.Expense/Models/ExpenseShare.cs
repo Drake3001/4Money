@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace ZPI4M.Grouping.Models;
+namespace ZPI4M.Expense.Models;
 
 public partial class ExpenseShare
 {

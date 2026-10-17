@@ -1,4 +1,4 @@
-### repo structure
+### Repo structure
 
 ```text
 .
@@ -6,71 +6,72 @@
 │   └── workflows/
 ├── backend/
 │   └── ZPI4M.Backend/
-│       └── src/
-│           ├── modules/
-│           │   ├── ZPI4M.Banking/
-│           │   │   ├── ApiControllers/
-│           │   │   ├── Database/
-│           │   │   ├── DTOs/
-│           │   │   ├── Models/
-│           │   │   ├── Repositories/
-│           │   │   └── Services/
-│           │   ├── ZPI4M.Expense/
-│           │   │   ├── ApiControllers/
-│           │   │   ├── Database/
-│           │   │   ├── DTOs/
-│           │   │   ├── Models/
-│           │   │   ├── Repositories/
-│           │   │   └── Services/
-│           │   ├── ZPI4M.Grouping/
-│           │   │   ├── ApiControllers/
-│           │   │   ├── Database/
-│           │   │   ├── DTOs/
-│           │   │   ├── Models/
-│           │   │   ├── Repositories/
-│           │   │   └── Services/
-│           │   ├── ZPI4M.Limits/
-│           │   │   ├── ApiControllers/
-│           │   │   ├── Database/
-│           │   │   ├── DTOs/
-│           │   │   ├── Models/
-│           │   │   ├── Repositories/
-│           │   │   └── Services/
-│           │   ├── ZPI4M.Notifications/
-│           │   │   ├── ApiControllers/
-│           │   │   ├── DTOs/
-│           │   │   ├── Models/
-│           │   │   ├── Repositories/
-│           │   │   └── Services/
-│           │   ├── ZPI4M.Receipt/
-│           │   │   ├── ApiControllers/
-│           │   │   ├── Database/
-│           │   │   ├── DTOs/
-│           │   │   ├── Models/
-│           │   │   ├── Repositories/
-│           │   │   └── Services/
-│           │   ├── ZPI4M.Reports/
-│           │   │   ├── ApiControllers/
-│           │   │   ├── DTOs/
-│           │   │   ├── Models/
-│           │   │   ├── Repositories/
-│           │   │   └── Services/
-│           │   └── ZPI4M.User/
-│           │       ├── ApiControllers/
-│           │       ├── Database/
-│           │       ├── DTOs/
-│           │       ├── Models/
-│           │       ├── Repositories/
-│           │       └── Services/
-│           ├── ZPI4M.Api/
-│           │   ├── Controllers/
-│           │   ├── Properties/
-│           │   └── Program.cs
-│           └── ZPI4M.Database/
-│               ├── Migrations/
-│               └── AppDbContext.cs
+│       ├── src/
+│       │   ├── modules/
+│       │   │   ├── ZPI4M.Banking/
+│       │   │   │   ├── ApiControllers/
+│       │   │   │   ├── Database/
+│       │   │   │   ├── DTOs/
+│       │   │   │   ├── Models/
+│       │   │   │   ├── Repositories/
+│       │   │   │   └── Services/
+│       │   │   ├── ZPI4M.Expense/
+│       │   │   │   ├── ApiControllers/
+│       │   │   │   ├── Database/
+│       │   │   │   ├── DTOs/
+│       │   │   │   ├── Models/
+│       │   │   │   ├── Repositories/
+│       │   │   │   └── Services/
+│       │   │   ├── ZPI4M.Grouping/
+│       │   │   │   ├── ApiControllers/
+│       │   │   │   ├── Database/
+│       │   │   │   ├── DTOs/
+│       │   │   │   ├── Models/
+│       │   │   │   ├── Repositories/
+│       │   │   │   └── Services/
+│       │   │   ├── ZPI4M.Limits/
+│       │   │   │   ├── ApiControllers/
+│       │   │   │   ├── Database/
+│       │   │   │   ├── DTOs/
+│       │   │   │   ├── Models/
+│       │   │   │   ├── Repositories/
+│       │   │   │   └── Services/
+│       │   │   ├── ZPI4M.Notifications/
+│       │   │   │   ├── ApiControllers/
+│       │   │   │   ├── DTOs/
+│       │   │   │   ├── Models/
+│       │   │   │   └── Services/
+│       │   │   ├── ZPI4M.Receipt/
+│       │   │   │   ├── ApiControllers/
+│       │   │   │   ├── Database/
+│       │   │   │   ├── DTOs/
+│       │   │   │   ├── Models/
+│       │   │   │   ├── Repositories/
+│       │   │   │   └── Services/
+│       │   │   ├── ZPI4M.Reports/
+│       │   │   │   ├── ApiControllers/
+│       │   │   │   ├── DTOs/
+│       │   │   │   ├── Models/
+│       │   │   │   └── Services/
+│       │   │   └── ZPI4M.User/
+│       │   │       ├── ApiControllers/
+│       │   │       ├── Database/
+│       │   │       ├── DTOs/
+│       │   │       ├── Models/
+│       │   │       ├── Repositories/
+│       │   │       └── Services/
+│       │   ├── ZPI4M.Api/
+│       │   │   ├── Controllers/
+│       │   │   ├── Properties/
+│       │   │   └── Program.cs
+│       │   ├── ZPI4M.Database/
+│       │   │   ├── Migrations/
+│       │   │   └── AppDbContext.cs
+│       │   └── ZPI4M.Shared/
+│       │       └── Pagination/
+│       └── tests/
 ├── containers/
-├── database/
+├── database-init/
 ├── notes/
 ├── proxmox-infra/
 │   ├── scripts/
