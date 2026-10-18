@@ -28,7 +28,7 @@
 4. Dodatkowo aby nasze podejście z jednym `AppDbContext` do migracji działało trzeba stworzyć (niestety ręcznie) tzw konfiugracje modeli:
    1. wyciąć zawartośc metody `OnModelCreating` z db kontekkstu dla danego modułu
    2. stworzyć plik `ZPI4M.Expense/Database/ExpenseConfiguration.cs` - `public static class ExpenseConfiguration`
-   3. w stworzonej klasie metodę `public static void Configure(ModelBuilder modelBuilder)` i tam wkleić zawartość tego co było wycięte w 1 punkcie
+   3. w stworzonej klasie dodać metodę `public static void Configure(ModelBuilder modelBuilder)` i tam wkleić zawartość tego co było wycięte w 1 punkcie
    4. po operacjach metoda z 1 punktu powinna wyglądać tak:
       ```
       protected override void OnModelCreating(ModelBuilder modelBuilder)

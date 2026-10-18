@@ -195,7 +195,7 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnName("name");
 
                     b.Property<DateTime>("TransactionTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("transaction_time");
 
                     b.HasKey("Id")
@@ -369,6 +369,33 @@ namespace ZPI4M.Database.Migrations
                     b.ToTable("category_group_limit", "limits");
                 });
 
+            modelBuilder.Entity("ZPI4M.Notifications.Models.Notification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("_id");
+
+                    b.Property<Guid?>("FkGroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fk_group_id");
+
+                    b.Property<DateTime>("SentAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("text");
+
+                    b.HasKey("Id")
+                        .HasName("notification_pkey");
+
+                    b.ToTable("notification", "notifications");
+                });
+
             modelBuilder.Entity("ZPI4M.Receipt.Models.Receipt", b =>
                 {
                     b.Property<Guid>("Id")
@@ -402,7 +429,7 @@ namespace ZPI4M.Database.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
@@ -427,7 +454,7 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnName("is_email_confirmed");
 
                     b.Property<DateTime?>("LastLoginTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_login_time");
 
                     b.Property<string>("Login")
