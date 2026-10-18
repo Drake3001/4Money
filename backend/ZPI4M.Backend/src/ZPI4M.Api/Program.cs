@@ -7,6 +7,8 @@ using ZPI4M.Expense.Database;
 using ZPI4M.Expense.Repositories;
 using ZPI4M.Grouping.Database;
 using ZPI4M.Grouping.Repositories;
+using ZPI4M.Notifications.Database;
+using ZPI4M.Notifications.Repositories;
 using ZPI4M.User.Database;
 using ZPI4M.User.Repositories;
 
@@ -44,6 +46,10 @@ builder.Services.AddScoped<IBankTransactionRepository, BankTransactionRepository
 builder.Services.AddDbContext<UserDbContext>(options => options.UseNpgsql(dbConnectionString));
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
+
+// Notifications module
+builder.Services.AddDbContext<NotificationsDbContext>(options => options.UseNpgsql(dbConnectionString));
+builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 
 var app = builder.Build();
 
