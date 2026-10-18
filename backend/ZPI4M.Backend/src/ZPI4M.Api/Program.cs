@@ -43,6 +43,7 @@ builder.Services.AddScoped<IBankTransactionRepository, BankTransactionRepository
 // User module
 builder.Services.AddDbContext<UserDbContext>(options => options.UseNpgsql(dbConnectionString));
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
 
 var app = builder.Build();
 

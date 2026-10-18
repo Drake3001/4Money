@@ -420,6 +420,12 @@ namespace ZPI4M.Database.Migrations
                         .HasDefaultValue(true)
                         .HasColumnName("is_active");
 
+                    b.Property<bool>("IsEmailConfirmed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_email_confirmed");
+
                     b.Property<DateTime?>("LastLoginTime")
                         .HasColumnType("timestamp without time zone")
                         .HasColumnName("last_login_time");
@@ -443,14 +449,6 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnType("text")
                         .HasColumnName("phone");
 
-                    b.Property<string>("RefreshToken")
-                        .HasColumnType("text")
-                        .HasColumnName("refresh_token");
-
-                    b.Property<DateTime?>("RefreshTokenExpiryTime")
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("refresh_token_expiry_time");
-
                     b.Property<string>("Surname")
                         .IsRequired()
                         .HasColumnType("text")
@@ -473,6 +471,58 @@ namespace ZPI4M.Database.Migrations
                         .IsUnique();
 
                     b.ToTable("user", "user");
+                });
+
+            modelBuilder.Entity("ZPI4M.User.Models.UserToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<Guid>("FkUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fk_user_id");
+
+                    b.Property<int>("Purpose")
+                        .HasColumnType("integer")
+                        .HasColumnName("purpose");
+
+                    b.Property<string>("TargetEmail")
+                        .HasColumnType("text")
+                        .HasColumnName("target_email");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("token_hash");
+
+                    b.HasKey("Id")
+                        .HasName("user_token_pkey");
+
+                    b.HasIndex(new[] { "TokenHash" }, "c_user_token_unique_token_hash")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "FkUserId", "Purpose" }, "c_user_token_unique_user_purpose")
+                        .IsUnique();
+
+                    b.ToTable("user_token", "user", t =>
+                        {
+                            t.HasCheckConstraint("c_user_token_expiry_after_creation", "expires_at > created_at");
+
+                            t.HasCheckConstraint("c_user_token_target_email", "(purpose IN (1, 2, 3) AND target_email IS NOT NULL) OR (purpose = 4 AND target_email IS NULL)");
+
+                            t.HasCheckConstraint("c_user_token_valid_purpose", "purpose IN (1, 2, 3, 4)");
+                        });
                 });
 
             modelBuilder.Entity("ZPI4M.Banking.Models.BankTransaction", b =>
@@ -516,6 +566,18 @@ namespace ZPI4M.Database.Migrations
                     b.Navigation("FkGroup");
                 });
 
+            modelBuilder.Entity("ZPI4M.User.Models.UserToken", b =>
+                {
+                    b.HasOne("ZPI4M.User.Models.User", "FkUser")
+                        .WithMany("UserTokens")
+                        .HasForeignKey("FkUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("c_user_token_fk_user_id");
+
+                    b.Navigation("FkUser");
+                });
+
             modelBuilder.Entity("ZPI4M.Banking.Models.BankAccount", b =>
                 {
                     b.Navigation("BankTransactions");
@@ -534,6 +596,11 @@ namespace ZPI4M.Database.Migrations
             modelBuilder.Entity("ZPI4M.Grouping.Models.Group", b =>
                 {
                     b.Navigation("GroupMembers");
+                });
+
+            modelBuilder.Entity("ZPI4M.User.Models.User", b =>
+                {
+                    b.Navigation("UserTokens");
                 });
 #pragma warning restore 612, 618
         }

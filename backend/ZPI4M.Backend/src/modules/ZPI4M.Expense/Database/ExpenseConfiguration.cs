@@ -45,7 +45,7 @@ namespace ZPI4M.Expense.Database
 				entity.Property(e => e.Merchant).HasColumnName("merchant");
 				entity.Property(e => e.Name).HasColumnName("name");
 				entity.Property(e => e.TransactionTime)
-					.HasColumnType("timestamp without time zone")
+					.HasColumnType("timestamp with time zone")
 					.HasColumnName("transaction_time");
 			});
 
