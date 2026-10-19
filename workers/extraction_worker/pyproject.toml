@@ -5,15 +5,40 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "zpi-receipt-extraction"
 version = "0.1.0"
-description = "Receipt extraction pipeline for images and PDF documents"
+description = "Receipt processing pipeline with OCR and planned parsing and classification"
 requires-python = ">=3.12,<3.13"
-dependencies = ["Pillow>=10", "pypdfium2>=4.30"]
+dependencies = [
+    "Pillow>=10",
+    "pypdfium2>=4.30",
+    "rapidocr==3.10.0",
+    "onnxruntime==1.31.0",
+    "opencv-python-headless==5.0.0.93",
+]
 
 [project.optional-dependencies]
 test = ["pytest>=8", "pypdf>=5"]
 dataset = ["gdown==6.4.2"]
-ocr = ["rapidocr==3.10.0", "onnxruntime==1.31.0", "opencv-python-headless==5.0.0.93"]
+# Kept for existing install commands; RapidOCR is now included by default.
+ocr = []
+ocr-paddle = ["paddleocr==3.7.0", "paddlex==3.7.2", "paddlepaddle==3.3.1"]
+ocr-easyocr = ["easyocr==1.7.2", "torch", "torchvision"]
+ocr-comparison = ["rapidfuzz>=3,<4"]
 experiment = ["docscan==1.0.6", "rembg[cpu]==2.0.67", "paddleocr==3.7.0", "paddlex==3.7.2", "paddlepaddle==3.3.1"]
+
+
+[tool.uv]
+required-version = ">=0.12.23"
+# These distributions overwrite the same cv2 module. All steps use the headless runtime.
+exclude-dependencies = ["opencv-python", "opencv-contrib-python"]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", extra = "ocr-easyocr", marker = "sys_platform == 'win32' or sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch-cpu", extra = "ocr-easyocr", marker = "sys_platform == 'win32' or sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 
 [tool.setuptools.packages.find]
