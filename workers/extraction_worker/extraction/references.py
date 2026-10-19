@@ -10,6 +10,8 @@ def validate_reference(value, source=None, sources=None):
     errors = []
     if not isinstance(value, dict):
         return ["$: expected an object"]
+    if "transcription_scope" in value and value["transcription_scope"] not in ("full_image", "partial"):
+        errors.append("transcription_scope: expected full_image or partial")
 
     def text(obj, key, prefix="", nullable=False):
         field = f"{prefix}{key}"

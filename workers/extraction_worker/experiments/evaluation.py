@@ -14,6 +14,10 @@ from extraction.reporting import to_dict
 
 NAME_THRESHOLD = 0.65
 NUMBER = r"\d+(?:[.,]\d+)?"
+PURCHASE_PREFIX = re.compile(
+    rf"(?<![\w.,]){NUMBER}(?:\s*(?:szt\.?|kg|g|l))?\s*[x×*]\s*{NUMBER}(?![\d.,])",
+    re.IGNORECASE,
+)
 PURCHASE = re.compile(
     rf"(?<![\w.,])({NUMBER})(?:\s*(?:szt\.?|kg|g|l))?\s*[x×*]\s*({NUMBER})\s+({NUMBER})(?![\d.,])",
     re.IGNORECASE,
@@ -71,19 +75,21 @@ def _name_score(item: dict, line: dict) -> float:
     if re.match(r"\s*opust\b", text, re.IGNORECASE):
         return 0  # A name on a discount line is not a recognized purchase line.
     expected = normalize_name(item["name"])
-    candidates = [normalize_name(text)]
+    purchase = PURCHASE_PREFIX.search(text)
+    name_texts = [text]
+    if purchase:
+        name_texts.append(text[:purchase.start()].rstrip())
+    candidates = [normalize_name(value) for value in name_texts]
     marker = item.get("printed_marker")
-    if marker and re.search(rf"\s+{re.escape(marker)}\s*$", text, re.IGNORECASE):
-        candidates.append(
-            normalize_name(
-                re.sub(rf"\s+{re.escape(marker)}\s*$", "", text, flags=re.IGNORECASE)
-            )
-        )
+    for value in name_texts:
+        if marker and re.search(rf"\s+{re.escape(marker)}\s*$", value, re.IGNORECASE):
+            candidates.append(normalize_name(re.sub(rf"\s+{re.escape(marker)}\s*$", "", value, flags=re.IGNORECASE)))
     tax_code = item.get("tax_code")
     if tax_code:
-        candidates.append(normalize_name(re.sub(
-            rf"\s+{re.escape(tax_code)}\s*$", "", text, flags=re.IGNORECASE
-        )))
+        for value in name_texts:
+            candidates.append(normalize_name(re.sub(
+                rf"\s+{re.escape(tax_code)}\s*$", "", value, flags=re.IGNORECASE
+            )))
     return max(
         SequenceMatcher(None, expected, candidate, autojunk=False).ratio()
         for candidate in candidates
@@ -292,8 +298,10 @@ def audit_receipt(reference: dict, raw: OCRResult | dict) -> dict:
                 entry["computed_total"] = {**_check(item["total"], values), "basis": "observed_gross_plus_discount"}
         else:
             # No printed discount to score. The third purchase number is total.
-            entry["fields"]["total"] = _check(
-                item["total"], [pattern[2] for pattern in patterns]
+            entry["fields"]["total"] = (
+                _check(item["total"], [pattern[2] for pattern in patterns])
+                if item.get("total_is_printed", True)
+                else {"expected": item["total"], "observed": [], "status": "not_printed"}
             )
         entry["evidence"] = [
             {"text": line["text"], "page": line["page"], "box": line["box"]}
