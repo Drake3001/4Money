@@ -1,4 +1,5 @@
 using DotNetEnv;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using ZPI4M.Banking.Database;
 using ZPI4M.Banking.Repositories;
@@ -9,8 +10,10 @@ using ZPI4M.Grouping.Database;
 using ZPI4M.Grouping.Repositories;
 using ZPI4M.Notifications.Database;
 using ZPI4M.Notifications.Repositories;
+using ZPI4M.User.ApiControllers;
 using ZPI4M.User.Database;
 using ZPI4M.User.Repositories;
+using ZPI4M.User.Services.Registration;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,7 +22,8 @@ Env.Load();
 
 // Add services to the container.
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+	.AddApplicationPart(typeof(UsersController).Assembly);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -46,6 +50,8 @@ builder.Services.AddScoped<IBankTransactionRepository, BankTransactionRepository
 builder.Services.AddDbContext<UserDbContext>(options => options.UseNpgsql(dbConnectionString));
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
+builder.Services.AddScoped<IPasswordHasher<ZPI4M.User.Models.User>, PasswordHasher<ZPI4M.User.Models.User>>();
+builder.Services.AddScoped<IUserRegistrationService, UserRegistrationService>();
 
 // Notifications module
 builder.Services.AddDbContext<NotificationsDbContext>(options => options.UseNpgsql(dbConnectionString));

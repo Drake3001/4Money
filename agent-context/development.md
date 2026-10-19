@@ -44,9 +44,10 @@ Uruchamianie z tego katalogu zapewnia właściwy kontekst odczytu `.env` przez
 `DotNetEnv`. Profil HTTP wskazuje `http://localhost:5283`, profil HTTPS także
 `https://localhost:7278`. Host używa przekierowania HTTPS; sprawdź profil
 i konfigurację certyfikatu przy diagnozowaniu lokalnych wywołań.
-W Development host mapuje dokument OpenAPI. Obecnie host rejestruje konteksty
-i repozytoria, ale nie ma konfiguracji uwierzytelniania ani gotowych endpointów
-modułów. Stan kodu opisuje [status](implementation-status.md).
+W Development host mapuje dokument OpenAPI. Host wykrywa kontrolery modułu User;
+`POST /api/users/register` tworzy niepotwierdzone konto i waliduje dane wejściowe.
+Weryfikacja e-maila, SMTP i logowanie nie są jeszcze zaimplementowane.
+Stan kodu opisuje [status](implementation-status.md).
 
 ## Modele i migracje
 
