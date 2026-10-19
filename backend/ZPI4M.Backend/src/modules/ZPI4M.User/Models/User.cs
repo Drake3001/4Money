@@ -15,7 +15,7 @@ public partial class User
 
 	public string PasswordHash { get; set; } = null!;
 
-	public string? Email { get; set; }
+	public string Email { get; set; } = null!;
 
 	public bool IsEmailConfirmed { get; set; }
 

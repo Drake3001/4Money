@@ -1,3 +1,9 @@
+# komendy (z poziomu folderu src)
+1. stworzenie migracji:
+   `dotnet ef migrations add NAZWA --project ZPI4M.Database --startup-project ZPI4M.Api --context AppDbContext --output-dir Migrations`
+2. update bazy:
+   `dotnet ef database update --project ZPI4M.Database --startup-project ZPI4M.Api --context AppDbContext`
+
 # lokalna baza danych
 1. musicie dodać swój .env do containers, dodjacie tam dwie zmienne środowiskowe:
    1. `POSTGRES_USER`

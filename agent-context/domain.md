@@ -50,7 +50,7 @@ modelu i migracji.
 
 ## Konto i tokeny użytkownika
 
-`User.Email` jest opcjonalny i unikalny. Nowe `IsEmailConfirmed` ma domyślnie
+`User.Email` jest wymagany (`NOT NULL`) i unikalny. Nowe `IsEmailConfirmed` ma domyślnie
 wartość `false` i dotyczy aktualnego adresu. Pola `RefreshToken` oraz
 `RefreshTokenExpiryTime` zostały usunięte z `User`; tokeny należą do osobnej
 tabeli `user.user_token`.

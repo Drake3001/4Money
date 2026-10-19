@@ -30,7 +30,7 @@ namespace ZPI4M.User.Database
 					.HasDefaultValueSql("CURRENT_TIMESTAMP")
 					.HasColumnType("timestamp with time zone")
 					.HasColumnName("created_at");
-				entity.Property(e => e.Email).HasColumnName("email");
+				entity.Property(e => e.Email).IsRequired().HasColumnName("email");
 				entity.Property(e => e.IsEmailConfirmed)
 					.HasDefaultValue(false)
 					.HasColumnName("is_email_confirmed");
