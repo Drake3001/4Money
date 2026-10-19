@@ -5,7 +5,7 @@ from extraction.contracts import OCRResult, SourceFiles
 from extraction.pipeline import Pipeline
 from extraction.reporting import result_to_json, write_result
 from extraction.steps.prepare import PrepareDocumentStep
-from extraction.steps.rapidocr import RapidOCRStep
+from extraction.steps.ocr import RapidOCRStep
 from test_extraction import image_source
 
 

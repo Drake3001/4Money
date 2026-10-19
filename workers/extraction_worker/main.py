@@ -7,7 +7,7 @@ from extraction.pipeline import Pipeline
 from extraction.runner import run_batch
 from extraction.steps.docscan import DocscanStep
 from extraction.steps.prepare import PrepareDocumentStep
-from extraction.steps.rapidocr import RapidOCRStep
+from extraction.steps.ocr import RapidOCRStep
 
 WORKER_DIR = Path(__file__).resolve().parent
 INPUT_DIR = WORKER_DIR / "data" / "input"

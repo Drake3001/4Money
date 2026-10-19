@@ -46,7 +46,7 @@ class RapidOCRStep(LocalOCRStep):
                 )
             except ImportError as exc:
                 raise RuntimeError(
-                    "OCR dependencies are missing; install the ocr extra from pyproject.toml"
+                    "OCR dependencies are missing; run uv sync in workers/extraction_worker"
                 ) from exc
             self._engine = RapidOCR(
                 params={

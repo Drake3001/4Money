@@ -6,7 +6,7 @@ import pytest
 from extraction.pipeline import Pipeline
 from extraction.steps.docscan import DocscanStep
 from extraction.steps.prepare import prepare_document
-from extraction.steps.rapidocr import RapidOCRStep
+from extraction.steps.ocr import RapidOCRStep
 from extraction.steps.uvdoc import UVDocStep
 from PIL import Image
 from test_extraction import image_source
@@ -66,7 +66,7 @@ def test_experiment_prepares_once_and_reuses_steps(tmp_path, monkeypatch):
     from experiments import preprocessing
     from extraction.contracts import OCRResult, PreparedDocument, StepResult
     from extraction.steps.prepare import PrepareDocumentStep
-    from extraction.steps.rapidocr import RapidOCRStep
+    from extraction.steps.ocr import RapidOCRStep
     from test_main import write_image
 
     input_dir = tmp_path / "input"

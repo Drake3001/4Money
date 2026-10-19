@@ -8,7 +8,7 @@ from extraction.reporting import write_environment, write_result, write_summary
 from extraction.runner import collect_jobs, new_run, read_sources, run_case
 from extraction.steps.docscan import DocscanStep
 from extraction.steps.prepare import PrepareDocumentStep
-from extraction.steps.rapidocr import RapidOCRStep
+from extraction.steps.ocr import RapidOCRStep
 from extraction.steps.uvdoc import UVDocStep
 
 from experiments.evaluation import write_evaluation
