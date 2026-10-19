@@ -32,6 +32,8 @@ def test_structured_ocr_provenance_and_single_serialization(tmp_path):
     assert payload["output"]["pages"][0]["lines"][0]["text"] == "ŻABKA"
     assert "content" not in payload["output"]["document"]["pages"][0]
     assert "raw_response" not in payload
+    assert "raw_pages" not in payload["output"]
+    assert payload["output"]["pages"][0]["lines"][0]["box"] == [[1, 2], [30, 2], [30, 10], [1, 10]]
     assert result_to_json(result).count('"ŻABKA"') == 2
     write_result(tmp_path / "case", result)
     assert sorted(p.name for p in (tmp_path / "case").iterdir()) == [
