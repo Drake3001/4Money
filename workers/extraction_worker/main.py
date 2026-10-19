@@ -14,7 +14,12 @@ INPUT_DIR = WORKER_DIR / "data" / "input"
 OUTPUT_DIR = WORKER_DIR / "data" / "output"
 PDF_DPI = 200
 DEBUG = True
-EXPERIMENT = None  # Set to "preprocessing" to compare original/docscan/UVDoc.
+EXPERIMENT = None  # Or "preprocessing" / "ocr_comparison".
+OCR_VARIANTS = ("rapidocr", "paddle_mobile", "paddle_server_det", "easyocr", "tesseract")
+OCR_REPEATS = 1
+LOCAL_TESSERACT = WORKER_DIR / ".cache" / "tools" / "tesseract" / "tesseract.exe"
+TESSERACT_COMMAND = str(LOCAL_TESSERACT) if LOCAL_TESSERACT.is_file() else "tesseract"
+TESSDATA_DIR = WORKER_DIR / ".cache" / "models" / "tesseract"
 
 
 def build_pipeline():
@@ -30,7 +35,15 @@ def build_pipeline():
 def main():
     try:
         INPUT_DIR.mkdir(parents=True, exist_ok=True)
-        if EXPERIMENT == "preprocessing":
+        if EXPERIMENT == "ocr_comparison":
+            from experiments.ocr_comparison import run_ocr_comparison
+
+            root, failed = run_ocr_comparison(
+                INPUT_DIR, OUTPUT_DIR, dpi=PDF_DPI, debug=DEBUG,
+                names=OCR_VARIANTS, repeats=OCR_REPEATS,
+                tesseract_command=TESSERACT_COMMAND, tessdata_dir=TESSDATA_DIR,
+            )
+        elif EXPERIMENT == "preprocessing":
             from experiments.preprocessing import run_preprocessing
 
             root, variants = run_preprocessing(INPUT_DIR, OUTPUT_DIR, PDF_DPI, DEBUG)

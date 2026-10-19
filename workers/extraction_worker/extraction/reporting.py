@@ -1,6 +1,7 @@
 """JSON, text and optional page images; no image bytes enter JSON."""
 
 import json
+import os
 import platform
 import sys
 from dataclasses import fields, is_dataclass
@@ -52,6 +53,12 @@ def result_to_json(result):
     return json.dumps(to_dict(result), ensure_ascii=False, indent=2, allow_nan=False)
 
 
+def write_json(path, value):
+    with path.open("x", encoding="utf-8") as stream:
+        json.dump(value, stream, ensure_ascii=False, indent=2, allow_nan=False)
+        stream.write("\n")
+
+
 def write_result(folder, result):
     folder.mkdir(parents=True, exist_ok=False)
     with (folder / "result.json").open("x", encoding="utf-8") as stream:
@@ -101,6 +108,10 @@ def write_environment(folder):
         "paddleocr",
         "paddlex",
         "paddlepaddle",
+        "easyocr",
+        "torch",
+        "torchvision",
+        "rapidfuzz",
         "numpy",
         "opencv-python",
         "opencv-python-headless",
@@ -112,6 +123,10 @@ def write_environment(folder):
             packages[name] = None
     environment = {
         "python": platform.python_version(),
+        "platform": platform.platform(),
+        "processor": platform.processor(),
+        "machine": platform.machine(),
+        "logical_cpu_count": os.cpu_count(),
         "packages": packages,
         "opencv_runtime": getattr(sys.modules.get("cv2"), "__version__", None),
     }
