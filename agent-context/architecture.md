@@ -12,18 +12,29 @@ osobnych usług ani niezależnych wdrożeń.
 
 | Moduł | Odpowiedzialność | Projektowane zależności |
 | --- | --- | --- |
-| Banking | Integracja bankowa i pobieranie transakcji | Open Banking, Expense |
-| Receipt | Przetwarzanie obrazów paragonów | OCR, Expense |
-| Expense | Ewidencja wydatków i kategoryzacja | Model kategoryzujący, User, Grouping |
+| Banking | Integracja bankowa i pobieranie transakcji | Tylko OpenBanking |
+| Receipt | Przetwarzanie obrazów paragonów | Tylko model OCR |
+| Expense | Ewidencja wydatków i kategoryzacja | Banking, Receipt, model kategoryzujący, User, Grouping |
 | Limits | Budżety i progi wydatkowe | Expense, Grouping, Notifications, User |
 | Grouping | Grupy, podział kosztów i zobowiązania | Notifications, User |
 | Reports | Raporty i statystyki | Expense, Limits, Grouping, User |
 | Notifications | Powiadomienia i alerty | User |
 | User | Tożsamość i uprawnienia | Brak innych modułów |
 
-Tabela odtwarza projekt zależności z `doc`; nie jest listą aktualnych
-`ProjectReference`. Przed dodaniem zależności sprawdź kod i istniejące kontrakty.
+Tabela opisuje projekt zależności z `doc` z uwzględnieniem aktualnych ustaleń
+użytkownika; nie jest listą aktualnych `ProjectReference`. Przed dodaniem
+zależności sprawdź kod i istniejące kontrakty.
 Nie wprowadzaj mikroserwisów ani nowego wzorca komunikacji bez potrzeby zadania.
+
+Ustalenie użytkownika z 2026-10-19 zastępuje wcześniejsze kierunki zależności
+Banking i Receipt od Expense. Expense koordynuje dodawanie wydatku: przez
+publiczny interfejs Receipt zleca odczyt paragonu, a przez interfejs Banking
+pobiera transakcje do wyboru lub dopasowania. Expense odpowiada za utworzenie
+wydatku i zapisanie powiązań. Receipt korzysta wyłącznie z modelu OCR,
+a Banking wyłącznie z modułu/integracji OpenBanking. Receipt i Banking nie
+zależą od Expense ani od siebie nawzajem. Są to ustalenia dotyczące współpracy
+modułów i integracji; nie oznaczają, że projekty OCR lub OpenBanking już istnieją
+w solucji.
 
 ## Warstwy modułu
 
