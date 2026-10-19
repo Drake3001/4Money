@@ -1,6 +1,7 @@
 """Local OCR adapters. Importing this package does not load optional engines."""
 
+from .easyocr import EasyOCRStep
 from .paddleocr import PaddleOCRStep
 from .rapidocr import RapidOCRStep
 
-__all__ = ["RapidOCRStep", "PaddleOCRStep"]
+__all__ = ["RapidOCRStep", "PaddleOCRStep", "EasyOCRStep"]
