@@ -38,6 +38,10 @@ Nie wprowadzaj mikroserwisów ani nowego wzorca komunikacji bez potrzeby zadania
 | Integrations, opcjonalnie | Adaptery usług zewnętrznych, np. OCR lub bankowości |
 
 Schemat przepływu to `ApiControllers → Services → Repositories → baza`.
+Zaimplementowane repozytoria mają osobne katalogi
+`Repositories/<Nazwa>Repository/` z interfejsem, implementacją i opcjonalnym
+plikiem `<Nazwa>Queries.cs`. Typy pozostają w namespace modułu
+`ZPI4M.<Moduł>.Repositories`. UserToken i Notification nie mają Queries.
 Repozytoria rejestrują dodanie i usunięcie encji, ale nie wykonują własnego
 `SaveChangesAsync`. Granicę zapisu wyznacza serwis, aby np. utworzenie grupy
 i dodanie administratora zapisać atomowo. Wspólny zapis wymaga tego samego

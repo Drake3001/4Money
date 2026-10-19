@@ -4,6 +4,7 @@
 .
 ├── .github/
 │   └── workflows/
+├── agent-context/
 ├── backend/
 │   └── ZPI4M.Backend/
 │       ├── src/
@@ -38,8 +39,10 @@
 │       │   │   │   └── Services/
 │       │   │   ├── ZPI4M.Notifications/
 │       │   │   │   ├── ApiControllers/
+│       │   │   │   ├── Database/
 │       │   │   │   ├── DTOs/
 │       │   │   │   ├── Models/
+│       │   │   │   ├── Repositories/
 │       │   │   │   └── Services/
 │       │   │   ├── ZPI4M.Receipt/
 │       │   │   │   ├── ApiControllers/
