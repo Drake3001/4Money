@@ -1,54 +1,11 @@
 """Engine-independent reading order and explicitly eligible transcription metrics."""
 
-import math
 import re
 import unicodedata
 from collections import Counter
 from statistics import median
 
-
-def reconstruct_rows(raw):
-    """Return an audit view, retaining original fragments in each row's members."""
-    pages = []
-    for page in raw["pages"]:
-        fragments = [line for line in page["lines"] if line["text"].strip()]
-        if not fragments:
-            pages.append({**page, "lines": []})
-            continue
-        angle = median(math.atan2(line["box"][1][1] - line["box"][0][1],
-                                 line["box"][1][0] - line["box"][0][0]) for line in fragments)
-        c, s = math.cos(angle), math.sin(angle)
-        projected = []
-        for line in fragments:
-            points = [(x*c + y*s, -x*s + y*c) for x, y in line["box"]]
-            projected.append({"line": line, "points": points,
-                              "x": sum(p[0] for p in points)/4,
-                              "y": sum(p[1] for p in points)/4,
-                              "height": max(1, max(p[1] for p in points)-min(p[1] for p in points))})
-        tolerance = 0.5 * median(item["height"] for item in projected)
-        groups = []
-        for item in sorted(projected, key=lambda value: (value["y"], value["x"])):
-            candidates = [(abs(item["y"]-median(member["y"] for member in group)), index)
-                          for index, group in enumerate(groups)]
-            distance, index = min(candidates) if candidates else (math.inf, -1)
-            if distance <= tolerance:
-                groups[index].append(item)
-            else:
-                groups.append([item])
-        rows = []
-        for group in sorted(groups, key=lambda values: median(item["y"] for item in values)):
-            group.sort(key=lambda value: value["x"])
-            points = [point for item in group for point in item["points"]]
-            x1, x2 = min(p[0] for p in points), max(p[0] for p in points)
-            y1, y2 = min(p[1] for p in points), max(p[1] for p in points)
-            box = [[x*c-y*s, x*s+y*c] for x, y in ((x1,y1),(x2,y1),(x2,y2),(x1,y2))]
-            length = sum(len(item["line"]["text"].strip()) for item in group)
-            rows.append({"text": " ".join(item["line"]["text"].strip() for item in group),
-                         "confidence": sum(item["line"]["confidence"] * len(item["line"]["text"].strip())
-                                           for item in group)/length,
-                         "box": box, "members": [item["line"] for item in group]})
-        pages.append({**page, "lines": rows})
-    return {**raw, "pages": pages}
+from extraction.steps.parsing.geometry import reconstruct_rows
 
 
 def transcription_text(raw):

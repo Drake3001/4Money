@@ -1,6 +1,7 @@
 """A sequential pipeline; branching belongs to the caller."""
 
 import re
+from collections.abc import Collection
 from copy import deepcopy
 from time import perf_counter
 
@@ -38,8 +39,9 @@ class Pipeline:
                 raise TypeError("Step version must be a string and config a dict")
             previous = step.output_type
 
-    def run(self, input, capture_steps=False):
+    def run(self, input, capture_steps: bool | Collection[str] = False):
         result = PipelineResult()
+        captured_names = frozenset() if isinstance(capture_steps, bool) else frozenset(capture_steps)
         value = input
         for name, step in self.steps:
             started = perf_counter()
@@ -61,7 +63,7 @@ class Pipeline:
                 result.output = value
                 result.warnings.extend(outcome.warnings)
                 completed = True
-                if capture_steps:
+                if capture_steps is True or name in captured_names:
                     result.captured_steps[name] = value
             except Exception as exc:
                 result.error = PipelineError(name, type(exc).__name__, str(exc))

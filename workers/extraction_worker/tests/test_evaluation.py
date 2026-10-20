@@ -2,6 +2,11 @@ import json
 
 import pytest
 from experiments.evaluation import audit_receipt, normalize_name, write_evaluation
+from extraction.contracts import (
+    OCRFragment, OCRPage, OCRResult, PipelineError, PipelineResult,
+    PreparedDocument, ReceiptData,
+)
+from extraction.reporting import to_dict
 
 
 def line(text, y, x=10):
@@ -43,6 +48,26 @@ def raw(lines):
         "settings": {},
         "pages": [{"page_number": 1, "lines": lines}],
     }
+
+
+def test_unprinted_time_is_not_counted_as_missing_ocr_value():
+    data = reference()
+    data["time"] = None
+    data["unprinted_fields"] = ["time"]
+    result = audit_receipt(data, raw([line("2026-10-10", 10)]))
+    assert result["document_values"]["time"] == {
+        "expected": None, "present_in_document": None, "status": "not_printed",
+    }
+    assert result["document_values"]["date"]["present_in_document"] is True
+
+
+def test_computed_gross_is_excluded_from_ocr_field_counts():
+    data = reference()
+    data["items"][0]["before_discount_is_printed"] = False
+    result = audit_receipt(data, raw([line("Napój mlecz. 1 x3,95 3,95", 10)]))
+    checks = result["items"][0]["fields"]
+    assert checks["before_discount"]["status"] == "not_printed"
+    assert checks["total"]["status"] == "match"
 
 
 def test_exact_name_and_purchase_amounts_ignore_spacing_and_marker():
@@ -209,6 +234,51 @@ def test_report_skips_missing_ocr_and_cannot_overwrite(tmp_path):
 def test_no_references_do_not_create_output(tmp_path):
     assert write_evaluation(tmp_path, tmp_path) is None
     assert not (tmp_path / "evaluation").exists()
+
+
+def intermediate_ocr():
+    fragments = tuple(
+        OCRFragment(value["text"], value["confidence"], tuple(map(tuple, value["box"])))
+        for value in [line("Napój mlecz. F", 10), line("1 x3,95 3,95C", 10, 200)]
+    )
+    return OCRResult(
+        PreparedDocument((), ()),
+        (OCRPage(1, "receipt.png", 1, 1, 500, 500, fragments),),
+        "test", "1", {},
+    )
+
+
+@pytest.mark.parametrize("failed", [False, True])
+def test_ocr_audit_uses_intermediate_after_parsing(tmp_path, failed):
+    refs, run = tmp_path / "refs", tmp_path / "run"
+    refs.mkdir()
+    run.mkdir()
+    (refs / "receipt.expected.json").write_text(json.dumps(reference()), encoding="utf-8")
+    result = PipelineResult(
+        output=ReceiptData(),
+        captured_steps={"recognize": intermediate_ocr()},
+        error=PipelineError("parse", "ValueError", "failed") if failed else None,
+    )
+    output = write_evaluation(run, refs, {"receipt.png": result})
+    report = json.loads(output.with_suffix(".json").read_text(encoding="utf-8"))
+    assert len(report["cases"]) == 1 and report["skipped"] == []
+    assert report["cases"][0]["numeric_field_counts"] == {"match": 4}
+
+
+def test_ocr_audit_replays_saved_intermediate_without_memory_result(tmp_path):
+    refs, run = tmp_path / "refs", tmp_path / "run"
+    refs.mkdir()
+    (run / "receipt.png").mkdir(parents=True)
+    (refs / "receipt.expected.json").write_text(json.dumps(reference()), encoding="utf-8")
+    (run / "receipt.png/result.json").write_text(
+        json.dumps({"output": {"items": []}}), encoding="utf-8"
+    )
+    (run / "receipt.png/ocr.json").write_text(
+        json.dumps(to_dict(intermediate_ocr())), encoding="utf-8"
+    )
+    output = write_evaluation(run, refs)
+    report = json.loads(output.with_suffix(".json").read_text(encoding="utf-8"))
+    assert len(report["cases"]) == 1 and report["skipped"] == []
 
 
 def test_aldi_star_and_reference_tax_suffix_are_supported():

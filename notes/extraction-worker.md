@@ -1,7 +1,7 @@
 # Extraction worker — notatka dla zespołu
 
 Moduł rozwijamy jako pipeline: przygotowanie → OCR → parser → klasyfikacja.
-Obecnie działają przygotowanie i OCR; parser i klasyfikacja są kolejnymi etapami.
+Obecnie działają przygotowanie, OCR, parser regułowy i walidacja; klasyfikacja jest kolejnym etapem.
 Krótki opis modułu: [README](../workers/extraction_worker/README.md).
 
 ## 1. Środowisko i pierwszy start
@@ -31,7 +31,7 @@ uv run main.py
 ```
 
 Pierwsze uruchomienie utworzy `data/input/`, jeśli go nie ma. Dodaj dokumenty
-i uruchom ponownie. Domyślnie działa `prepare → RapidOCR`, z `EXPERIMENT = None`.
+i uruchom ponownie. Domyślnie działa `prepare → RapidOCR → parse → validate`, z `EXPERIMENT = None`.
 Kolejne przykłady wykonuj z katalogu workera. `uv.lock` zapisujemy w Git;
 środowiska, zdjęcia, modele i wyniki pozostają lokalne.
 
@@ -50,8 +50,8 @@ data/input/
 ```
 Obsługujemy JPEG, PNG i PDF. Kolejność plików wynika z nazw, a stron PDF z dokumentu.
 Każdy przebieg ma nowy katalog `data/output/<przebieg>/`. Dla dokumentu zapisujemy
-`result.json` oraz po udanym OCR `ocr.txt`; podsumowanie jest w `summary.md`.
-W JSON-ie `output.pages[].lines[]` zawiera tekst, confidence i cztery punkty `box`.
+`result.json` oraz po udanym OCR `ocr.json` i `ocr.txt`; podsumowanie jest w `summary.md`.
+W `ocr.json` pole `pages[].lines[]` zawiera tekst, confidence i cztery punkty `box`.
 Ramki dotyczą obrazu po przygotowaniu/preprocessingu; wymiary i źródła są zachowane.
 
 Konfiguracja jest w `main.py`, bez argumentów CLI:
@@ -86,11 +86,19 @@ Pipeline.run(document)
 ```
 Adapter odpowiada za konfigurację i wywołanie biblioteki. RapidOCR, Paddle i EasyOCR
 używają ponownie załadowanego silnika; Tesseract uruchamia program dla każdej strony.
-Kroki nie zapisują raportów ani nie interpretują produktów i kwot.
+Adaptery OCR nie zapisują raportów ani nie interpretują produktów i kwot.
+
+`ParseReceiptStep` z `steps/parsing/` otrzymuje `OCRResult` i zwraca `ReceiptData`.
+Łączy tekst z geometrią, oddziela zakupy, rabaty, kaucje i zwroty oraz odczytuje
+sumę towarów i kwotę do zapłaty. Nie korzysta ze wzorców ani modeli uczonych.
+`total` oznacza towary po rabatach; `amount_due` uwzględnia kaucje i zwroty.
+Braki pozostają `null`; powtórzone produkty pozostają osobnymi pozycjami.
+`evidence` przypisuje polom indeksy fragmentów OCR oraz metodę `observed` lub `derived`.
+Walidacja zgłasza rozbieżności sum i wartości niefinitywne, bez zmiany danych.
 
 `experiments/evaluation.py` ocenia odczyt względem ręcznego wzorca. Wykorzystuje
 nazwy produktów i geometrię do przypisywania cen, więc ma elementy parsera
-wspomaganego wzorcem. Nie zastępuje planowanego parsera aplikacji. Błąd dopasowania
+wspomaganego wzorcem. Nie jest parserem aplikacji. Błąd dopasowania
 w audycie nie dowodzi błędu OCR. Ta ocena nie zmienia surowych fragmentów w wyniku.
 
 ## 4. Eksperymenty i opcjonalne silniki
@@ -167,9 +175,23 @@ curl -fL https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/eng.
 
 Opcjonalny `paragon.expected.json` opisuje oczekiwane produkty i kwoty dla
 `paragon.jpg`; dla folderu podaj jego nazwę w `source` i kolejność plików w `sources`.
-Zwykły pipeline i preprocessing zapisują audyt w `evaluation/report.md` i `report.json`.
+Audyt OCR zapisuje się w `evaluation/report.md` i `report.json`.
 Porównanie OCR zawiera audyt we własnym raporcie. Tylko `review_status: "reviewed"`
 oznacza sprawdzony wzorzec; porównanie rozdziela go od wzorców niezatwierdzonych.
+
+Osobna ocena parsera znajduje się w `parsing-evaluation/report.md` i `report.json`.
+Porównuje gotowe predykcje, zachowując kolejność oraz powtórzenia produktów;
+liczy brakujące i nadmiarowe pozycje. Kwoty porównuje dokładnie jako Decimal,
+a nazwy raportuje osobno jako zgodne, przybliżone, różne albo brakujące.
+Raport zachowuje status zatwierdzenia i `uncertain_fields` wzorca.
+Brak tekstu w OCR ogranicza wynik parsera; nie naprawiamy go danymi ze wzorca.
+
+Do iteracji nad parserem można odtworzyć zapisany odczyt bez uruchamiania OCR:
+```sh
+uv run python -m experiments.parsing data/output/<przebieg>/rapidocr data/input data/output/<nowy-przebieg-parsera>
+```
+Katalog wyjściowy musi być nowy. Odtwarzanie przyjmuje starsze `result.json`
+z wynikiem OCR oraz nowe `ocr.json`; zachowuje ramki i metadane bez czytania zdjęć.
 
 CER to odległość między odczytanym tekstem a transkrypcją, podzielona przez długość
 transkrypcji. Wymaga `transcription_scope: "full_image"` w JSON i pełnego

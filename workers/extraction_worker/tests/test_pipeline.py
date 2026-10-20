@@ -67,3 +67,11 @@ def test_config_is_snapshot_and_removing_step_changes_flow():
     assert result.output == 1
     assert Pipeline([("one", step), ("two", step)]).run(0).output == 2
     assert result.steps[0].config is not step.config
+
+
+@pytest.mark.parametrize("selection", [{"first"}, ("first",), ["first"]])
+def test_selective_capture_retains_only_named_successful_steps(selection):
+    pipeline = Pipeline([("first", Increment()), ("second", Increment())])
+    result = pipeline.run(0, capture_steps=selection)
+    assert result.output == 2 and result.captured_steps == {"first": 1}
+    assert pipeline.run(0, capture_steps=set()).captured_steps == {}

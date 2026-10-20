@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "zpi-receipt-extraction"
 version = "0.1.0"
-description = "Receipt processing pipeline with OCR and planned parsing and classification"
+description = "Receipt processing pipeline with OCR, rule-based parsing and validation"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "Pillow>=10",

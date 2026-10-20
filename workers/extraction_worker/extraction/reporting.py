@@ -59,17 +59,26 @@ def write_json(path, value):
         stream.write("\n")
 
 
-def write_result(folder, result):
+def write_result(folder, result, save_images=True):
     folder.mkdir(parents=True, exist_ok=False)
     with (folder / "result.json").open("x", encoding="utf-8") as stream:
         stream.write(result_to_json(result) + "\n")
-    if isinstance(result.output, OCRResult):
+    ocr = result.output if isinstance(result.output, OCRResult) else next(
+        (output for output in reversed(tuple(result.captured_steps.values()))
+         if isinstance(output, OCRResult)),
+        None,
+    )
+    if ocr is not None:
+        if not isinstance(result.output, OCRResult):
+            write_json(folder / "ocr.json", to_dict(ocr))
         text = "\n\n".join(
             f"--- Page {p.page_number}: {p.source_name} ---\n{p.text}"
-            for p in result.output.pages
+            for p in ocr.pages
         )
         with (folder / "ocr.txt").open("x", encoding="utf-8") as stream:
             stream.write(text + "\n")
+    if not save_images:
+        return
     for name, output in result.captured_steps.items():
         document = output.document if isinstance(output, OCRResult) else output
         if isinstance(document, PreparedDocument):

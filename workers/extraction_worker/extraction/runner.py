@@ -4,7 +4,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from .contracts import PipelineError, PipelineResult, SourceFile, SourceFiles
+from .contracts import ExtractionWarning, OCRResult, PipelineError, PipelineResult, SourceFile, SourceFiles
 from .reporting import write_environment, write_result, write_summary
 
 MIME_TYPES = {
@@ -54,8 +54,15 @@ def new_run(output):
 
 
 def run_case(pipeline, input, folder, debug=False):
-    result = pipeline.run(input, capture_steps=debug)
-    write_result(folder, result)
+    capture = True if debug else {
+        name for name, step in pipeline.steps if issubclass(step.output_type, OCRResult)
+    }
+    result = pipeline.run(input, capture_steps=capture)
+    if isinstance(result.output, OCRResult):
+        result.warnings.append(ExtractionWarning(
+            "ocr_only", "Only OCR was performed; receipt fields and products have not been parsed"
+        ))
+    write_result(folder, result, save_images=debug)
     return result
 
 

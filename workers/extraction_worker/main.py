@@ -3,11 +3,14 @@
 from pathlib import Path
 
 from experiments.evaluation import write_evaluation
+from experiments.parsing import write_parser_evaluation
 from extraction.pipeline import Pipeline
 from extraction.runner import run_batch
 from extraction.steps.docscan import DocscanStep
 from extraction.steps.prepare import PrepareDocumentStep
 from extraction.steps.ocr import RapidOCRStep
+from extraction.steps.parsing import ParseReceiptStep
+from extraction.steps.validate import ValidateReceiptStep
 
 WORKER_DIR = Path(__file__).resolve().parent
 INPUT_DIR = WORKER_DIR / "data" / "input"
@@ -28,6 +31,8 @@ def build_pipeline():
             ("prepare", PrepareDocumentStep(pdf_dpi=PDF_DPI)),
             # ("docscan", DocscanStep()),
             ("ocr", RapidOCRStep()),
+            ("parse", ParseReceiptStep()),
+            ("validate", ValidateReceiptStep()),
         ]
     )
 
@@ -55,6 +60,7 @@ def main():
         elif EXPERIMENT is None:
             root, results = run_batch(build_pipeline(), INPUT_DIR, OUTPUT_DIR, DEBUG)
             write_evaluation(root, INPUT_DIR, results)
+            write_parser_evaluation(root, INPUT_DIR, results)
             failed = any(not result.ok for result in results.values())
             if not results:
                 print(

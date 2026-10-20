@@ -175,3 +175,44 @@ def test_state_write_retries_temporary_windows_file_lock(tmp_path, monkeypatch):
     save_json(target, {"new": True})
     assert len(calls) == 3
     assert json.loads(target.read_text()) == {"new": True}
+
+
+def test_sync_preserves_receipt_group_mapping_without_redownloading(tmp_path):
+    images = tmp_path / "input"
+    images.mkdir()
+    drive = Drive([("id", "part.jpg")])
+    state_path = tmp_path / "state.json"
+    sync_drive("link", images, state_path, drive)
+    group = images / "receipt"
+    group.mkdir()
+    (images / "part.jpg").rename(group / "part.jpg")
+    state = json.loads(state_path.read_text())
+    state["part.jpg"]["local_path"] = "receipt/part.jpg"
+    save_json(state_path, state)
+    report = sync_drive("link", images, state_path, drive)
+    assert report["existing"] == ["part.jpg"] and not report["errors"]
+    assert drive.calls == ["id"]
+    assert not (images / "part.jpg").exists()
+    assert json.loads(state_path.read_text())["part.jpg"]["local_path"] == "receipt/part.jpg"
+    state["part.jpg"]["local_path"] = "../escape.jpg"
+    save_json(state_path, state)
+    assert sync_drive("link", images, state_path, drive)["errors"]
+    assert drive.calls == ["id"]
+
+
+def test_unprinted_time_requires_explicit_annotation():
+    value = reference()
+    value["time"] = None
+    assert any("time" in error for error in validate_reference(value))
+    value["unprinted_fields"] = ["time"]
+    assert validate_reference(value) == []
+    value["time"] = "12:00"
+    assert any("unprinted metadata must be null" in error for error in validate_reference(value))
+
+
+def test_computed_gross_amount_requires_boolean_printed_flag():
+    value = reference()
+    value["items"][0]["before_discount_is_printed"] = False
+    assert validate_reference(value) == []
+    value["items"][0]["before_discount_is_printed"] = "false"
+    assert any("before_discount_is_printed" in error for error in validate_reference(value))

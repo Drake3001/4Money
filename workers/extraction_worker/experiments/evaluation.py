@@ -266,7 +266,9 @@ def audit_receipt(reference: dict, raw: OCRResult | dict) -> dict:
         ):
             entry["fields"][field] = _check(
                 item[field], [pattern[position] for pattern in patterns]
-            )
+            ) if item.get(f"{field}_is_printed", True) else {
+                "expected": item[field], "observed": [], "status": "not_printed",
+            }
         discounts = [
             _decimal(match.group())
             for line in window
@@ -327,7 +329,8 @@ def audit_receipt(reference: dict, raw: OCRResult | dict) -> dict:
     dates = {
         field: {
             "expected": reference[field],
-            "present_in_document": reference[field] in all_text,
+            "present_in_document": reference[field] in all_text if reference[field] is not None else None,
+            **({"status": "not_printed"} if reference[field] is None else {}),
         }
         for field in ("date", "time")
     }
@@ -388,7 +391,7 @@ def _markdown(report: dict) -> str:
         )
         for field, value in case["document_values"].items():
             output.append(
-                f"- {field}: `{value['expected']}` — {'znaleziono' if value['present_in_document'] else 'brak'}."
+                f"- {field}: `{value['expected']}` — {'niewydrukowane; nie oceniono' if value.get('status') == 'not_printed' else 'znaleziono' if value['present_in_document'] else 'brak'}."
             )
         merchant = case["merchant"]
         output.extend(["", f"Sklep (marka w nagłówku): `{_cell(merchant['expected'])}` ← `{_cell(merchant['observed'] or 'brak')}` — {merchant['status']}.",
@@ -486,15 +489,25 @@ def write_evaluation(run_dir: Path, references_dir: Path, results=None) -> Path 
             if results is not None and source in results:
                 raw = results[source].output
                 if not isinstance(raw, OCRResult):
-                    raise ValueError("No successful OCR output")
-                report["cases"].append(audit_receipt(reference, raw))
-                continue
-            if not raw_path.is_file():
+                    raw = next(
+                        (output for output in reversed(tuple(results[source].captured_steps.values()))
+                         if isinstance(output, OCRResult)),
+                        None,
+                    )
+                if raw is not None:
+                    report["cases"].append(audit_receipt(reference, raw))
+                    continue
+            ocr_path = run_dir / source / "ocr.json"
+            if not raw_path.is_file() and not ocr_path.is_file():
                 report["skipped"].append(
                     {"reference": path.name, "reason": "Brak wyniku OCR dla zdjęcia"}
                 )
                 continue
-            raw = json.loads(raw_path.read_text(encoding="utf-8"))["output"]
+            raw = (
+                json.loads(ocr_path.read_text(encoding="utf-8"))
+                if ocr_path.is_file()
+                else json.loads(raw_path.read_text(encoding="utf-8"))["output"]
+            )
             if not isinstance(raw, dict) or raw.get("kind") != "ocr":
                 raise ValueError("No successful OCR output")
             report["cases"].append(audit_receipt(reference, raw))

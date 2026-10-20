@@ -50,6 +50,23 @@ class ReceiptItem:
     unit: str | None = None
     unit_price: Decimal | None = None
     total: Decimal | None = None
+    before_discount: Decimal | None = None
+    discount: Decimal | None = None
+
+
+@dataclass
+class ReceiptDeposit:
+    name: str | None = None
+    quantity: Decimal | None = None
+    unit_price: Decimal | None = None
+    total: Decimal | None = None
+
+
+@dataclass(frozen=True)
+class FieldEvidence:
+    # (one-based page number, zero-based index in the original OCRPage.lines).
+    fragments: tuple[tuple[int, int], ...] = ()
+    method: str = "observed"
 
 
 @dataclass
@@ -59,6 +76,10 @@ class ReceiptData:
     currency: str | None = None
     total: Decimal | None = None
     items: list[ReceiptItem] = field(default_factory=list)
+    amount_due: Decimal | None = None
+    deposits: list[ReceiptDeposit] = field(default_factory=list)
+    deposit_returns: list[ReceiptDeposit] = field(default_factory=list)
+    evidence: dict[str, FieldEvidence] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

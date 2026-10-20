@@ -34,8 +34,14 @@ def validate_reference(value, source=None, sources=None):
             elif nonnegative and Decimal(raw) < 0:
                 errors.append(f"{prefix}{key}: must be nonnegative")
 
+    unprinted = value.get("unprinted_fields", [])
+    if not isinstance(unprinted, list) or not all(field in ("date", "time") for field in unprinted):
+        errors.append("unprinted_fields: expected an array containing date/time field names")
+        unprinted = []
     for key in ("source", "annotation_method", "store", "date", "time", "currency"):
-        text(value, key)
+        text(value, key, nullable=key in unprinted)
+        if key in unprinted and value.get(key) is not None:
+            errors.append(f"{key}: unprinted metadata must be null")
     if source is not None and value.get("source") != source:
         errors.append(f"source: expected {source!r}")
     for key, parse in (("date", date.fromisoformat), ("time", time.fromisoformat)):
@@ -62,8 +68,9 @@ def validate_reference(value, source=None, sources=None):
                 errors.append(f"items[{index}]: expected an object")
                 continue
             text(item, "name", prefix)
-            if "total_is_printed" in item and not isinstance(item["total_is_printed"], bool):
-                errors.append(f"{prefix}total_is_printed: expected a boolean")
+            for flag in ("total_is_printed", "before_discount_is_printed"):
+                if flag in item and not isinstance(item[flag], bool):
+                    errors.append(f"{prefix}{flag}: expected a boolean")
             text(item, "unit", prefix, nullable=True)
             number(item, "quantity", prefix, nonnegative=True)
             for key in ("unit_price", "before_discount", "discount", "total"):

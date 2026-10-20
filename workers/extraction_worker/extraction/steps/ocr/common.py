@@ -45,9 +45,7 @@ class LocalOCRStep:
     def run(self, document: PreparedDocument) -> StepResult:
         self.initialize()
         pages = []
-        warnings = [ExtractionWarning(
-            "ocr_only", "Only OCR was performed; receipt fields and products have not been parsed"
-        )]
+        warnings = []
         for page in document.pages:
             lines = tuple(self.recognize(page.content))
             pages.append(OCRPage(

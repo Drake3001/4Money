@@ -90,15 +90,21 @@ def sync_drive(url, input_dir, state_path, client=None):
             continue
         try:
             target = safe_destination(input_dir, entry.path)
+            key = str(target.relative_to(input_dir)).replace("\\", "/")
+            local_path = state.get(key, {}).get("local_path")
+            if local_path:
+                target = safe_destination(input_dir, local_path)
+                if target.suffix.lower() != Path(entry.path).suffix.lower():
+                    raise ValueError(f"Mapped destination changes media type: {local_path!r}")
         except ValueError as exc:
             report["errors"].append(str(exc))
             continue
-        key = str(target.relative_to(input_dir)).replace("\\", "/")
-        counts[key.casefold()] = counts.get(key.casefold(), 0) + 1
+        destination_key = str(target).casefold()
+        counts[destination_key] = counts.get(destination_key, 0) + 1
         candidates.append((entry, target, key))
     for entry, target, key in candidates:
         try:
-            if counts[key.casefold()] > 1:
+            if counts[str(target).casefold()] > 1:
                 raise ValueError("Drive contains duplicate destination names")
             old = state.get(key)
             if old and old["id"] != entry.id:
@@ -111,7 +117,7 @@ def sync_drive(url, input_dir, state_path, client=None):
                     raise ValueError("Local image changed since sync; review its annotation")
                 report["existing"].append(key)
                 # Adopt pre-existing local photos without replacing or downloading them.
-                state[key] = {"id": entry.id, "sha256": sha}
+                state[key] = {**(old or {}), "id": entry.id, "sha256": sha}
                 print(f"Existing: {key}", flush=True)
                 continue
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -135,7 +141,7 @@ def sync_drive(url, input_dir, state_path, client=None):
                         output.close()
                         target.unlink()
                         raise
-            state[key] = {"id": entry.id, "sha256": sha}
+            state[key] = {**(old or {}), "id": entry.id, "sha256": sha}
             report["downloaded"].append(key)
             print(f"Downloaded: {key}", flush=True)
         except Exception as exc:
