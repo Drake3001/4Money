@@ -3,7 +3,7 @@ using ZPI4M.Expense.Database;
 using ZPI4M.Expense.Models;
 using ZPI4M.Shared.Pagination;
 
-namespace ZPI4M.Expense.Repositories;
+namespace ZPI4M.Expense.Repositories.ExpenseShareRepository;
 
 public class ExpenseShareRepository : IExpenseShareRepository
 {

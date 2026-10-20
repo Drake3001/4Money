@@ -1,6 +1,6 @@
 using ZPI4M.Shared.Pagination;
 
-namespace ZPI4M.User.Repositories;
+namespace ZPI4M.User.Repositories.UserRepository;
 
 public interface IUserRepository
 {

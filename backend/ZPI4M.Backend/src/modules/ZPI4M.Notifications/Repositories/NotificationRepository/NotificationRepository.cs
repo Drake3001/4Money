@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ZPI4M.Notifications.Database;
 using ZPI4M.Notifications.Models;
 
-namespace ZPI4M.Notifications.Repositories;
+namespace ZPI4M.Notifications.Repositories.NotificationRepository;
 
 public class NotificationRepository : INotificationRepository
 {

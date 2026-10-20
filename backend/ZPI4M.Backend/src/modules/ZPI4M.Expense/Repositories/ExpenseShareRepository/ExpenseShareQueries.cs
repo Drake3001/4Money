@@ -1,6 +1,6 @@
 using ZPI4M.Shared.Pagination;
 
-namespace ZPI4M.Expense.Repositories;
+namespace ZPI4M.Expense.Repositories.ExpenseShareRepository;
 
 public enum ExpenseShareSortBy { ExpenseId, UserId, Percentage }
 

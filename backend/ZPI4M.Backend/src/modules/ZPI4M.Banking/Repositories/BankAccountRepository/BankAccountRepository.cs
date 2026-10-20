@@ -3,7 +3,7 @@ using ZPI4M.Banking.Database;
 using ZPI4M.Banking.Models;
 using ZPI4M.Shared.Pagination;
 
-namespace ZPI4M.Banking.Repositories;
+namespace ZPI4M.Banking.Repositories.BankAccountRepository;
 
 public class BankAccountRepository : IBankAccountRepository
 {

@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ZPI4M.Shared.Pagination;
 using ZPI4M.User.Database;
 
-namespace ZPI4M.User.Repositories;
+namespace ZPI4M.User.Repositories.UserRepository;
 
 public class UserRepository : IUserRepository
 {

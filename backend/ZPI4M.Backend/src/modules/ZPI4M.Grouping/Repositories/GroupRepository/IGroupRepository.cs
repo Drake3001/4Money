@@ -1,7 +1,7 @@
 using ZPI4M.Grouping.Models;
 using ZPI4M.Shared.Pagination;
 
-namespace ZPI4M.Grouping.Repositories;
+namespace ZPI4M.Grouping.Repositories.GroupRepository;
 
 public interface IGroupRepository
 {

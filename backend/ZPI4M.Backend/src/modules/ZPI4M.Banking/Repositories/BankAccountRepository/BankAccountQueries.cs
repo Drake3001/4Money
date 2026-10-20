@@ -1,6 +1,6 @@
 using ZPI4M.Shared.Pagination;
 
-namespace ZPI4M.Banking.Repositories;
+namespace ZPI4M.Banking.Repositories.BankAccountRepository;
 
 public enum BankAccountSortBy { Name, Number, FinancialInstitutionId, CurrencyCode, IsClosed }
 

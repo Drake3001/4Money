@@ -51,8 +51,10 @@ w solucji.
 Schemat przepływu to `ApiControllers → Services → Repositories → baza`.
 Zaimplementowane repozytoria mają osobne katalogi
 `Repositories/<Nazwa>Repository/` z interfejsem, implementacją i opcjonalnym
-plikiem `<Nazwa>Queries.cs`. Typy pozostają w namespace modułu
-`ZPI4M.<Moduł>.Repositories`. UserToken i Notification nie mają Queries.
+plikiem `<Nazwa>Queries.cs`. Namespace odzwierciedla katalog konkretnego
+repozytorium: `ZPI4M.<Moduł>.Repositories.<Nazwa>Repository`, np.
+`ZPI4M.Grouping.Repositories.GroupMemberRepository`. Ta sama przestrzeń nazw
+obejmuje interfejs, implementację i Queries. UserToken i Notification nie mają Queries.
 Repozytoria rejestrują dodanie i usunięcie encji, ale nie wykonują własnego
 `SaveChangesAsync`. Granicę zapisu wyznacza serwis, aby np. utworzenie grupy
 i dodanie administratora zapisać atomowo. Wspólny zapis wymaga tego samego

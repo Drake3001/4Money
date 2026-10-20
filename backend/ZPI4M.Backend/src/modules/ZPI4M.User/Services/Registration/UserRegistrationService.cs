@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using ZPI4M.User.Database;
 using ZPI4M.User.DTOs.Registration;
-using ZPI4M.User.Repositories;
+using ZPI4M.User.Repositories.UserRepository;
 
 namespace ZPI4M.User.Services.Registration;
 

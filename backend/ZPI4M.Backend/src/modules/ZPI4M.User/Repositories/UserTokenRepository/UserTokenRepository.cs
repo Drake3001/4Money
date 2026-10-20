@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ZPI4M.User.Database;
 using ZPI4M.User.Models;
 
-namespace ZPI4M.User.Repositories;
+namespace ZPI4M.User.Repositories.UserTokenRepository;
 
 public class UserTokenRepository : IUserTokenRepository
 {
