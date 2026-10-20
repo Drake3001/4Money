@@ -1,6 +1,7 @@
 """Receipt parsing steps sharing the OCRResult to ReceiptData contract."""
 
 from ...contracts import OCRResult, ReceiptData
+from .gemini import GeminiParseStep
 from .rules import parse_receipt
 
 

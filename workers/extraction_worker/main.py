@@ -17,7 +17,12 @@ INPUT_DIR = WORKER_DIR / "data" / "input"
 OUTPUT_DIR = WORKER_DIR / "data" / "output"
 PDF_DPI = 200
 DEBUG = True
-EXPERIMENT = None  # Or "preprocessing" / "ocr_comparison".
+EXPERIMENT = None  # Or "preprocessing" / "ocr_comparison" / "gemini".
+GEMINI_OCR_DIR = None  # None selects the newest saved holdout run; or set a Path.
+GEMINI_MODEL = "gemini-3.1-flash-lite"
+GEMINI_LIMIT = 10
+GEMINI_EXECUTE = False  # False prepares requests without API calls.
+GEMINI_MAX_COST_USD = "1.00"  # Conservative preflight reservation at standard list rates.
 OCR_VARIANTS = ("rapidocr", "paddle_mobile", "paddle_server_det", "easyocr", "tesseract")
 OCR_REPEATS = 1
 LOCAL_TESSERACT = WORKER_DIR / ".cache" / "tools" / "tesseract" / "tesseract.exe"
@@ -48,6 +53,20 @@ def main():
                 names=OCR_VARIANTS, repeats=OCR_REPEATS,
                 tesseract_command=TESSERACT_COMMAND, tessdata_dir=TESSDATA_DIR,
             )
+        elif EXPERIMENT == "gemini":
+            from experiments.gemini import run_failed, run_gemini
+
+            ocr_dir = GEMINI_OCR_DIR
+            if ocr_dir is None:
+                candidates = [path for path in OUTPUT_DIR.iterdir()
+                              if path.is_dir() and (path / "holdout-manifest.json").is_file()]
+                ocr_dir = max(candidates, key=lambda path: path.stat().st_mtime, default=None)
+            if ocr_dir is None:
+                raise ValueError("Set GEMINI_OCR_DIR to an existing saved OCR run")
+            root = run_gemini(ocr_dir, INPUT_DIR, OUTPUT_DIR, model=GEMINI_MODEL,
+                              limit=GEMINI_LIMIT, execute=GEMINI_EXECUTE,
+                              max_cost_usd=GEMINI_MAX_COST_USD)
+            failed = run_failed(root)
         elif EXPERIMENT == "preprocessing":
             from experiments.preprocessing import run_preprocessing
 

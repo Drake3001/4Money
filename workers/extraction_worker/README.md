@@ -75,6 +75,39 @@ The destination must be new. `parsing-evaluation/report.json` and `report.md`
 compare predictions with annotations, including missing/excess products and exact
 numeric fields. Approximate names and unreviewed references are identified separately.
 
+## Gemini parser benchmark
+
+The optional benchmark compares Gemini with the rule parser on the same saved OCR.
+It sends OCR text, confidence and normalized boxes to Google, without photos,
+filenames, reference annotations or rule predictions. Both parsers return `ReceiptData`.
+No extra dependencies are needed; the default pipeline still uses rules.
+
+`GeminiParseStep` lives in `extraction/steps/parsing/gemini.py` and can replace
+`ParseReceiptStep` in a regular pipeline, followed by the same validation step.
+Pass the API key to its constructor; the model defaults to `gemini-3.1-flash-lite`.
+Caching is optional via `cache_dir`. Only experiment orchestration, local key
+configuration and cost/comparison reporting live in `experiments/gemini.py`.
+
+Copy `.env.example` to `.env` in this worker directory and fill `GEMINI_API_KEY`
+locally. The file is ignored by Git. Never paste the key into chat.
+In `main.py`, set `EXPERIMENT = "gemini"`. Initially leave
+`GEMINI_EXECUTE = False`: running `uv run main.py` prepares ten evenly spaced
+cases from the newest saved holdout run, without accessing the key or API.
+Set `GEMINI_OCR_DIR` explicitly to use another saved OCR directory.
+
+Inspect `request.json` and `gemini-run.json` in the new output directory, then set
+`GEMINI_EXECUTE = True` to make requests. The default model is
+`gemini-3.1-flash-lite`. `GEMINI_MAX_COST_USD` checks a conservative token reservation
+before execution; it is an estimate, not a provider billing cap. Actual usage and
+estimated cost are recorded per case. Responses are cached under `.cache/gemini/`;
+identical requests reuse them. API/network errors stop the remaining batch.
+
+`comparison.md` and `comparison.json` compare both parsers with local annotations;
+unreviewed references and heuristic product alignment still limit the conclusions.
+Each case retains the request, provider response, parsed result, warnings and
+OCR evidence. Missing or unsupported evidence is flagged; a citation alone does
+not establish that a price belongs to the right product.
+
 ## Team guide
 
 See the [Polish team guide](../../notes/extraction-worker.md) for Windows/Linux

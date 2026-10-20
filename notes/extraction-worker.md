@@ -211,3 +211,21 @@ Testy z generowanymi obrazami i symulowanymi silnikami, bez pobierania modeli:
 uv sync --extra test
 uv run --extra test pytest -q --basetemp .cache/test-temp/pytest
 ```
+
+Eksperyment Gemini korzysta z gotowego `ocr.json`, więc nie uruchamia ponownie
+RapidOCR. W folderze workera skopiuj `.env.example` do `.env` i lokalnie wpisz
+`GEMINI_API_KEY`. Klucz pozostaje poza Gitem; nie wklejaj go do rozmowy.
+W `main.py` ustaw `EXPERIMENT = "gemini"`. Domyślne `GEMINI_EXECUTE = False`
+przygotuje żądania dla 10 przypadków bez wysyłania ich do API. Po sprawdzeniu
+`request.json` i rezerwacji kosztu w `gemini-run.json` ustaw `GEMINI_EXECUTE = True`
+i uruchom ponownie. `GEMINI_OCR_DIR = None` wybiera najnowszy przebieg z manifestem
+nowych zdjęć; możesz wskazać katalog jawnie.
+
+Do Google trafiają tekst i geometria OCR, bez zdjęć, wzorców ani wyniku reguł.
+`comparison.md` i `comparison.json` porównują oba parsery na tych samych danych;
+błędy Gemini liczą się jako brak predykcji. Wyniki nadal zależą od jakości wzorców
+i heurystycznego dopasowania produktów. `GEMINI_MAX_COST_USD` kontroluje oszacowaną
+rezerwację przed startem, nie stanowi limitu rachunku dostawcy. Zużycie i koszt
+są zapisywane dla każdej próby, odpowiedzi są buforowane w `.cache/gemini/`.
+Błąd API lub sieci zatrzymuje pozostałe żądania. Testy adaptera symulują API;
+same w sobie nie potwierdzają skuteczności modelu na paragonach.
