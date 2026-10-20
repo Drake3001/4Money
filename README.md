@@ -74,7 +74,8 @@
 │       │       └── Pagination/
 │       └── tests/
 ├── containers/
-├── database-init/
+├── database/
+|   └── init/
 ├── notes/
 ├── proxmox-infra/
 │   ├── scripts/
