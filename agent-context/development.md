@@ -24,7 +24,7 @@ docker compose up -d
 
 Polecenie tworzy lub uruchamia lokalny kontener i trwały wolumen.
 PostgreSQL jest dostępny na `localhost:5434`, baza to `zpi4m_db`.
-Skrypty z `database-init/` wykonują się przy inicjalizacji pustego wolumenu,
+Skrypty z `database/init/` wykonują się przy inicjalizacji pustego wolumenu,
 nie przy każdym restarcie. Nie usuwaj wolumenu w ramach zwykłego uruchomienia.
 
 W `backend/ZPI4M.Backend/src/ZPI4M.Api/.env` ustaw:
@@ -45,13 +45,105 @@ Uruchamianie z tego katalogu zapewnia właściwy kontekst odczytu `.env` przez
 `https://localhost:7278`. Host używa przekierowania HTTPS; sprawdź profil
 i konfigurację certyfikatu przy diagnozowaniu lokalnych wywołań.
 W Development host mapuje dokument OpenAPI. Host wykrywa kontrolery modułu User;
-`POST /api/users/register` tworzy niepotwierdzone konto i waliduje dane wejściowe.
+`POST /api/users/register` waliduje dane, zapisuje niepotwierdzone konto razem
+ze skrótem tokenu i wysyła wiadomość przez SMTP po zakończeniu zapisu.
 `POST /api/users/confirm-email` przyjmuje JSON z polem `token` i zwraca 204
 po potwierdzeniu adresu albo 400 dla niepoprawnego, wygasłego lub zużytego tokenu.
 Generator tworzy 32 losowe bajty kodowane jako Base64Url (43 znaki); w bazie
-przechowujemy skrót SHA-256. Rejestracja nie wystawia jeszcze tokenu ani nie
-wysyła wiadomości. SMTP, ponowna wysyłka i logowanie czekają na implementację.
+przechowujemy skrót SHA-256. Wysyłany e-mail zawiera jawny token i termin
+ważności; strony potwierdzenia jeszcze nie ma. Logowanie czeka na implementację.
 Stan kodu opisuje [status](implementation-status.md).
+
+## Rejestracja i potwierdzenie adresu
+
+Wszystkie błędy API korzystają z domyślnego formatu `ProblemDetails` ASP.NET Core.
+Kontrolery zwracają błędy biznesowe przez `Problem(statusCode: ..., title: ...)`.
+Odpowiedź zawiera standardowe pola, np. `type`, `title`, `status` i `traceId`;
+`detail` i `instance` mogą wystąpić, jeśli zostały ustawione.
+Automatyczna walidacja DTO zwraca standardowy `ValidationProblemDetails`.
+Puste błędy HTTP (np. 404, 405 i 429) i nieobsłużone wyjątki korzystają
+z domyślnej obsługi `ProblemDetails`, bez dostosowywania pól.
+Rejestracja zwraca 201 z `RegisterUserResponse`: `id`, `login`, `name`, `surname`,
+`email`, `birthDate`, `isEmailConfirmed` i `createdAt`. Odpowiedź nie zawiera
+hasła, skrótu hasła ani tokenów. Sukcesy 202 i 204 nie zawierają body.
+
+1. Wywołaj `POST /api/users/register` z polami `login`, `name`, `surname`,
+   `email`, `password`, `birthDate` (data w formacie `YYYY-MM-DD`).
+   Sukces zwraca 201, błędne dane 400, zajęty login lub e-mail 409.
+2. Odczytaj token z wiadomości i przekaż go w JSON-ie
+   `{"token":"TOKEN_Z_WIADOMOSCI"}` do `POST /api/users/confirm-email`.
+   Sukces zwraca 204 i ustawia `IsEmailConfirmed = true`. Błędny, wygasły,
+   zastąpiony lub już zużyty token zwraca 400.
+3. `POST /api/users/resend-confirmation` przyjmuje `{"email":"ADRES_KONTA"}`.
+   Dla aktywnego, niepotwierdzonego konta zastępuje poprzedni token i wysyła
+   nową wiadomość. Odpowiedź 202 jest również zwracana dla nieznanego adresu,
+   potwierdzonego lub nieaktywnego konta i podczas obowiązywania odstępu między
+   wysyłkami; nie oznacza w każdym przypadku wysłania nowej wiadomości.
+
+Ponowna wysyłka jest oddzielną operacją od potwierdzenia: `confirm-email`
+przyjmuje istniejący token i zużywa go, natomiast `resend-confirmation`
+wystawia nowy token i wysyła wiadomość. Ponowne wywołanie `confirm-email`
+nie wysyła maila i nie odnawia wygasłego tokenu.
+
+Awaria SMTP zwraca 503. Jeśli nastąpiła podczas rejestracji, konto i token są
+już zapisane: należy skorzystać z ponownej wysyłki po wymaganym odstępie,
+zamiast ponawiać rejestrację. Anulowanie żądania po zapisie również nie usuwa
+konta. Nie ma automatycznych ponowień wysyłki: błąd po zaakceptowaniu wiadomości
+przez serwer SMTP nie pozwala zagwarantować, czy wiadomość została dostarczona.
+Treść i temat wiadomości znajdują się w `EmailConfirmationMessageSender`.
+Token i dane logowania SMTP nie trafiają do odpowiedzi API ani logów aplikacji.
+
+`EmailConfirmationOptions` zawiera domyślne `TokenLifetimeHours = 24`
+i `ResendCooldownSeconds = 60`. Host używa tylko
+`AddOptions<EmailConfirmationOptions>()`, bez `Bind` i walidacji opcji.
+W obecnym kodzie JSON ani zmienne środowiskowe nie nadpisują tych wartości.
+Rejestracja i ponowna wysyłka mają wspólny limit 5 żądań/minutę na adres IP;
+przekroczenie zwraca 429. Limit IP jest lokalny dla instancji aplikacji.
+Odstęp między wysyłkami na konto jest sprawdzany w bazie pod blokadą użytkownika.
+
+## Konfiguracja SMTP
+
+`IEmailSender` z modułu User ma implementację `SmtpEmailSender` opartą na MailKit.
+Interfejs, implementacja i `EmailDeliveryException` są razem w `Integrations/Smtp`.
+Enum `SmtpSecurityMode` jest zdefiniowany w pliku `SmtpOptions.cs`.
+Wysyła wiadomości tekstowe; każda wysyłka tworzy osobne połączenie SMTP.
+Projekt User przypina zależność `System.Security.Cryptography.Pkcs` do 10.0.13,
+aby użyć poprawionej wersji zależności pobieranej przez MailKit/MimeKit
+([advisory Microsoft](https://github.com/advisories/GHSA-846f-f764-76mx)).
+`appsettings.json` nie zawiera sekcji SMTP ani EmailConfirmation.
+Domyślne ustawienia SMTP znajdują się w `SmtpOptions`; host i adres nadawcy
+trzeba dostarczyć przez konfigurację, np. zmienne `SMTP__...` w `.env`.
+Konfiguracja jest walidowana przy pierwszej
+wysyłce, więc samo uruchomienie API nie wymaga skonfigurowanej skrzynki.
+
+W środowisku procesu lub lokalnym `ZPI4M.Api/.env` ustaw np.:
+
+```dotenv
+Smtp__Host=ADRES_SERWERA_SMTP
+Smtp__Port=587
+Smtp__SecurityMode=StartTls
+Smtp__Username=LOGIN_SMTP
+Smtp__Password="HASLO_SMTP"
+Smtp__SenderEmail=NADAWCA@example.com
+Smtp__SenderName=4Money
+Smtp__TimeoutSeconds=30
+```
+
+To placeholdery; wartości muszą odpowiadać konfiguracji wybranego dostawcy.
+`StartTls` wymaga obsługi STARTTLS przez serwer (zwykle port 587).
+`SslOnConnect` włącza TLS od początku połączenia (zwykle port 465).
+`None` oznacza brak szyfrowania, np. dla lokalnego serwera deweloperskiego.
+`SMTP__CHECKCERTIFICATEREVOCATION` domyślnie ma wartość `true`. Jeśli lokalny
+system nie może sprawdzić unieważnienia certyfikatu (np. brak dostępu do CRL/OCSP),
+można tymczasowo ustawić `false` w lokalnym `.env`. To wyłącza sprawdzanie
+unieważnienia, ale pozostawia TLS, sprawdzanie nazwy serwera i zaufania do
+certyfikatu. W środowisku produkcyjnym należy zapewnić działające sprawdzanie
+unieważnienia i pozostawić `true`.
+Login i hasło muszą być podane razem; oba puste wyłączają uwierzytelnianie SMTP.
+Zmiana dostawcy polega na zmianie konfiguracji. Plik `.env` jest ignorowany przez
+Git; nie zapisuj rzeczywistych danych skrzynki w `appsettings.json`.
+`.env` jest ładowany przed utworzeniem konfiguracji hosta, aby te wartości
+były dostępne dla mechanizmu Options i DI.
 
 ## Modele i migracje
 

@@ -51,10 +51,10 @@ i `UserToken` z przeznaczeniami weryfikacji, zmiany e-maila, resetu hasła
 oraz odświeżania sesji. Lista MVP w `Funkcjonalności.txt` pozostaje bardziej
 ogólna; nie oznacza to, że przepływy tokenów są już zaimplementowane.
 
-W ustaleniach projektu przyjęto wysyłanie wiadomości przez SMTP zewnętrznego
-dostawcy, np. o2, bez zakupu domeny i utrzymywania własnej poczty.
-Dostawca jest konfigurowalny; nie zapisuj danych skrzynki w kodzie ani Git.
-E-mail pozostaje opcjonalny; reset przez e-mail wymaga potwierdzonego adresu.
+Wysyłanie wiadomości odbywa się przez konfigurowalny adapter SMTP. Serwer może
+należeć do zewnętrznego dostawcy, np. o2, albo być utrzymywany samodzielnie.
+Nie zapisuj danych skrzynki w kodzie ani Git.
+E-mail jest wymagany i unikalny; reset przez e-mail wymaga potwierdzonego adresu.
 Nie planujemy historii powiadomień grupowych ani oznaczania ich jako przeczytane.
 Te ustalenia uzupełniają dokumentację funkcjonalną i nie są opisem gotowych usług.
 

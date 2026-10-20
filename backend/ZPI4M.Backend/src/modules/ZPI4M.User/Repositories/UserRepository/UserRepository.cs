@@ -33,6 +33,14 @@ public class UserRepository : IUserRepository
 		return _context.Users.AnyAsync(u => u.Id == userId, cancellationToken);
 	}
 
+	public Task<Models.User?> GetByIdForUpdateAsync(Guid userId, CancellationToken cancellationToken = default)
+	{
+		return _context.Users
+			.FromSql($"""SELECT * FROM "user"."user" WHERE "_id" = {userId} FOR UPDATE""")
+			.AsNoTracking()
+			.SingleOrDefaultAsync(cancellationToken);
+	}
+
 	public Task<Models.User?> GetByLoginAsync(string login, CancellationToken cancellationToken = default)
 	{
 		return _context.Users.SingleOrDefaultAsync(u => u.Login == login, cancellationToken);

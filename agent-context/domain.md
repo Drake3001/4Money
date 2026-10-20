@@ -51,8 +51,11 @@ modelu i migracji.
 ## Konto i tokeny użytkownika
 
 `User.Email` jest wymagany (`NOT NULL`) i unikalny. Data urodzenia jest wymagana.
-Nowe `IsEmailConfirmed` ma domyślnie
-wartość `false` i dotyczy aktualnego adresu. Pola `RefreshToken` oraz
+`User.IsEmailConfirmed` jest mapowane na `user.user.is_email_confirmed`
+(`boolean NOT NULL DEFAULT false`) i dotyczy aktualnego adresu. Pole występuje
+w opisie bazy, diagramie logicznym, konfiguracji EF i snapshocie. Dodaje je
+migracja `20261018151534_AddUserTokenTable`. Rejestracja ustawia `false`,
+a poprawne potwierdzenie tokenem ustawia `true`. Pola `RefreshToken` oraz
 `RefreshTokenExpiryTime` zostały usunięte z `User`; tokeny należą do osobnej
 tabeli `user.user_token`.
 
@@ -81,8 +84,14 @@ danych, a refresh token jest wymieniany przy odświeżeniu i usuwany przy
 wylogowaniu. Access tokenów JWT nie zapisujemy w bazie. Sam model i repozytorium
 nie zapewniają tych zachowań. Serwis potwierdzania e-maila używa warunkowego
 usunięcia niewygasłego tokenu i warunkowego potwierdzenia aktualnego adresu
-aktywnego konta w jednej transakcji. Obsługa wystawiania i ponownej wysyłki
-tokenów oraz pozostałe przepływy pozostają do implementacji.
+aktywnego konta w jednej transakcji. Rejestracja zapisuje konto i token razem,
+a następnie wysyła wiadomość. Ponowna wysyłka zastępuje token po wymaganym
+odstępie. Ważność to 24 godziny, odstęp to 60 sekund — wartości domyślne
+z `EmailConfirmationOptions`. Host rejestruje te opcje bez wiązania
+z konfiguracją, więc JSON i env obecnie ich nie nadpisują.
+Potwierdzanie i ponowna wysyłka blokują najpierw rekord
+użytkownika, a następnie operują na tokenie. Pozostałe przepływy tokenów
+(zmiana e-maila, reset hasła i refresh) pozostają do implementacji.
 
 ## Daty i czas
 
@@ -117,6 +126,24 @@ Nie dodawaj tych reguł wyłącznie na podstawie nazw kolumn.
 Opis bazy zawiera zapis `ExpenceShare`; aktualna klasa to `ExpenseShare`.
 Różnicę schematu tej tabeli między SQL inicjalizacyjnym a modelem wyjaśnia
 [status implementacji](implementation-status.md).
+
+Przegląd opisu bazy, diagramu logicznego i mapowań EF z 2026-10-20:
+
+- Diagram używa `User.birthday`; opis bazy i mapowanie EF używają `birth_date`
+  (`User.BirthDate`). Nie dodawaj drugiego pola na podstawie diagramu.
+- Diagram przedstawia powiązania Expense z Receipt i BankTransaction jako
+  maksymalnie 1:1. Opis bazy i bazowy SQL mają opcjonalne FK, ale bez UNIQUE
+  na `fk_receipt_id` i `fk_bank_transaction_id`; EF również nie definiuje
+  tych unikalności. Diagram nie jest dowodem ich egzekwowania w bazie.
+- Część FK między modułami istnieje w SQL inicjalizacyjnym, ale nie ma ich
+  w konfiguracjach EF i snapshocie (np. Expense → Group/Receipt/BankTransaction).
+  Samo pole `Fk...Id` nie definiuje relacji EF. Przy zmianach schematu porównuj
+  model z bazowym SQL i migracjami.
+- `BankAccount.IsClosed` i `GroupMember.IsAdmin` mają DEFAULT false w opisie
+  i SQL inicjalizacyjnym, ale konfiguracje EF nie ustawiają tego domyślnego
+  ograniczenia. W C# domyślna wartość `bool` również wynosi false.
+- `Receipt.ExtractionResult` jest mapowane jako PostgreSQL `jsonb`; zapis
+  `json/text` w opisie bazy jest mniej szczegółowy.
 
 ## Źródła
 

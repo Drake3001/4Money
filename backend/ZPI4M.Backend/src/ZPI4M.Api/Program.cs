@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using DotNetEnv;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -14,23 +15,37 @@ using ZPI4M.Notifications.Database;
 using ZPI4M.Notifications.Repositories.NotificationRepository;
 using ZPI4M.User.ApiControllers;
 using ZPI4M.User.Database;
+using ZPI4M.User.Integrations.Smtp;
 using ZPI4M.User.Repositories.UserRepository;
 using ZPI4M.User.Repositories.UserTokenRepository;
 using ZPI4M.User.Services.EmailConfirmation;
 using ZPI4M.User.Services.Registration;
 using ZPI4M.User.Services.Tokens;
 
-var builder = WebApplication.CreateBuilder(args);
-
 // Load environment variables from .env file
 Env.Load();
+
+var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
 builder.Services.AddControllers()
 	.AddApplicationPart(typeof(UsersController).Assembly);
+builder.Services.AddProblemDetails();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddRateLimiter(options =>
+{
+	options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+	options.AddPolicy("user-email", context => RateLimitPartition.GetFixedWindowLimiter(
+		context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+		_ => new FixedWindowRateLimiterOptions
+		{
+			PermitLimit = 5,
+			Window = TimeSpan.FromMinutes(1),
+			QueueLimit = 0
+		}));
+});
 
 // Add database context
 var dbConnectionString = Environment.GetEnvironmentVariable("DB_LOCAL_CONNECTION_STRING");
@@ -59,12 +74,25 @@ builder.Services.AddScoped<IPasswordHasher<ZPI4M.User.Models.User>, PasswordHash
 builder.Services.AddScoped<IUserRegistrationService, UserRegistrationService>();
 builder.Services.AddSingleton<IUserTokenGenerator, UserTokenGenerator>();
 builder.Services.AddScoped<IEmailConfirmationService, EmailConfirmationService>();
+builder.Services.AddScoped<IEmailConfirmationMessageSender, EmailConfirmationMessageSender>();
+builder.Services.AddOptions<EmailConfirmationOptions>();
+builder.Services.AddOptions<SmtpOptions>()
+	.Bind(builder.Configuration.GetSection(SmtpOptions.SectionName))
+	.ValidateDataAnnotations()
+	.Validate(options =>
+		(string.IsNullOrWhiteSpace(options.Username) && string.IsNullOrEmpty(options.Password)) ||
+		(!string.IsNullOrWhiteSpace(options.Username) && !string.IsNullOrEmpty(options.Password)),
+		"SMTP username and password must both be provided or both be empty.");
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 
 // Notifications module
 builder.Services.AddDbContext<NotificationsDbContext>(options => options.UseNpgsql(dbConnectionString));
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 
 var app = builder.Build();
+
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -73,6 +101,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseRateLimiter();
 
 app.UseAuthorization();
 

@@ -1,6 +1,6 @@
 # Stan implementacji i kwestie otwarte
 
-Zweryfikowano: **2026-10-19**, na podstawie lokalnego `ZPI/doc` i kodu repozytorium.
+Zweryfikowano: **2026-10-20**, na podstawie lokalnego `ZPI/doc` i kodu repozytorium.
 To przegląd statyczny, nie potwierdzenie udanego builda, testów ani wdrożenia.
 Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 
@@ -11,7 +11,7 @@ Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 | Backend | Solucja .NET 10, host API, projekty ośmiu modułów i Shared | Struktura projektu nie potwierdza realizacji MVP |
 | Baza | Modele i konfiguracje Banking, Expense, Grouping, Limits, Notifications, Receipt i User; wspólny AppDbContext i migracje | Obecność migracji nie potwierdza ich zastosowania na każdej bazie |
 | Repozytoria | Banking, Grouping, User, UserToken, ExpenseShare i Notification | Nie wykonują SaveChangesAsync; nie stanowią kompletnego API wszystkich encji |
-| User | Rejestracja z walidacją DTO i hashowaniem hasła; generator tokenów; POST /api/users/confirm-email i serwis atomowego zużycia tokenu oraz potwierdzenia aktualnego adresu | Rejestracja nie wystawia jeszcze tokenu; brak SMTP, ponownej wysyłki, logowania i resetu hasła; pełny przepływ weryfikacji wymaga połączenia tych elementów |
+| User | Rejestracja zapisuje konto i skrót tokenu, potem wysyła e-mail przez SMTP; confirm-email zużywa token w transakcji; resend-confirmation zastępuje token z odstępem między wysyłkami; limit żądań IP i obsługa awarii SMTP | Brak potwierdzonego pełnego przepływu na PostgreSQL i rzeczywistej skrzynce; brak strony potwierdzenia, logowania i resetu hasła |
 | Banking | Modele rachunków i transakcji, konfiguracja i repozytoria | Brak kontrolera, serwisów i integracji dostawcy w obecnej gałęzi |
 | Receipt / OCR | Model paragonu i konfiguracja EF | Brak pipeline'u OCR, uploadu oraz potwierdzonej integracji magazynu obrazów |
 | Kategoryzacja | Model kategorii | Brak implementacji modelu klasyfikującego i wyników ewaluacji |
@@ -39,11 +39,14 @@ Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 | SQL init ma stare pola refresh tokenu, nie zawiera UserToken i używa timestampów bez strefy | Migracje AddUserTokenTable i TimestampTypeChanges rozwijają stan bazowy; nie aktualizuj historycznego SQL init przy zwykłej zmianie modelu |
 | Notifications istniało w SQL init, ale brakowało go w początkowym modelu EF | AddNotificationsConfigurationClass uzupełnia snapshot i zmienia typ sent_at, zamiast ponownie tworzyć tabelę |
 | Opis bazy używa `ExpenceShare` | Aktualna nazwa klasy to `ExpenseShare`; nie kopiuj literówki do nowych kontraktów |
+| Diagram logiczny używa `User.birthday`; opis bazy i kod mają `birth_date` | To ta sama data urodzenia; obowiązujące mapowanie to `User.BirthDate` → `birth_date` |
+| Diagram pokazuje relacje Expense–Receipt i Expense–BankTransaction jako maksymalnie 1:1, ale brak UNIQUE na odpowiednich FK w SQL i EF | Nie zakładaj egzekwowania tych kardynalności przez bazę; wymaga to osobnego uzgodnienia i ewentualnej migracji |
+| Nie wszystkie FK między modułami i domyślne ograniczenia z SQL init są odwzorowane w EF | Przy zmianie schematu porównuj SQL, migracje i snapshot; szczegóły opisuje domain.md |
 | Produkt obejmuje finanse osobiste, ale Expense wymaga grupy | Sposób reprezentowania osobistej przestrzeni wymaga ustalenia |
 | Dokumentacja stosu wymienia Swagger, mobile i Python OCR | Nie oznacza obecności UI Swagger ani tych aplikacji w kodzie |
 
 Źródła: [pomocnik CI](../tools/ci/backend_checks.sh),
-[SQL bazowy](../database-init/02-tables.sql),
+[SQL bazowy](../database/init/02-tables.sql),
 [migracje](../backend/ZPI4M.Backend/src/ZPI4M.Database/Migrations/),
 [konfiguracja Expense](../backend/ZPI4M.Backend/src/modules/ZPI4M.Expense/Database/ExpenseConfiguration.cs),
 [model Expense](../backend/ZPI4M.Backend/src/modules/ZPI4M.Expense/Models/Expense.cs),
@@ -53,7 +56,7 @@ Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 
 - Wariant mobile: Capacitor czy React Native.
 - Docelowa implementacja uwierzytelniania i kontrakt tożsamości modułu User.
-- Konfiguracja skrzynki SMTP; zewnętrzny dostawca jest uzgodniony, działająca wysyłka nie jest jeszcze zaimplementowana.
+- Konfiguracja skrzynki SMTP; adapter jest zaimplementowany, wybór serwera i faktyczne dostarczenie wiadomości nie są jeszcze potwierdzone.
 - Dostawca lub symulator importu bankowego i szczegóły integracji.
 - Usługa OCR, magazyn obrazów, kontrakt kategoryzacji i sposób pomiaru jakości.
 - Reguły podziału kosztów, sald i limitów, wskazane w [domenie](domain.md#kwestie-wymagające-ustalenia-przy-zadaniu).

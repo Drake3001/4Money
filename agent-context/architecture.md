@@ -48,6 +48,11 @@ w solucji.
 | DTOs | Dane przekazywane przez granicę API |
 | Integrations, opcjonalnie | Adaptery usług zewnętrznych, np. OCR lub bankowości |
 
+Wszystkie błędy HTTP korzystają ze standardowego formatu `ProblemDetails`,
+bez dostosowywania pól. Kontrolery zwracają błędy biznesowe przez `Problem()`.
+Walidacja DTO zwraca `ValidationProblemDetails` z błędami poszczególnych pól.
+Host zapewnia `ProblemDetails` dla pustych błędów HTTP i nieobsłużonych wyjątków.
+
 Schemat przepływu to `ApiControllers → Services → Repositories → baza`.
 Zaimplementowane repozytoria mają osobne katalogi
 `Repositories/<Nazwa>Repository/` z interfejsem, implementacją i opcjonalnym
@@ -64,6 +69,11 @@ Metody `UserTokenRepository.TryConsumeAsync` i `UserRepository.TryConfirmEmailAs
 wykonują warunkowe DELETE/UPDATE natychmiast. Serwis potwierdzenia e-maila
 obejmuje oba wywołania jedną transakcją na wspólnym `UserDbContext`, aby
 zapewnić jednorazowe zużycie tokenu i atomowe potwierdzenie adresu.
+Potwierdzanie i ponowna wysyłka używają `UserRepository.GetByIdForUpdateAsync`
+w transakcji: parametryzowane zapytanie PostgreSQL `SELECT ... FOR UPDATE`
+blokuje rekord użytkownika przed operacjami na tokenie. Dzięki wspólnej
+kolejności blokad żądania potwierdzenia i ponownej wysyłki są serializowane
+dla danego konta. Wywołania SMTP odbywają się po zakończeniu zapisu/transakcji.
 Kontrakty Services i DTOs mogą istnieć przed implementacją pełnego przepływu.
 Wydzielanie Integrations jest możliwością projektową, nie wymogiem tworzenia
 pustych katalogów w każdym module.
@@ -80,7 +90,7 @@ Nazwy tabel i kolumn są mapowane jawnie, zwykle w snake_case. Przy zmianie
 modelu sprawdź konfigurację, kontekst modułu i wspólny kontekst migracji.
 Nie zakładaj, że sama zmiana właściwości C# aktualizuje istniejącą bazę.
 
-SQL w `database-init` tworzy bazową strukturę przy pierwszej inicjalizacji
+SQL w `database/init` tworzy bazową strukturę przy pierwszej inicjalizacji
 kontenera. Historia migracji rozwija ten stan. Procedura i ograniczenia
 znajdują się w [instrukcji pracy](development.md#modele-i-migracje).
 
