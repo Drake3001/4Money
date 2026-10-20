@@ -4,22 +4,24 @@ import re
 import unicodedata
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
+from difflib import SequenceMatcher
 
 from ...contracts import (
     ExtractionWarning, FieldEvidence, OCRResult, ReceiptData, ReceiptDeposit,
     ReceiptItem, StepResult,
 )
-from .geometry import Row, center, height, receipt_rows, y_at
+from .geometry import Row, center, height, receipt_rows, upright_ocr, y_at
 
 NUMBER = r"\d+(?:[.,]\d+)?"
-AMOUNT = r"-?\s*\d+[.,]\d{2}(?![\d.,])"
+AMOUNT_VALUE = r"-?\s*\d+[.,]\s*\d{2}"
+AMOUNT = AMOUNT_VALUE + r"(?![\d.,])"
 MONEY = re.compile(rf"(?<![\w.,]){AMOUNT}")
 PURCHASE = re.compile(
-    rf"(?<![\w.,])(?P<quantity>{NUMBER})(?:\s*(?P<unit>szt\.?|kg|g|l))?"
-    rf"\s*[x×*]\s*(?P<price>{AMOUNT})", re.IGNORECASE,
+    rf"(?<![\w.,])(?P<quantity>{NUMBER})(?:\s*(?P<unit>szt\.?|kg|g|ltr|l))?"
+    rf"\s*[x×*�]\s*(?P<price>{AMOUNT})", re.IGNORECASE,
 )
-PRICE = re.compile(rf"(?<!\w)[x×*]\s*(?P<price>{AMOUNT})", re.IGNORECASE)
-AMOUNT_ONLY = re.compile(rf"\s*({AMOUNT})\s*[A-G]?\s*", re.IGNORECASE)
+PRICE = re.compile(rf"(?<![a-z])[x×*�]\s*(?P<price>{AMOUNT})", re.IGNORECASE)
+AMOUNT_ONLY = re.compile(rf"\s*(?:[A-GX]\s+)?({AMOUNT_VALUE})0*\s*[A-G�]?\s*", re.IGNORECASE)
 DATE = re.compile(r"(?<!\d)(\d{4})[-./](\d{2})[-./](\d{2})(?!\d)|"
                   r"(?<!\d)(\d{2})[-./](\d{2})[-./](\d{4})(?!\d)")
 
@@ -46,9 +48,21 @@ def clean_name(text):
     return " ".join(text.split()) or None
 
 
+def fiscal_marker(text):
+    words = re.findall(r"[a-z]+", normalized(text))
+    return any(SequenceMatcher(None, "".join(words[i:i+n]), "paragonfiskalny").ratio() >= 0.86
+               for i in range(len(words)) for n in (2, 3))
+
+
+def discount_marker(text):
+    words = re.findall(r"[a-z]+", normalized(text))
+    return bool(words) and words[0] not in ("opusty", "rabaty") and any(
+        SequenceMatcher(None, words[0], label).ratio() >= 0.8 for label in ("opust", "rabat"))
+
+
 def section(text):
     key = normalized(text)
-    if "paragon fiskalny" in key:
+    if fiscal_marker(text):
         return "items"
     if key.startswith("opakowania"):
         if "wydania" in key:
@@ -58,7 +72,7 @@ def section(text):
         return "summary"
     if key.startswith(("do zap", "rozliczenie", "niefiskalny")):
         return "finished" if key.startswith(("rozliczenie", "niefiskalny")) else "summary"
-    if key.startswith(("podsum", "podsun", "sprzed", "suma", "opusty lacznie", "ptu", "kwota ptu")):
+    if key.startswith(("podsum", "podsun", "sprzed", "suma", "opusty", "rabaty", "sp:", "ptu", "kwota ptu")):
         return "summary"
     return None
 
@@ -68,17 +82,30 @@ def purchase(row: Row) -> ReceiptItem | None:
     match = PURCHASE.search(text)
     fallback = False
     if match is None:
-        if normalized(text).startswith("opust"):
+        if discount_marker(text):
             return None
         match = PRICE.search(text)
         fallback = True
+        if match is not None and not any(PRICE.search(fragment.text) for _, fragment in row.members):
+            # A detached tax/marker glyph next to a previous item's final amount
+            # is not enough evidence for a new purchase with a missing quantity.
+            return None
     if match is None:
+        money = list(MONEY.finditer(text))
+        if (len(money) >= 2 and section(text) is None
+                and not discount_marker(text)
+                and re.search(r"\d\s*[A-G]\s*$", text, re.IGNORECASE)):
+            name = clean_name(text[:money[0].start()])
+            if name and any(char.isalpha() for char in name):
+                # A damaged multiplier must not erase the purchase. Do not
+                # interpret the earlier number as a price or guess a quantity.
+                return ReceiptItem(name=name, before_discount=decimal(money[-1].group()))
         return None
     prefix = text[:match.start()]
     if fallback:
         prefix = re.sub(r"\s+\S*[.,]\d+\s*$", "", prefix)
     tail = amounts(text[match.end():])
-    if normalized(text).startswith("opust") and tail and tail[0] < 0:
+    if discount_marker(text) and tail and tail[0] < 0:
         return None
     return ReceiptItem(
         name=clean_name(prefix),
@@ -91,13 +118,25 @@ def purchase(row: Row) -> ReceiptItem | None:
 
 class ReceiptParser:
     def __init__(self, ocr: OCRResult):
-        self.ocr = ocr
-        self.rows = receipt_rows(ocr)
+        self.ocr = upright_ocr(ocr)
+        self.rows = []
+        for row in receipt_rows(self.ocr):
+            sections = tuple(member for member in row.members if section(member[1].text))
+            body = tuple(member for member in row.members if member not in sections)
+            if sections and body and any(PURCHASE.search(fragment.text) for _, fragment in body):
+                heading, purchase_row = Row(row.page, sections), Row(row.page, body)
+                # Numeric text can share a row with a section on a curved page.
+                # Purchases precede summaries, but follow section-opening labels.
+                self.rows.extend((purchase_row, heading) if section(heading.text) == "summary"
+                                 else (heading, purchase_row))
+            else:
+                self.rows.append(row)
         self.data = ReceiptData()
         self.warnings = []
         self.used_names = set()
         self.ambiguous_fields = set()
         self.saw_amount_due = False
+        self.confirmation = False
 
     def warn(self, code, message, field=None):
         self.warnings.append(ExtractionWarning(code, message, field))
@@ -136,18 +175,57 @@ class ReceiptParser:
                 self.data.store = candidates[0].text.strip()
                 self.record("store", [candidates[0]])
 
+    def field_amounts(self, row, is_label):
+        """Read totals against their original labels, independent of row grouping."""
+        labels = [(index, fragment) for index, fragment in row.members if is_label(normalized(fragment.text))]
+        if not labels:
+            return amounts(row.text), [row]
+        values, evidence = [], []
+        for index, label in labels:
+            direct = amounts(label.text)
+            label_row = Row(row.page, ((index, label),))
+            if direct:
+                values.extend(direct)
+                evidence.append(label_row)
+                continue
+            candidates = []
+            for page in self.ocr.pages:
+                if page.page_number != row.page:
+                    continue
+                for fi, fragment in enumerate(page.lines):
+                    if not re.fullmatch(rf"\s*{AMOUNT}\s*(?:PLN|zł)?\s*", fragment.text, re.IGNORECASE):
+                        continue
+                    fx, fy = center(fragment)
+                    if fx < center(label)[0]:
+                        continue
+                    gap = abs(y_at(label, fx) - fy) / max(height(label), height(fragment))
+                    if gap <= 1.25:
+                        font_gap = abs(height(label) - height(fragment)) / max(height(label), height(fragment))
+                        candidates.append((gap + font_gap, fi, fragment))
+            if candidates:
+                candidates.sort(key=lambda entry: entry[0])
+                best = candidates[0][0]
+                # Close competing candidates stay ambiguous instead of picking
+                # whichever happened to be first in the OCR list.
+                for gap, fi, fragment in candidates:
+                    if gap <= best + 0.15:
+                        values.extend(amounts(fragment.text))
+                        evidence.extend([label_row, Row(row.page, ((fi, fragment),))])
+        return values, evidence
+
     def document_fields(self, start):
         totals, dues, dates, currencies = [], [], [], []
         total_rows, due_rows, date_rows, currency_rows = [], [], [], []
         ended = False
         current_page = self.rows[start].page
-        for index, row in enumerate(self.rows[start:]):
+        scan_start = 0 if self.confirmation else start
+        for index, row in enumerate(self.rows[scan_start:]):
             if row.page != current_page:
                 current_page, ended = row.page, False
             key = normalized(row.text)
-            if index and "paragon fiskalny" in key and row.page == self.rows[start].page:
+            if index and fiscal_marker(row.text) and row.page == self.rows[start].page:
                 break  # A second fiscal document is not a continuation of this one.
-            if "niefiskalny" in key:
+            if "niefiskalny" in key and not self.confirmation:
                 ended = True
             # Footer dates belong to the transaction even after payments begin.
             if not ended or DATE.search(row.text):
@@ -168,26 +246,15 @@ class ReceiptParser:
                 currencies.append("PLN")
                 currency_rows.append(row)
             target = None
-            if re.search(r"\bsuma\s+(?:pln|zl)\b", key):
+            is_total = lambda text: bool(re.search(r"\bsum\w?\s*:?\s+(?:pln|zl)\b", text))
+            if is_total(key):
                 target = (totals, total_rows)
             elif key.startswith("do zap"):
                 self.saw_amount_due = True
                 target = (dues, due_rows)
             if target is not None:
-                values = amounts(row.text)
-                evidence = [row]
-                absolute = start + index
-                if not values and absolute + 1 < len(self.rows):
-                    following = self.rows[absolute + 1]
-                    fx = center(following.members[0][1])[0]
-                    gap = abs(y_at(following.members[0][1], fx)
-                              - max(y_at(fragment, fx) for _, fragment in row.members))
-                    tolerance = 2 * max(height(fragment) for _, fragment in (*row.members, *following.members))
-                    if following.page == row.page and gap <= tolerance and re.fullmatch(
-                        rf"\s*{AMOUNT}\s*(?:PLN|zł)?\s*", following.text, re.IGNORECASE
-                    ):
-                        values = amounts(following.text)
-                        evidence.append(following)
+                values, evidence = self.field_amounts(
+                    row, is_total if target[0] is totals else lambda text: text.startswith("do zap"))
                 target[0].extend(values)
                 target[1].extend(evidence)
         for name, values, rows in (("total", totals, total_rows), ("amount_due", dues, due_rows),
@@ -210,7 +277,8 @@ class ReceiptParser:
                         if PURCHASE.search(fragment.text) or PRICE.search(fragment.text)), first.members[-1][1])
         nx, ny = center(numeric)
         numeric_match = PURCHASE.search(numeric.text) or PRICE.search(numeric.text)
-        printed_totals = amounts(numeric.text[numeric_match.end():]) if numeric_match else []
+        printed_totals = (amounts(numeric.text[numeric_match.end():]) if numeric_match
+                          else [item.before_discount] if item.before_discount is not None else [])
         printed_totals.extend(
             decimal(m.group(1)) for _, fragment in first.members
             if fragment is not numeric and (m := AMOUNT_ONLY.fullmatch(fragment.text))
@@ -222,7 +290,7 @@ class ReceiptParser:
         first_index = self.rows.index(first)
         last_name_y = ny
         for previous in reversed(self.rows[:first_index]):
-            if previous.page != first.page or any(ref in self.used_names for ref in previous.refs):
+            if not previous.members or previous.page != first.page or any(ref in self.used_names for ref in previous.refs):
                 break
             previous_y = max(y_at(fragment, nx) for _, fragment in previous.members)
             gap = last_name_y - previous_y
@@ -243,7 +311,7 @@ class ReceiptParser:
         if next_row is not None and next_row.page == first.page:
             next_numeric = next((fragment for _, fragment in next_row.members
                                  if PURCHASE.search(fragment.text) or PRICE.search(fragment.text)), next_row.members[-1][1])
-            bottom = min(bottom, y_at(next_numeric, nx) - 0.45 * height(next_numeric))
+            bottom = min(bottom, y_at(next_numeric, nx) - 0.1 * height(next_numeric))
         fragment_rows = []
         for page in self.ocr.pages:
             if page.page_number != first.page:
@@ -252,11 +320,44 @@ class ReceiptParser:
                 fy = y_at(fragment, nx)
                 if ny + 0.45 * height(numeric) < fy < bottom:
                     fragment_rows.append(Row(first.page, ((fi, fragment),)))
-        # A summary label can share a reconstructed row with the last net price;
-        # only amount-only fragments remain eligible here.
-        discounts = [(row, value) for row in fragment_rows
-                     for value in amounts(row.text) if value < 0]
-        opust = [row for row in rows if normalized(row.text).startswith("opust")]
+        # A discount label establishes the role of an adjacent amount, even if
+        # OCR omitted its minus sign. Do not confuse it with the following net.
+        labels = [fragment for row in rows for _, fragment in row.members
+                  if discount_marker(fragment.text)
+                  and section(fragment.text) is None]
+        labelled = set()
+        gross = item.before_discount
+        if gross is None and item.quantity is not None and item.unit_price is not None and not ambiguous_gross:
+            gross = (item.quantity * item.unit_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        for label in labels:
+            candidates = []
+            for row in fragment_rows:
+                fragment = row.members[0][1]
+                if not (AMOUNT_ONLY.fullmatch(row.text) or fragment is label) or not amounts(row.text):
+                    continue
+                x = (center(label)[0] + center(fragment)[0]) / 2
+                gap = abs(y_at(label, x) - y_at(fragment, x)) / min(height(label), height(fragment))
+                values = amounts(row.text)
+                if all(value >= 0 for value in values):
+                    # A missing minus is recoverable only when another printed
+                    # amount confirms gross - discount = net. Proximity alone
+                    # must never turn a final amount into a discount.
+                    if gross is None or not any(
+                        gross - value == decimal(match.group(1))
+                        for value in values for other in fragment_rows if other is not row
+                        and (match := AMOUNT_ONLY.fullmatch(other.text))
+                        and decimal(match.group(1)) >= 0
+                    ):
+                        continue
+                if gap <= 0.75:
+                    candidates.append((gap, row.refs))
+            if candidates:
+                labelled.add(min(candidates)[1])
+        def discount_label(row):
+            return row.refs in labelled
+        discounts = [(row, -abs(value)) for row in fragment_rows
+                     for value in amounts(row.text) if value < 0 or discount_label(row)]
+        opust = [row for row in rows if discount_marker(row.text)]
         has_discount = bool(discounts or opust)
         discount_rows = [row for row, _ in discounts]
         if has_discount:
@@ -266,7 +367,32 @@ class ReceiptParser:
         else:
             item.discount = Decimal("0.00")
         totals = [(row, decimal(m.group(1))) for row in fragment_rows
-                  if (m := AMOUNT_ONLY.fullmatch(row.text)) and decimal(m.group(1)) >= 0]
+                  if not discount_label(row) and (m := AMOUNT_ONLY.fullmatch(row.text))
+                  and decimal(m.group(1)) >= 0]
+        if gross is not None and not ambiguous_gross:
+            for final_row, value in sorted(totals, key=lambda entry: y_at(entry[0].members[0][1], nx)):
+                final_y = y_at(final_row.members[0][1], nx)
+                prefix = [(row, amount) for row, amount in discounts
+                          if y_at(row.members[0][1], nx) < final_y]
+                if prefix and gross + sum((amount for _, amount in prefix), Decimal(0)) == value:
+                    if len(prefix) != len(discounts):
+                        self.warn("unassigned_discount", "Discount after a completed purchase was not assigned to it", "items")
+                    discounts, totals = prefix, [(final_row, value)]
+                    discount_rows = [row for row, _ in prefix]
+                    item.discount = sum((amount for _, amount in prefix), Decimal(0))
+                    break
+        if self.confirmation:
+            # Transaction tables print net, tax rate, tax, then gross. Those
+            # columns are not three competing product totals.
+            table = next((row for row in rows[1:] if "%" in row.text and len(amounts(row.text)) >= 3), None)
+            if table is not None:
+                totals = [(table, amounts(table.text)[-1])]
+        if item.unit_price is None and labels and not discounts:
+            # A partial purchase with an unreadable discount has no independent
+            # price/quantity check to distinguish a lone discount from a net.
+            totals = []
+            item.discount = None
+            self.warn("ambiguous_item_amount", "Cannot distinguish discount from net on a partial purchase", path + ".total")
         if totals:
             item.total = self.unique([value for _, value in totals], path + ".total")
             if item.total is not None:
@@ -294,11 +420,16 @@ class ReceiptParser:
             if getattr(item, field) is not None and path + "." + field not in self.data.evidence:
                 self.record(path + "." + field, [*name_rows, first] if field == "name" else [first])
         if path + ".discount" not in self.data.evidence:
-            self.record(path + ".discount", discount_rows or [first], "observed" if has_discount else "derived")
+            signed = any(value < 0 for row in discount_rows for value in amounts(row.text))
+            self.record(path + ".discount", discount_rows or [first], "observed" if signed else "derived")
         if item.name is None:
             self.warn("missing_item_name", "Purchase amounts have no readable product name", path + ".name")
         if item.quantity is None:
             self.warn("missing_quantity", "Purchase quantity is unreadable", path + ".quantity")
+        if item.unit_price is None:
+            self.warn("missing_unit_price", "Purchase unit price is unreadable", path + ".unit_price")
+        if item.total is None:
+            self.warn("missing_item_amount", "Purchase final amount could not be established", path + ".total")
         if opust and normalized(first.text).startswith("opust") and item.name:
             self.warn("name_from_discount", "Product name was read from its discount label", path + ".name")
         self.data.items.append(item)
@@ -330,16 +461,32 @@ class ReceiptParser:
         return None
 
     def run(self):
-        start = next((i for i, row in enumerate(self.rows)
-                      if "paragon fiskalny" in normalized(row.text)), None)
+        start = next((i for i, row in enumerate(self.rows) if fiscal_marker(row.text)), None)
         if start is None:
-            self.warn("missing_receipt_section", "No fiscal receipt marker found")
-            return StepResult(self.data, tuple(self.warnings))
+            purchases = [i for i, row in enumerate(self.rows) if purchase(row)]
+            text = normalized(" ".join(row.text for row in self.rows))
+            self.confirmation = "potwierdzenie transakcji" in text
+            if self.confirmation:
+                heading = next(i for i, row in enumerate(self.rows) if "potwierdzenie" in normalized(row.text))
+                purchases = [index for index in purchases if index > heading]
+            has_total = bool(re.search(r"\bsum\w?\s*:?\s+(?:pln|zl)\b", text))
+            if not purchases or not has_total or not (self.confirmation or re.search(r"\bnip\b", text)):
+                self.warn("missing_receipt_section", "No supported receipt structure found")
+                return StepResult(self.data, tuple(self.warnings))
+            start = purchases[0]
+            self.rows.insert(start, Row(self.rows[start].page, ()))
+            self.warn("inferred_receipt_section", "Purchase section inferred from purchases, seller and total")
+        marker = self.rows[start]
+        remaining = tuple(member for member in marker.members if not fiscal_marker(member[1].text))
+        if remaining and purchase(Row(marker.page, remaining)):
+            self.rows[start] = Row(marker.page, tuple(member for member in marker.members if member not in remaining))
+            self.rows.insert(start + 1, Row(marker.page, remaining))
         self.header(start)
         self.document_fields(start)
         state, block, pending = "items", [], None
         current_page = self.rows[start].page
         saw_deposits = False
+        summary_discounts = []
         for row in self.rows[start + 1:]:
             if row.page != current_page:
                 if block:
@@ -377,10 +524,24 @@ class ReceiptParser:
                     self.warn("unassigned_discount", "Discount has no purchase block on this page", "items")
             elif state in ("deposits", "deposit_returns"):
                 pending = self.deposit_block(row, state, pending)
+            elif state == "summary" and normalized(row.text).startswith(("opust ", "rabat ")):
+                summary_discounts.extend((row, value) for value in amounts(row.text) if value < 0)
         if block:
             self.item_block(block)
         if pending is not None:
             self.warn("unparsed_deposit", "Deposit label has no readable amount", state)
+        if summary_discounts:
+            adjustment = sum((value for _, value in summary_discounts), Decimal(0))
+            item = self.data.items[0] if len(self.data.items) == 1 else None
+            if (item is not None and item.before_discount is not None and item.discount == 0
+                    and item.before_discount + adjustment == self.data.total):
+                item.discount, item.total = adjustment, self.data.total
+                self.record("items[0].discount", [row for row, _ in summary_discounts])
+                refs = (*self.data.evidence["items[0].before_discount"].fragments,
+                        *self.data.evidence["items[0].discount"].fragments)
+                self.data.evidence["items[0].total"] = FieldEvidence(tuple(dict.fromkeys(refs)), "derived")
+            else:
+                self.warn("unassigned_discount", "Receipt-level discount was not allocated to individual products", "items")
         if (self.data.amount_due is None and self.data.total is not None
                 and not saw_deposits and not self.saw_amount_due):
             self.data.amount_due = self.data.total

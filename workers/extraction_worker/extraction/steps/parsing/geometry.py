@@ -1,10 +1,54 @@
 """Reading order and original-fragment provenance, independent of the OCR engine."""
 
 import math
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, replace
 from statistics import median
 
 from ...contracts import OCRFragment, OCRResult
+
+
+def upright_ocr(ocr: OCRResult) -> OCRResult:
+    """Rotate the reading view, keeping original page/fragment evidence indices.
+
+    OCR boxes are ordered geometrically, even when the recognized text is vertical.
+    The fiscal heading and currency total establish the direction of the receipt.
+    Without both anchors we retain the supplied orientation.
+    """
+    pages = []
+    for page in ocr.pages:
+        headings = [line for line in page.lines if re.search(r"\bparagon\b", line.text, re.IGNORECASE)]
+        totals = [line for line in page.lines
+                  if re.search(r"suma\s*:?\s*(?:pln|zł)", line.text, re.IGNORECASE)]
+        elongated = [line for line in page.lines if len(line.text.strip()) >= 5]
+        vertical = bool(elongated) and sum(
+            height(line) > 2 * math.dist(line.box[0], line.box[1]) for line in elongated
+        ) > len(elongated) / 2
+        turns = 0
+        if headings and totals:
+            hx, hy = center(headings[0])
+            tx, ty = center(totals[0])
+            turns = (1 if tx < hx else -1) if vertical else (2 if ty < hy else 0)
+        if not turns:
+            pages.append(page)
+            continue
+        def rotate(point):
+            x, y = point
+            if turns == 1:
+                return y, page.width - x
+            if turns == -1:
+                return page.height - y, x
+            return page.width - x, page.height - y
+        lines = []
+        for line in page.lines:
+            points = [rotate(point) for point in line.box]
+            offset = turns % 4
+            points = points[offset:] + points[:offset]
+            lines.append(replace(line, box=tuple(points)))
+        pages.append(replace(page, lines=tuple(lines),
+                             width=page.height if vertical else page.width,
+                             height=page.width if vertical else page.height))
+    return replace(ocr, pages=tuple(pages))
 
 
 def reconstruct_rows(raw):
@@ -25,13 +69,32 @@ def reconstruct_rows(raw):
                               "x": sum(p[0] for p in points)/4,
                               "y": sum(p[1] for p in points)/4,
                               "height": max(1, max(p[1] for p in points)-min(p[1] for p in points))})
-        tolerance = 0.5 * median(item["height"] for item in projected)
         groups = []
+        def distance(left, right):
+            # Compare local baselines halfway between fragments: one global skew
+            # cannot describe a curved receipt or differently sloped columns.
+            x = (left["x"] + right["x"]) / 2
+            def baseline(item):
+                a, b = item["points"][:2]
+                slope = (b[1] - a[1]) / (b[0] - a[0]) if b[0] != a[0] else 0
+                return item["y"] + max(-0.5, min(0.5, slope)) * (x - item["x"])
+            lx = [p[0] for p in left["points"]]
+            rx = [p[0] for p in right["points"]]
+            lw, rw = max(lx)-min(lx), max(rx)-min(rx)
+            if lw > 2.5 * rw:
+                x = right["x"]
+            elif rw > 2.5 * lw:
+                x = left["x"]
+            overlap = min(max(lx), max(rx)) - max(min(lx), min(rx))
+            if (overlap > 0.35 * min(lw, rw)
+                    and abs(left["y"] - right["y"]) > 0.15 * min(left["height"], right["height"])):
+                return math.inf
+            return abs(baseline(left) - baseline(right)) / min(left["height"], right["height"])
         for item in sorted(projected, key=lambda value: (value["y"], value["x"])):
-            candidates = [(abs(item["y"]-median(member["y"] for member in group)), index)
+            candidates = [(max(distance(item, member) for member in group), index)
                           for index, group in enumerate(groups)]
-            distance, index = min(candidates) if candidates else (math.inf, -1)
-            if distance <= tolerance:
+            gap, index = min(candidates) if candidates else (math.inf, -1)
+            if gap <= 0.55:
                 groups[index].append(item)
             else:
                 groups.append([item])

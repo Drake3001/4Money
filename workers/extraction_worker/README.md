@@ -43,10 +43,19 @@ signed deposit returns, goods total and amount due. Unknown values remain null.
 Field evidence points back to OCR fragments and marks observed or derived values.
 Validation reports arithmetic inconsistencies without rewriting the receipt.
 
-The parser targets Polish fiscal receipts and uses the `PARAGON FISKALNY` marker
-to exclude background text. Missing OCR text stays unknown; names are not corrected
-from a product catalogue. A discount continued onto another page is reported as
-unassigned rather than silently applied to a product on the previous page.
+The parser targets Polish receipts. It tolerates small OCR errors in the fiscal
+heading and can infer the purchase section from seller details, purchases and a
+currency total. Transaction confirmations with net/tax/gross columns are also
+supported. A reading view handles quarter-turn rotations and local text slopes;
+original OCR boxes and evidence indices remain unchanged.
+
+Amounts are associated with numeric purchase baselines and discount labels.
+An unsigned discount needs confirmation from the printed gross and net amounts;
+missing numbers remain unknown. Damaged multipliers can yield partial purchases
+without inventing quantity or unit price. Names are not corrected from a catalogue.
+A discount continued onto another page is reported as unassigned rather than
+silently applied to a product on the previous page. Overlapping receipt photos
+are still processed separately and can duplicate purchases.
 
 ## Code structure
 
