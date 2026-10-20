@@ -6,6 +6,7 @@ public interface IUserTokenRepository
 {
 	void Add(UserToken entity);
 	void Remove(UserToken entity);
+	Task<bool> TryConsumeAsync(Guid tokenId, string tokenHash, UserTokenPurpose purpose, DateTime utcNow, CancellationToken cancellationToken = default);
 	Task<UserToken?> GetByTokenHashAsync(string tokenHash, UserTokenPurpose purpose, CancellationToken cancellationToken = default);
 	Task<UserToken?> GetByUserAsync(Guid userId, UserTokenPurpose purpose, CancellationToken cancellationToken = default);
 	Task RemoveByUserAsync(Guid userId, CancellationToken cancellationToken = default);

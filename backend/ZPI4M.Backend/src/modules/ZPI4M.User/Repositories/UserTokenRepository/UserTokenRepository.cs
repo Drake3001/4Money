@@ -28,6 +28,14 @@ public class UserTokenRepository : IUserTokenRepository
 		return _context.UserTokens.SingleOrDefaultAsync(t => t.TokenHash == tokenHash && t.Purpose == purpose, cancellationToken);
 	}
 
+	public async Task<bool> TryConsumeAsync(Guid tokenId, string tokenHash, UserTokenPurpose purpose, DateTime utcNow, CancellationToken cancellationToken = default)
+	{
+		var affectedRows = await _context.UserTokens
+			.Where(t => t.Id == tokenId && t.TokenHash == tokenHash && t.Purpose == purpose && t.ExpiresAt > utcNow)
+			.ExecuteDeleteAsync(cancellationToken);
+		return affectedRows == 1;
+	}
+
 	public Task<UserToken?> GetByUserAsync(Guid userId, UserTokenPurpose purpose, CancellationToken cancellationToken = default)
 	{
 		return _context.UserTokens.SingleOrDefaultAsync(t => t.FkUserId == userId && t.Purpose == purpose, cancellationToken);

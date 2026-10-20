@@ -58,6 +58,14 @@ public class UserRepository : IUserRepository
 		return _context.Users.SingleOrDefaultAsync(u => u.TinkUserId == tinkUserId, cancellationToken);
 	}
 
+	public async Task<bool> TryConfirmEmailAsync(Guid userId, string email, CancellationToken cancellationToken = default)
+	{
+		var affectedRows = await _context.Users
+			.Where(u => u.Id == userId && u.Email == email && u.IsActive && !u.IsEmailConfirmed)
+			.ExecuteUpdateAsync(setters => setters.SetProperty(u => u.IsEmailConfirmed, true), cancellationToken);
+		return affectedRows == 1;
+	}
+
 	public async Task<PagedResult<Models.User>> GetPageAsync(UserQuery query, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(query);

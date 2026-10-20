@@ -60,6 +60,10 @@ Repozytoria rejestrują dodanie i usunięcie encji, ale nie wykonują własnego
 i dodanie administratora zapisać atomowo. Wspólny zapis wymaga tego samego
 scoped kontekstu; osobne konteksty modułów nie współdzielą automatycznie
 transakcji ani change trackera.
+Metody `UserTokenRepository.TryConsumeAsync` i `UserRepository.TryConfirmEmailAsync`
+wykonują warunkowe DELETE/UPDATE natychmiast. Serwis potwierdzenia e-maila
+obejmuje oba wywołania jedną transakcją na wspólnym `UserDbContext`, aby
+zapewnić jednorazowe zużycie tokenu i atomowe potwierdzenie adresu.
 Kontrakty Services i DTOs mogą istnieć przed implementacją pełnego przepływu.
 Wydzielanie Integrations jest możliwością projektową, nie wymogiem tworzenia
 pustych katalogów w każdym module.

@@ -79,7 +79,10 @@ Uzgodnione działanie serwisów do implementacji: ponowne żądanie zastępuje
 token danego rodzaju, użyty token jednorazowy jest usuwany razem ze zmianą
 danych, a refresh token jest wymieniany przy odświeżeniu i usuwany przy
 wylogowaniu. Access tokenów JWT nie zapisujemy w bazie. Sam model i repozytorium
-nie zapewniają jeszcze tych zachowań ani bezpiecznej obsługi współbieżności.
+nie zapewniają tych zachowań. Serwis potwierdzania e-maila używa warunkowego
+usunięcia niewygasłego tokenu i warunkowego potwierdzenia aktualnego adresu
+aktywnego konta w jednej transakcji. Obsługa wystawiania i ponownej wysyłki
+tokenów oraz pozostałe przepływy pozostają do implementacji.
 
 ## Daty i czas
 

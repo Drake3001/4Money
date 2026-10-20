@@ -11,7 +11,7 @@ Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 | Backend | Solucja .NET 10, host API, projekty ośmiu modułów i Shared | Struktura projektu nie potwierdza realizacji MVP |
 | Baza | Modele i konfiguracje Banking, Expense, Grouping, Limits, Notifications, Receipt i User; wspólny AppDbContext i migracje | Obecność migracji nie potwierdza ich zastosowania na każdej bazie |
 | Repozytoria | Banking, Grouping, User, UserToken, ExpenseShare i Notification | Nie wykonują SaveChangesAsync; nie stanowią kompletnego API wszystkich encji |
-| User | User, UserToken, konfiguracja EF, repozytoria, serwis rejestracji i POST /api/users/register z walidacją DTO i hashowaniem hasła | Rejestracja tworzy niepotwierdzone konto; brak logowania, weryfikacji e-maila, resetu hasła i integracji SMTP |
+| User | Rejestracja z walidacją DTO i hashowaniem hasła; generator tokenów; POST /api/users/confirm-email i serwis atomowego zużycia tokenu oraz potwierdzenia aktualnego adresu | Rejestracja nie wystawia jeszcze tokenu; brak SMTP, ponownej wysyłki, logowania i resetu hasła; pełny przepływ weryfikacji wymaga połączenia tych elementów |
 | Banking | Modele rachunków i transakcji, konfiguracja i repozytoria | Brak kontrolera, serwisów i integracji dostawcy w obecnej gałęzi |
 | Receipt / OCR | Model paragonu i konfiguracja EF | Brak pipeline'u OCR, uploadu oraz potwierdzonej integracji magazynu obrazów |
 | Kategoryzacja | Model kategorii | Brak implementacji modelu klasyfikującego i wyników ewaluacji |

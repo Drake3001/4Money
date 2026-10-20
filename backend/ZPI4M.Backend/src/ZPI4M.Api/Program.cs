@@ -16,7 +16,9 @@ using ZPI4M.User.ApiControllers;
 using ZPI4M.User.Database;
 using ZPI4M.User.Repositories.UserRepository;
 using ZPI4M.User.Repositories.UserTokenRepository;
+using ZPI4M.User.Services.EmailConfirmation;
 using ZPI4M.User.Services.Registration;
+using ZPI4M.User.Services.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,6 +57,8 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
 builder.Services.AddScoped<IPasswordHasher<ZPI4M.User.Models.User>, PasswordHasher<ZPI4M.User.Models.User>>();
 builder.Services.AddScoped<IUserRegistrationService, UserRegistrationService>();
+builder.Services.AddSingleton<IUserTokenGenerator, UserTokenGenerator>();
+builder.Services.AddScoped<IEmailConfirmationService, EmailConfirmationService>();
 
 // Notifications module
 builder.Services.AddDbContext<NotificationsDbContext>(options => options.UseNpgsql(dbConnectionString));

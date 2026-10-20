@@ -46,7 +46,11 @@ Uruchamianie z tego katalogu zapewnia właściwy kontekst odczytu `.env` przez
 i konfigurację certyfikatu przy diagnozowaniu lokalnych wywołań.
 W Development host mapuje dokument OpenAPI. Host wykrywa kontrolery modułu User;
 `POST /api/users/register` tworzy niepotwierdzone konto i waliduje dane wejściowe.
-Weryfikacja e-maila, SMTP i logowanie nie są jeszcze zaimplementowane.
+`POST /api/users/confirm-email` przyjmuje JSON z polem `token` i zwraca 204
+po potwierdzeniu adresu albo 400 dla niepoprawnego, wygasłego lub zużytego tokenu.
+Generator tworzy 32 losowe bajty kodowane jako Base64Url (43 znaki); w bazie
+przechowujemy skrót SHA-256. Rejestracja nie wystawia jeszcze tokenu ani nie
+wysyła wiadomości. SMTP, ponowna wysyłka i logowanie czekają na implementację.
 Stan kodu opisuje [status](implementation-status.md).
 
 ## Modele i migracje
