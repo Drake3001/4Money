@@ -8,6 +8,7 @@ from extraction.pipeline import Pipeline
 from extraction.runner import run_batch
 from extraction.steps.docscan import DocscanStep
 from extraction.steps.prepare import PrepareDocumentStep
+from extraction.steps.orientation import OrientationStep
 from extraction.steps.ocr import RapidOCRStep
 from extraction.steps.parsing import ParseReceiptStep
 from extraction.steps.validate import ValidateReceiptStep
@@ -35,6 +36,7 @@ def build_pipeline():
         [
             ("prepare", PrepareDocumentStep(pdf_dpi=PDF_DPI)),
             # ("docscan", DocscanStep()),
+            ("orient", OrientationStep()),
             ("ocr", RapidOCRStep()),
             ("parse", ParseReceiptStep()),
             ("validate", ValidateReceiptStep()),

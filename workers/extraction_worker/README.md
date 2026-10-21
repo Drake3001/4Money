@@ -6,7 +6,7 @@ A composable receipt processing pipeline for images and PDF documents.
 Each step performs one operation and passes its result to the next step.
 
 ```text
-Preparation → OCR → Parsing → Validation → Classification (planned)
+Preparation → Orientation → OCR → Parsing → Validation → Classification (planned)
 ```
 
 Preparation, OCR and a rule-based receipt parser are implemented. Optional preprocessing steps and local
@@ -26,6 +26,18 @@ uv run main.py
 uv selects Python 3.12, creates `.venv`, and installs the default RapidOCR pipeline
 from `uv.lock`. Missing Python installations and models may be downloaded.
 Keep `EXPERIMENT = None` in `main.py` for the default workflow.
+
+`OrientationStep` corrects whole-page quarter turns before OCR, without cropping,
+deskewing or perspective correction. Preparation first applies image EXIF orientation.
+The orientation step wraps OnnxTR's `mobilenet_v3_small_page_orientation` on CPU.
+OnnxTR prepares the whole image with resizing and padding, and downloads and verifies
+its model once (~6 MB) under `.cache/onnxtr/models/`. The step reuses one lazy predictor
+for the batch; no Paddle or PyTorch runtime is needed. The CPU headless dependency
+supports server deployments on Linux as well as local Windows runs.
+Predictions below `confidence_threshold=0.8` leave the page unchanged and add an
+`orientation_uncertain` warning. Photos with large backgrounds can remain uncertain.
+Unchanged pages retain their PNG bytes; corrected pages retain every pixel and source
+identifier. With `DEBUG = True`, corrected images are saved under `debug/orient/`.
 
 ## Input and output
 
