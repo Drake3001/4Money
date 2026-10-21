@@ -33,6 +33,9 @@ namespace ZPI4M.Expense.Database
 
 				entity.ToTable("expense", "expense");
 
+				entity.HasIndex(e => e.FkBankTransactionId, "c_expense_unique_fk_bank_transaction_id").IsUnique();
+				entity.HasIndex(e => e.FkReceiptId, "c_expense_unique_fk_receipt_id").IsUnique();
+
 				entity.Property(e => e.Id)
 					.ValueGeneratedNever()
 					.HasColumnName("_id");

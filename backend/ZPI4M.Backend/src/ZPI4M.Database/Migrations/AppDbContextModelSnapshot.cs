@@ -201,6 +201,12 @@ namespace ZPI4M.Database.Migrations
                     b.HasKey("Id")
                         .HasName("expense_pkey");
 
+                    b.HasIndex(new[] { "FkBankTransactionId" }, "c_expense_unique_fk_bank_transaction_id")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "FkReceiptId" }, "c_expense_unique_fk_receipt_id")
+                        .IsUnique();
+
                     b.ToTable("expense", "expense");
                 });
 
