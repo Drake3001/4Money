@@ -30,7 +30,7 @@ wydatku należy ustalić przy implementacji przepływu.
 ## Relacje i reprezentacja
 
 - `Expense` należy do grupy; `FkGroupId` jest wymaganym `Guid`. Powiązania
-  z paragonem i transakcją bankową są opcjonalne.
+  z paragonem i transakcją bankową są opcjonalne i maksymalnie 1:1.
 - `ExpenseItem` należy do wydatku i kategorii; przypisanie do użytkownika
   jest opcjonalne. Zawiera cenę jednostkową i ilość.
 - `ExpenseShare` łączy wydatek i użytkownika kluczem złożonym oraz procentem.
@@ -47,6 +47,26 @@ Aktualne konfiguracje EF używają m.in. `decimal(18,2)` dla kwot,
 `decimal(18,3)` dla ilości i `decimal(5,2)` dla udziału procentowego.
 Zachowuj reprezentację dziesiętną pieniędzy; nie zmieniaj precyzji bez analizy
 modelu i migracji.
+
+## Unikalność źródeł wydatku
+
+`ExpenseConfiguration` i snapshot definiują dwa osobne indeksy unikalne:
+
+- `c_expense_unique_fk_bank_transaction_id` na `fk_bank_transaction_id`;
+- `c_expense_unique_fk_receipt_id` na `fk_receipt_id`.
+
+Migracja `20261021162958_AddUniqueExpenseSourceReferences` tworzy je w tabeli
+`expense.expense`. Po jej zastosowaniu ta sama transakcja lub paragon mogą być
+przypisane do najwyżej jednego wydatku. Obie kolumny pozostają nullable;
+wiele wydatków może nie mieć transakcji lub paragonu. Unikalność dotyczy każdego
+FK osobno, globalnie między grupami. Indeks złożony z `Id` i FK nie zapewniłby
+tej reguły, ponieważ `Id` jest już unikalnym kluczem głównym.
+
+Opis bazy w `doc` uwzględnia te unikalności, historyczny SQL init ich nie zawiera.
+Modele nadal przechowują same identyfikatory, bez nawigacji między modułami
+i konfiguracji `.WithOne()`. Indeksy wymuszają unikalność w bazie po migracji,
+ale nie dodają relacji nawigacyjnych EF. Obecność plików migracji nie potwierdza
+ich zastosowania na konkretnej bazie.
 
 ## Konto i tokeny użytkownika
 
@@ -127,14 +147,12 @@ Opis bazy zawiera zapis `ExpenceShare`; aktualna klasa to `ExpenseShare`.
 Różnicę schematu tej tabeli między SQL inicjalizacyjnym a modelem wyjaśnia
 [status implementacji](implementation-status.md).
 
-Przegląd opisu bazy, diagramu logicznego i mapowań EF z 2026-10-20:
+Przegląd opisu bazy, diagramu logicznego i mapowań EF z 2026-10-21:
 
-- Diagram używa `User.birthday`; opis bazy i mapowanie EF używają `birth_date`
-  (`User.BirthDate`). Nie dodawaj drugiego pola na podstawie diagramu.
+- Diagram, opis bazy i mapowanie EF używają `birth_date` (`User.BirthDate`).
 - Diagram przedstawia powiązania Expense z Receipt i BankTransaction jako
-  maksymalnie 1:1. Opis bazy i bazowy SQL mają opcjonalne FK, ale bez UNIQUE
-  na `fk_receipt_id` i `fk_bank_transaction_id`; EF również nie definiuje
-  tych unikalności. Diagram nie jest dowodem ich egzekwowania w bazie.
+  maksymalnie 1:1. Opis bazy, konfiguracja EF i migracja unikalności są zgodne
+  w tym zakresie; sam SQL init nie wymusza tych kardynalności.
 - Część FK między modułami istnieje w SQL inicjalizacyjnym, ale nie ma ich
   w konfiguracjach EF i snapshocie (np. Expense → Group/Receipt/BankTransaction).
   Samo pole `Fk...Id` nie definiuje relacji EF. Przy zmianach schematu porównuj
@@ -152,4 +170,5 @@ Przegląd opisu bazy, diagramu logicznego i mapowań EF z 2026-10-20:
 - [Model konceptualny](../../doc/Model%20konceptualny.png) i [logiczny](../../doc/Model%20logiczny.png)
 - [Podział encji na moduły](../../doc/Podział%20encji%20na%20moduły.png)
 - [Aktualne moduły, modele i konfiguracje](../backend/ZPI4M.Backend/src/modules/)
+- [Migracja unikalności źródeł wydatku](../backend/ZPI4M.Backend/src/ZPI4M.Database/Migrations/20261021162958_AddUniqueExpenseSourceReferences.cs)
 - [Wymagania funkcjonalne](../../doc/Funkcjonalności.txt)

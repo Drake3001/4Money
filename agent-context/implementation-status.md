@@ -1,7 +1,8 @@
 # Stan implementacji i kwestie otwarte
 
-Zweryfikowano: **2026-10-20**, na podstawie lokalnego `ZPI/doc` i kodu repozytorium.
-To przegląd statyczny, nie potwierdzenie udanego builda, testów ani wdrożenia.
+Zweryfikowano: **2026-10-21**, na podstawie lokalnego `ZPI/doc` (`../doc`
+względem katalogu głównego repozytorium), diagramów, kodu i migracji.
+To przegląd statyczny, nie potwierdzenie zastosowania migracji, testów ani wdrożenia.
 Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 
 ## Potwierdzony stan
@@ -10,7 +11,8 @@ Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 | --- | --- | --- |
 | Backend | Solucja .NET 10, host API, projekty ośmiu modułów i Shared | Struktura projektu nie potwierdza realizacji MVP |
 | Baza | Modele i konfiguracje Banking, Expense, Grouping, Limits, Notifications, Receipt i User; wspólny AppDbContext i migracje | Obecność migracji nie potwierdza ich zastosowania na każdej bazie |
-| Repozytoria | Banking, Grouping, User, UserToken, ExpenseShare i Notification | Nie wykonują SaveChangesAsync; nie stanowią kompletnego API wszystkich encji |
+| Expense | Modele wydatku, pozycji, kategorii i udziałów; repozytorium udziałów; osobne unikalne indeksy FK paragonu i transakcji w konfiguracji, snapshocie i migracji AddUniqueExpenseSourceReferences | Brak kontrolera i serwisów tworzenia, edycji oraz dopasowania wydatków |
+| Repozytoria | Banking, Grouping, User, UserToken, ExpenseShare i Notification | Nie wykonują SaveChangesAsync; warunkowe UPDATE/DELETE dla potwierdzania e-maila wykonują się od razu; brak kompletnego API wszystkich encji |
 | User | Rejestracja zapisuje konto i skrót tokenu, potem wysyła e-mail przez SMTP; confirm-email zużywa token w transakcji; resend-confirmation zastępuje token z odstępem między wysyłkami; limit żądań IP i obsługa awarii SMTP | Brak potwierdzonego pełnego przepływu na PostgreSQL i rzeczywistej skrzynce; brak strony potwierdzenia, logowania i resetu hasła |
 | Banking | Modele rachunków i transakcji, konfiguracja i repozytoria | Brak kontrolera, serwisów i integracji dostawcy w obecnej gałęzi |
 | Receipt / OCR | Model paragonu i konfiguracja EF | Brak pipeline'u OCR, uploadu oraz potwierdzonej integracji magazynu obrazów |
@@ -39,8 +41,7 @@ Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 | SQL init ma stare pola refresh tokenu, nie zawiera UserToken i używa timestampów bez strefy | Migracje AddUserTokenTable i TimestampTypeChanges rozwijają stan bazowy; nie aktualizuj historycznego SQL init przy zwykłej zmianie modelu |
 | Notifications istniało w SQL init, ale brakowało go w początkowym modelu EF | AddNotificationsConfigurationClass uzupełnia snapshot i zmienia typ sent_at, zamiast ponownie tworzyć tabelę |
 | Opis bazy używa `ExpenceShare` | Aktualna nazwa klasy to `ExpenseShare`; nie kopiuj literówki do nowych kontraktów |
-| Diagram logiczny używa `User.birthday`; opis bazy i kod mają `birth_date` | To ta sama data urodzenia; obowiązujące mapowanie to `User.BirthDate` → `birth_date` |
-| Diagram pokazuje relacje Expense–Receipt i Expense–BankTransaction jako maksymalnie 1:1, ale brak UNIQUE na odpowiednich FK w SQL i EF | Nie zakładaj egzekwowania tych kardynalności przez bazę; wymaga to osobnego uzgodnienia i ewentualnej migracji |
+| SQL init nie ma UNIQUE dla FK paragonu i transakcji w Expense; aktualny opis bazy, EF i snapshot już je uwzględniają | Migracja 20261021162958_AddUniqueExpenseSourceReferences tworzy dwa osobne unikalne indeksy; po jej zastosowaniu jeden paragon lub transakcja mogą należeć do najwyżej jednego wydatku |
 | Nie wszystkie FK między modułami i domyślne ograniczenia z SQL init są odwzorowane w EF | Przy zmianie schematu porównuj SQL, migracje i snapshot; szczegóły opisuje domain.md |
 | Produkt obejmuje finanse osobiste, ale Expense wymaga grupy | Sposób reprezentowania osobistej przestrzeni wymaga ustalenia |
 | Dokumentacja stosu wymienia Swagger, mobile i Python OCR | Nie oznacza obecności UI Swagger ani tych aplikacji w kodzie |
@@ -51,6 +52,9 @@ Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 [konfiguracja Expense](../backend/ZPI4M.Backend/src/modules/ZPI4M.Expense/Database/ExpenseConfiguration.cs),
 [model Expense](../backend/ZPI4M.Backend/src/modules/ZPI4M.Expense/Models/Expense.cs),
 [opis bazy](../../doc/Baza%20danych.txt), [stos](../../doc/Stos%20technologiczny.txt).
+
+Aktualny diagram logiczny i opis bazy używają `birth_date`, zgodnie z mapowaniem
+`User.BirthDate`. Dawna rozbieżność `birthday` nie występuje już w tych źródłach.
 
 ## Otwarte ustalenia
 

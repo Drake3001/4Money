@@ -3,6 +3,10 @@
 Czytaj przy ustalaniu zachowania funkcji, zakresu MVP, UI oraz prac nad OCR,
 kategoryzacją i integracjami. Stan wykonania opisuje [status](implementation-status.md).
 
+Zakres porównano z tekstami i roadmapą w lokalnym `ZPI/doc` dnia 2026-10-21.
+Katalog ten znajduje się poza repozytorium, pod `../doc` względem jego katalogu
+głównego; poniższe odnośniki są względne względem plików w `agent-context`.
+
 ## Cel i odbiorcy
 
 4Money (For Money, 4M) ogranicza ręczną pracę przy rejestrowaniu, klasyfikacji

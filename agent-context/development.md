@@ -173,6 +173,11 @@ Kolejne dodają `UserToken` i `IsEmailConfirmed`, usuwają stare pola refresh
 tokenu z `User` i zmieniają mapowania dat na `timestamp with time zone`.
 Migracja Notifications zakłada istniejącą tabelę z SQL init i zmienia tylko
 typ `sent_at`; jej snapshot zawiera już encję Notification.
+`UserEmailNotNull` ustawia wymagany e-mail. Migracja
+`20261021162958_AddUniqueExpenseSourceReferences` dodaje osobne unikalne indeksy
+na `expense.expense.fk_bank_transaction_id` i `fk_receipt_id`. Kolumny nadal
+dopuszczają NULL. Istniejące powtórzenia niepustych FK uniemożliwią utworzenie
+indeksów; przed zastosowaniem tej migracji sprawdź dane, jeśli baza nie jest pusta.
 
 Nie edytuj SQL init ani zastosowanych migracji w ramach kolejnej zmiany modelu.
 Snapshot i plik Designer są generowane wraz z nową migracją i trafiają do Git.

@@ -21,13 +21,13 @@ osobnych usług ani niezależnych wdrożeń.
 | Notifications | Powiadomienia i alerty | User |
 | User | Tożsamość i uprawnienia | Brak innych modułów |
 
-Tabela opisuje projekt zależności z `doc` z uwzględnieniem aktualnych ustaleń
-użytkownika; nie jest listą aktualnych `ProjectReference`. Przed dodaniem
+Tabela opisuje projekt zależności z `../doc/Architektura systemu.txt`
+i diagramu systemu, zweryfikowanych 2026-10-21; nie jest listą aktualnych
+`ProjectReference`. Przed dodaniem
 zależności sprawdź kod i istniejące kontrakty.
 Nie wprowadzaj mikroserwisów ani nowego wzorca komunikacji bez potrzeby zadania.
 
-Ustalenie użytkownika z 2026-10-19 zastępuje wcześniejsze kierunki zależności
-Banking i Receipt od Expense. Expense koordynuje dodawanie wydatku: przez
+Zgodnie z aktualnym opisem i diagramem Expense koordynuje dodawanie wydatku: przez
 publiczny interfejs Receipt zleca odczyt paragonu, a przez interfejs Banking
 pobiera transakcje do wyboru lub dopasowania. Expense odpowiada za utworzenie
 wydatku i zapisanie powiązań. Receipt korzysta wyłącznie z modelu OCR,
