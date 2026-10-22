@@ -2,8 +2,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using ZPI4M.User.DTOs.Authentication;
 using ZPI4M.User.DTOs.EmailConfirmation;
 using ZPI4M.User.DTOs.Registration;
+using ZPI4M.User.Services.Authentication;
 using ZPI4M.User.Services.EmailConfirmation;
 using ZPI4M.User.Services.Registration;
 
@@ -15,11 +17,56 @@ public sealed class UsersController : ControllerBase
 {
 	private readonly IUserRegistrationService _registrationService;
 	private readonly IEmailConfirmationService _emailConfirmationService;
+	private readonly IUserAuthenticationService _authenticationService;
 
-	public UsersController(IUserRegistrationService registrationService, IEmailConfirmationService emailConfirmationService)
+	public UsersController(IUserRegistrationService registrationService, IEmailConfirmationService emailConfirmationService,
+		IUserAuthenticationService authenticationService)
 	{
 		_registrationService = registrationService;
 		_emailConfirmationService = emailConfirmationService;
+		_authenticationService = authenticationService;
+	}
+
+	[HttpPost("login")]
+	[AllowAnonymous]
+	[EnableRateLimiting("user-auth")]
+	[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+	[ProducesResponseType(typeof(AuthenticationResponse), StatusCodes.Status200OK)]
+	[ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+	public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
+	{
+		var response = await _authenticationService.LoginAsync(request, cancellationToken);
+		return response is not null ? Ok(response) : Problem(
+			statusCode: StatusCodes.Status401Unauthorized, title: "Invalid credentials or account unavailable.");
+	}
+
+	[HttpPost("refresh")]
+	[AllowAnonymous]
+	[EnableRateLimiting("user-auth")]
+	[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+	[ProducesResponseType(typeof(AuthenticationResponse), StatusCodes.Status200OK)]
+	[ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+	public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
+	{
+		var response = await _authenticationService.RefreshAsync(request, cancellationToken);
+		return response is not null ? Ok(response) : Problem(
+			statusCode: StatusCodes.Status401Unauthorized, title: "Invalid or expired refresh token.");
+	}
+
+	[HttpPost("logout")]
+	[Authorize]
+	[ProducesResponseType(StatusCodes.Status204NoContent)]
+	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+	public async Task<IActionResult> Logout(CancellationToken cancellationToken)
+	{
+		var userId = Guid.Parse(User.FindFirst("sub")!.Value);
+		var sessionId = Guid.Parse(User.FindFirst("sid")!.Value);
+		await _authenticationService.LogoutAsync(userId, sessionId, cancellationToken);
+		return NoContent();
 	}
 
 	[HttpPost("register")]

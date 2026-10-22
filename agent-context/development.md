@@ -51,7 +51,7 @@ ze skrótem tokenu i wysyła wiadomość przez SMTP po zakończeniu zapisu.
 po potwierdzeniu adresu albo 400 dla niepoprawnego, wygasłego lub zużytego tokenu.
 Generator tworzy 32 losowe bajty kodowane jako Base64Url (43 znaki); w bazie
 przechowujemy skrót SHA-256. Wysyłany e-mail zawiera jawny token i termin
-ważności; strony potwierdzenia jeszcze nie ma. Logowanie czeka na implementację.
+ważności; strony potwierdzenia jeszcze nie ma. Logowanie opisano poniżej.
 Stan kodu opisuje [status](implementation-status.md).
 
 ## Rejestracja i potwierdzenie adresu
@@ -100,6 +100,55 @@ W obecnym kodzie JSON ani zmienne środowiskowe nie nadpisują tych wartości.
 Rejestracja i ponowna wysyłka mają wspólny limit 5 żądań/minutę na adres IP;
 przekroczenie zwraca 429. Limit IP jest lokalny dla instancji aplikacji.
 Odstęp między wysyłkami na konto jest sprawdzany w bazie pod blokadą użytkownika.
+
+## Logowanie i sesja
+
+Host wymaga `UserAuthentication__SigningKey` w środowisku lub lokalnym `.env`.
+Klucz musi mieć co najmniej 32 znaki i pochodzić z generatora kryptograficznego
+(np. 32 losowe bajty zakodowane Base64). Nie zapisuj go w Git. Brak lub błędna
+konfiguracja zatrzymuje uruchomienie hosta przez walidację Options.
+Opcjonalne ustawienia, również przez `.env`:
+
+```dotenv
+UserAuthentication__Issuer=4Money
+UserAuthentication__Audience=4Money.Client
+UserAuthentication__AccessTokenLifetimeMinutes=15
+UserAuthentication__RefreshTokenLifetimeDays=7
+```
+
+- `POST /api/users/login`: JSON `{"login":"LOGIN","password":"HASLO"}`.
+  Login jest przycinany i zamieniany na małe litery tak jak przy rejestracji.
+  Wymagane aktywne konto z potwierdzonym e-mailem. Nieznany login, błędne hasło
+  i niedostępne konto zwracają jednakowe 401. Sukces aktualizuje LastLoginTime
+  i w razie potrzeby odświeża hash hasła przez IPasswordHasher.
+- `POST /api/users/refresh`: JSON `{"refreshToken":"TOKEN"}`. Każde udane
+  odświeżenie wymienia refresh token; poprzedni zwraca 401. Termin sesji jest
+  bezwzględny (domyślnie 7 dni od logowania), bez przedłużania przy odświeżeniu.
+- Obie operacje zwracają 200 z `accessToken`, `accessTokenExpiresAt`,
+  `refreshToken`, `refreshTokenExpiresAt`, `tokenType` równym `Bearer`.
+  Daty są UTC. Odpowiedzi mają Cache-Control: no-store.
+- `POST /api/users/logout`: nagłówek `Authorization: Bearer ACCESS_TOKEN`,
+  bez body. Usuwa bieżącą sesję i zwraca 204; brak ważnego JWT zwraca 401.
+  Z wygasłym JWT można najpierw odświeżyć tokeny, a potem się wylogować.
+
+Login i refresh mają wspólny, oddzielny od wysyłki e-maili limit 5 żądań/minutę
+na IP, lokalny dla instancji. Niepoprawne DTO zwracają 400, limit 429.
+Przykłady wywołań znajdują się w `ZPI4M.Api/ZPI4M.Api.http`.
+
+W bazie pozostaje tylko hash refresh tokenu (Purpose = RefreshToken).
+Jedna sesja na konto wynika z UNIQUE (FkUserId, Purpose). Nowe logowanie
+zastępuje sesję i unieważnia oba poprzednie tokeny. Refresh zachowuje ID sesji,
+więc wcześniejsze access tokeny tej samej sesji działają do swojego wygaśnięcia.
+JWT zawiera `sub` (ID użytkownika), `sid` (ID sesji) i `jti`; walidujemy podpis
+HS256, issuer, audience, czas bez tolerancji oraz obecność aktualnej,
+niewygasłej sesji aktywnego konta z potwierdzonym e-mailem w bazie przy każdym
+uwierzytelnieniu. Wylogowanie unieważnia również niewygasłe JWT dla kolejnych
+żądań. Usunięcie refresh tokenu przez przyszły reset/zmianę hasła da ten sam efekt.
+
+Login, refresh i logout blokują najpierw rekord użytkownika, potem operują na
+tokenie, w jednej transakcji. Warunkowe zużycie refresh tokenu dopuszcza tylko
+jedno udane użycie, także dla równoległych żądań. Nowe przepływy nie wymagają
+migracji. Profil, zmiana e-maila i reset hasła pozostają do implementacji.
 
 ## Konfiguracja SMTP
 

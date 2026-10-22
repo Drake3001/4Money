@@ -23,6 +23,19 @@ public class UserTokenRepository : IUserTokenRepository
 		_context.UserTokens.Remove(entity);
 	}
 
+	public Task<bool> IsSessionActiveAsync(Guid userId, Guid sessionId, DateTime utcNow, CancellationToken cancellationToken = default)
+	{
+		return _context.UserTokens.AsNoTracking().AnyAsync(t =>
+			t.Id == sessionId && t.FkUserId == userId && t.Purpose == UserTokenPurpose.RefreshToken &&
+			t.ExpiresAt > utcNow && t.FkUser.IsActive && t.FkUser.IsEmailConfirmed, cancellationToken);
+	}
+
+	public Task RemoveSessionAsync(Guid userId, Guid sessionId, CancellationToken cancellationToken = default)
+	{
+		return _context.UserTokens.Where(t => t.Id == sessionId && t.FkUserId == userId &&
+			t.Purpose == UserTokenPurpose.RefreshToken).ExecuteDeleteAsync(cancellationToken);
+	}
+
 	public Task<UserToken?> GetByTokenHashAsync(string tokenHash, UserTokenPurpose purpose, CancellationToken cancellationToken = default)
 	{
 		return _context.UserTokens.SingleOrDefaultAsync(t => t.TokenHash == tokenHash && t.Purpose == purpose, cancellationToken);

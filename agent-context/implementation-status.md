@@ -13,7 +13,7 @@ Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 | Baza | Modele i konfiguracje Banking, Expense, Grouping, Limits, Notifications, Receipt i User; wspólny AppDbContext i migracje | Obecność migracji nie potwierdza ich zastosowania na każdej bazie |
 | Expense | Modele wydatku, pozycji, kategorii i udziałów; repozytorium udziałów; osobne unikalne indeksy FK paragonu i transakcji w konfiguracji, snapshocie i migracji AddUniqueExpenseSourceReferences | Brak kontrolera i serwisów tworzenia, edycji oraz dopasowania wydatków |
 | Repozytoria | Banking, Grouping, User, UserToken, ExpenseShare i Notification | Nie wykonują SaveChangesAsync; warunkowe UPDATE/DELETE dla potwierdzania e-maila wykonują się od razu; brak kompletnego API wszystkich encji |
-| User | Rejestracja zapisuje konto i skrót tokenu, potem wysyła e-mail przez SMTP; confirm-email zużywa token w transakcji; resend-confirmation zastępuje token z odstępem między wysyłkami; limit żądań IP i obsługa awarii SMTP | Brak potwierdzonego pełnego przepływu na PostgreSQL i rzeczywistej skrzynce; brak strony potwierdzenia, logowania i resetu hasła |
+| User | Rejestracja, potwierdzenie i ponowna wysyłka e-maila przez SMTP; login z JWT i hashowanym refresh tokenem, rotacja refresh, logout; jedna sesja na konto i weryfikacja jej aktualności przy uwierzytelnieniu; limity IP | Brak strony potwierdzenia, edycji konta, zmiany e-maila i resetu hasła; konfiguracja JWT wymaga klucza w środowisku; build i kontrole formatowania nie potwierdzają pełnego przepływu na PostgreSQL ani dostarczenia na rzeczywistą skrzynkę |
 | Banking | Modele rachunków i transakcji, konfiguracja i repozytoria | Brak kontrolera, serwisów i integracji dostawcy w obecnej gałęzi |
 | Receipt / OCR | Model paragonu i konfiguracja EF | Brak pipeline'u OCR, uploadu oraz potwierdzonej integracji magazynu obrazów |
 | Kategoryzacja | Model kategorii | Brak implementacji modelu klasyfikującego i wyników ewaluacji |
@@ -59,7 +59,7 @@ Aktualny diagram logiczny i opis bazy używają `birth_date`, zgodnie z mapowani
 ## Otwarte ustalenia
 
 - Wariant mobile: Capacitor czy React Native.
-- Docelowa implementacja uwierzytelniania i kontrakt tożsamości modułu User.
+- Dalsze operacje konta i uprawnienia między modułami. Uwierzytelnianie używa JWT (`sub` = ID użytkownika, `sid` = ID sesji) i rotowanego refresh tokenu; szczegóły w development.md.
 - Konfiguracja skrzynki SMTP; adapter jest zaimplementowany, wybór serwera i faktyczne dostarczenie wiadomości nie są jeszcze potwierdzone.
 - Dostawca lub symulator importu bankowego i szczegóły integracji.
 - Usługa OCR, magazyn obrazów, kontrakt kategoryzacji i sposób pomiaru jakości.

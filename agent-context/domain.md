@@ -98,7 +98,7 @@ rodzaju tokenu, terminu ważności i zależności `TargetEmail` od `Purpose`.
 Przy zmianie e-maila nowy adres czeka w `TargetEmail`; zastępuje `User.Email`
 dopiero po potwierdzeniu. Nie dodajemy `PendingEmail` do użytkownika.
 
-Uzgodnione działanie serwisów do implementacji: ponowne żądanie zastępuje
+Uzgodnione działanie serwisów: ponowne żądanie zastępuje
 token danego rodzaju, użyty token jednorazowy jest usuwany razem ze zmianą
 danych, a refresh token jest wymieniany przy odświeżeniu i usuwany przy
 wylogowaniu. Access tokenów JWT nie zapisujemy w bazie. Sam model i repozytorium
@@ -111,7 +111,12 @@ z `EmailConfirmationOptions`. Host rejestruje te opcje bez wiązania
 z konfiguracją, więc JSON i env obecnie ich nie nadpisują.
 Potwierdzanie i ponowna wysyłka blokują najpierw rekord
 użytkownika, a następnie operują na tokenie. Pozostałe przepływy tokenów
-(zmiana e-maila, reset hasła i refresh) pozostają do implementacji.
+(zmiana e-maila i reset hasła) pozostają do implementacji. Login, refresh
+i logout są zaimplementowane. JWT nie jest zapisywany w bazie; zawiera ID konta
+i ID sesji, której aktualność jest sprawdzana przy uwierzytelnieniu. Refresh
+rotuje hash tokenu, zachowując ID i bezwzględny termin sesji (domyślnie 7 dni).
+Nowe logowanie nadaje nowe ID sesji; wylogowanie usuwa sesję. Oba zdarzenia
+unieważniają także wcześniejsze JWT. Konfigurację i kontrakty opisuje development.md.
 
 ## Daty i czas
 

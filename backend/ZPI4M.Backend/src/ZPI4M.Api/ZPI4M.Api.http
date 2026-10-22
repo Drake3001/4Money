@@ -1,6 +1,30 @@
 @ZPI4M.Api_HostAddress = http://localhost:5283
 
-GET {{ZPI4M.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+@login = YOUR_LOGIN
+@password = YOUR_PASSWORD
+@refreshToken = REFRESH_TOKEN_FROM_LOGIN_OR_REFRESH
+@accessToken = ACCESS_TOKEN_FROM_LOGIN_OR_REFRESH
+
+POST {{ZPI4M.Api_HostAddress}}/api/users/login
+Content-Type: application/json
+
+{
+  "login": "{{login}}",
+  "password": "{{password}}"
+}
+
+###
+
+POST {{ZPI4M.Api_HostAddress}}/api/users/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+###
+
+POST {{ZPI4M.Api_HostAddress}}/api/users/logout
+Authorization: Bearer {{accessToken}}
 
 ###

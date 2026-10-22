@@ -18,6 +18,7 @@ using ZPI4M.User.Database;
 using ZPI4M.User.Integrations.Smtp;
 using ZPI4M.User.Repositories.UserRepository;
 using ZPI4M.User.Repositories.UserTokenRepository;
+using ZPI4M.User.Services.Authentication;
 using ZPI4M.User.Services.EmailConfirmation;
 using ZPI4M.User.Services.Registration;
 using ZPI4M.User.Services.Tokens;
@@ -38,6 +39,14 @@ builder.Services.AddRateLimiter(options =>
 {
 	options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 	options.AddPolicy("user-email", context => RateLimitPartition.GetFixedWindowLimiter(
+		context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+		_ => new FixedWindowRateLimiterOptions
+		{
+			PermitLimit = 5,
+			Window = TimeSpan.FromMinutes(1),
+			QueueLimit = 0
+		}));
+	options.AddPolicy("user-auth", context => RateLimitPartition.GetFixedWindowLimiter(
 		context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
 		_ => new FixedWindowRateLimiterOptions
 		{
@@ -67,6 +76,7 @@ builder.Services.AddScoped<IBankAccountRepository, BankAccountRepository>();
 builder.Services.AddScoped<IBankTransactionRepository, BankTransactionRepository>();
 
 // User module
+builder.Services.AddUserAuthentication(builder.Configuration);
 builder.Services.AddDbContext<UserDbContext>(options => options.UseNpgsql(dbConnectionString));
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
@@ -104,6 +114,7 @@ app.UseHttpsRedirection();
 
 app.UseRateLimiter();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

@@ -51,6 +51,14 @@ public class UserRepository : IUserRepository
 		return _context.Users.AnyAsync(u => u.Login == login, cancellationToken);
 	}
 
+	public Task RecordLoginAsync(Guid userId, string passwordHash, DateTime utcNow, CancellationToken cancellationToken = default)
+	{
+		return _context.Users.Where(u => u.Id == userId)
+			.ExecuteUpdateAsync(setters => setters
+				.SetProperty(u => u.PasswordHash, passwordHash)
+				.SetProperty(u => u.LastLoginTime, utcNow), cancellationToken);
+	}
+
 	public Task<Models.User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
 	{
 		return _context.Users.SingleOrDefaultAsync(u => u.Email == email, cancellationToken);

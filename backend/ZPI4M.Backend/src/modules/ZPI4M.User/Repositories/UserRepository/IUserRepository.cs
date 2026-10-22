@@ -11,6 +11,7 @@ public interface IUserRepository
 	Task<bool> ExistsAsync(Guid userId, CancellationToken cancellationToken = default);
 	Task<PagedResult<Models.User>> GetPageAsync(UserQuery query, CancellationToken cancellationToken = default);
 	Task<Models.User?> GetByLoginAsync(string login, CancellationToken cancellationToken = default);
+	Task RecordLoginAsync(Guid userId, string passwordHash, DateTime utcNow, CancellationToken cancellationToken = default);
 	Task<bool> ExistsByLoginAsync(string login, CancellationToken cancellationToken = default);
 	Task<Models.User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default);
 	Task<bool> ExistsByEmailAsync(string email, CancellationToken cancellationToken = default);
