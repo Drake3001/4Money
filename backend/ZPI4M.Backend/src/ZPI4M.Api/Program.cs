@@ -21,6 +21,7 @@ using ZPI4M.User.Repositories.UserTokenRepository;
 using ZPI4M.User.Services.Authentication;
 using ZPI4M.User.Services.EmailChange;
 using ZPI4M.User.Services.EmailConfirmation;
+using ZPI4M.User.Services.PasswordReset;
 using ZPI4M.User.Services.Profile;
 using ZPI4M.User.Services.Registration;
 using ZPI4M.User.Services.Tokens;
@@ -93,6 +94,12 @@ builder.Services.AddScoped<IEmailChangeService, EmailChangeService>();
 builder.Services.AddScoped<IEmailChangeMessageSender, EmailChangeMessageSender>();
 builder.Services.AddOptions<EmailChangeOptions>()
 	.Bind(builder.Configuration.GetSection(EmailChangeOptions.SectionName))
+	.ValidateDataAnnotations()
+	.ValidateOnStart();
+builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
+builder.Services.AddScoped<IPasswordResetMessageSender, PasswordResetMessageSender>();
+builder.Services.AddOptions<PasswordResetOptions>()
+	.Bind(builder.Configuration.GetSection(PasswordResetOptions.SectionName))
 	.ValidateDataAnnotations()
 	.ValidateOnStart();
 builder.Services.AddOptions<SmtpOptions>()

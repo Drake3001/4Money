@@ -18,5 +18,6 @@ public interface IUserRepository
 	Task<bool> ExistsByEmailAsync(string email, CancellationToken cancellationToken = default);
 	Task<bool> TryConfirmEmailAsync(Guid userId, string email, CancellationToken cancellationToken = default);
 	Task<bool> TryChangeEmailAsync(Guid userId, string currentEmail, string newEmail, CancellationToken cancellationToken = default);
+	Task<bool> TryResetPasswordAsync(Guid userId, string email, string passwordHash, CancellationToken cancellationToken = default);
 	Task<Models.User?> GetByTinkUserIdAsync(string tinkUserId, CancellationToken cancellationToken = default);
 }

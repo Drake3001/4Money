@@ -110,8 +110,16 @@ odstępie. Ważność to 24 godziny, odstęp to 60 sekund — wartości domyśln
 z `EmailConfirmationOptions`. Host rejestruje te opcje bez wiązania
 z konfiguracją, więc JSON i env obecnie ich nie nadpisują.
 Potwierdzanie i ponowna wysyłka blokują najpierw rekord
-użytkownika, a następnie operują na tokenie. Reset hasła pozostaje do
-implementacji. Zmiana e-maila wymaga aktywnej sesji i aktualnego hasła; nowy
+użytkownika, a następnie operują na tokenie. Reset zapomnianego hasła jest
+zaimplementowany: anonimowe żądanie dla aktywnego konta z potwierdzonym e-mailem
+zapisuje hash tokenu PasswordReset z aktualnym adresem w TargetEmail i wysyła
+token przez SMTP. Odpowiedź 202 jest jednakowa również dla nieznanego adresu,
+niedostępnego konta, cooldownu i błędu SMTP. Token jest domyślnie ważny 30 minut;
+odstęp między wysyłkami wynosi 60 sekund, a późniejsze żądanie zastępuje token.
+Reset sprawdza zgodność TargetEmail z aktualnym adresem, jednorazowo zużywa
+token i w jednej transakcji zmienia hash hasła oraz usuwa wszystkie pozostałe
+tokeny konta, w tym sesję i oczekującą zmianę e-maila. Wymaga ponownego logowania.
+Zmiana e-maila wymaga aktywnej sesji i aktualnego hasła; nowy
 adres czeka w tokenie EmailChange do potwierdzenia przez SMTP. Potwierdzenie
 zużywa token, ponownie sprawdza unikalność adresu i zmienia User.Email,
 zachowując IsEmailConfirmed = true. W tej samej transakcji usuwa wszystkie

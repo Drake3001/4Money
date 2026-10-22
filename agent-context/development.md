@@ -131,7 +131,7 @@ UserAuthentication__RefreshTokenLifetimeDays=7
   bez body. Usuwa bieżącą sesję i zwraca 204; brak ważnego JWT zwraca 401.
   Z wygasłym JWT można najpierw odświeżyć tokeny, a potem się wylogować.
 
-Login i refresh mają wspólny, oddzielny od wysyłki e-maili limit 5 żądań/minutę
+Login, refresh i reset-password mają wspólny, oddzielny od wysyłki e-maili limit 5 żądań/minutę
 na IP, lokalny dla instancji. Niepoprawne DTO zwracają 400, limit 429.
 Wywołania można wykonywać ręcznie w Postmanie.
 
@@ -143,13 +143,13 @@ JWT zawiera `sub` (ID użytkownika), `sid` (ID sesji) i `jti`; walidujemy podpis
 HS256, issuer, audience, czas bez tolerancji oraz obecność aktualnej,
 niewygasłej sesji aktywnego konta z potwierdzonym e-mailem w bazie przy każdym
 uwierzytelnieniu. Wylogowanie unieważnia również niewygasłe JWT dla kolejnych
-żądań. Usunięcie refresh tokenu przez przyszły reset/zmianę hasła da ten sam efekt.
+żądań. Reset hasła usuwa refresh token i unieważnia również dotychczasowe JWT.
 
 Login, refresh i logout blokują najpierw rekord użytkownika, potem operują na
 tokenie, w jednej transakcji. Warunkowe zużycie refresh tokenu dopuszcza tylko
 jedno udane użycie, także dla równoległych żądań. Nowe przepływy nie wymagają
-migracji. Zmiana hasła, dezaktywacja i reset hasła pozostają do implementacji.
-Odczyt i edycję profilu oraz zmianę e-maila opisano poniżej.
+migracji. Zmiana hasła po podaniu aktualnego hasła i dezaktywacja pozostają
+do implementacji. Odczyt i edycję profilu, zmianę e-maila i reset hasła opisano poniżej.
 
 ## Odczyt i edycja własnego profilu
 
@@ -268,6 +268,83 @@ ponowny login i GET z nowym adresem (200), ponowne użycie tokenu (400).
 Dodatkowo sprawdź błędne hasło/ten sam adres (400), zajęty adres (409), odstęp
 między żądaniami (429), zastąpiony/wygasły token (400), awarię SMTP (503) oraz
 konflikt zajęcia adresu pomiędzy żądaniem a potwierdzeniem (409 bez zmiany konta).
+
+## Reset zapomnianego hasła
+
+Oba endpointy PasswordResetController są anonimowe i mają Cache-Control: no-store.
+
+1. `POST /api/users/forgot-password` przyjmuje:
+
+   ```json
+   {
+     "email": "konto@example.com"
+   }
+   ```
+
+   Adres jest przycinany i zamieniany na małe litery. Dla aktywnego konta
+   z potwierdzonym e-mailem zapisujemy hash tokenu PasswordReset, TargetEmail
+   równy aktualnemu adresowi, CreatedAt i ExpiresAt. SMTP działa po zatwierdzeniu
+   transakcji. Wiadomość zawiera token do ręcznego skopiowania do Postmana;
+   link do frontendu nie jest jeszcze zaimplementowany.
+
+   Poprawne żądanie zwraca 202 bez body również dla nieznanego adresu,
+   nieaktywnego lub niepotwierdzonego konta i w okresie między wysyłkami.
+   Awaria SMTP także zachowuje 202; PasswordResetMessageSender zapisuje tylko
+   ogólne ostrzeżenie, bez adresu, tokenu, hasła i szczegółów wyjątku SMTP.
+   Status i treść odpowiedzi nie wskazują, czy istnieje konto; czasy odpowiedzi
+   nie są wyrównywane, ponieważ wysyłka SMTP jest wykonywana w ramach żądania.
+   202 nie gwarantuje dostarczenia wiadomości. Po awarii można ponowić żądanie
+   po upływie odstępu; nie ma automatycznych ponowień wysyłki.
+
+2. `POST /api/users/reset-password` przyjmuje:
+
+   ```json
+   {
+     "token": "TOKEN_Z_WIADOMOSCI",
+     "newPassword": "NoweHaslo1!"
+   }
+   ```
+
+   Nowe hasło podlega takiej samej walidacji jak przy rejestracji: 8–128 znaków,
+   co najmniej jedna wielka litera, cyfra i znak specjalny. Token musi mieć
+   43 znaki Base64Url. Sukces zwraca 204 bez body. Błędne dane zwracają 400
+   ValidationProblemDetails, a token niepoprawny, wygasły, zużyty lub innego
+   przeznaczenia zwraca 400 ProblemDetails.
+
+   Reset wymaga aktywnego konta z potwierdzonym adresem zgodnym z TargetEmail.
+   W jednej transakcji blokujemy użytkownika, warunkowo zużywamy aktualny
+   niewygasły token, zapisujemy hash nowego hasła przez TryResetPasswordAsync
+   i usuwamy wszystkie pozostałe tokeny konta przez RemoveByUserAsync oraz
+   SaveChangesAsync. Usuwana jest również sesja i oczekująca zmiana e-maila.
+   Stare JWT i refresh token nie działają; wymagane jest ponowne logowanie
+   dotychczasowym loginem i nowym hasłem. Błąd zapisu wycofuje także zużycie tokenu.
+
+Domyślna ważność tokenu to 30 minut, odstęp między wysyłkami na konto 60 sekund.
+Po upływie odstępu nowe żądanie zastępuje poprzedni token; do tego czasu nic
+nie wysyła i nie unieważnia poprzedniego tokenu. Samo żądanie resetu nie zmienia
+hasła ani nie wylogowuje użytkownika. Opcje są wiązane z konfiguracją i walidowane
+przy starcie, bez potrzeby dodawania ustawień dla wartości domyślnych:
+
+```dotenv
+PasswordReset__TokenLifetimeMinutes=30
+PasswordReset__ResendCooldownSeconds=60
+```
+
+forgot-password korzysta z limitu user-email (5 żądań/minutę/IP, wspólnego
+z rejestracją, ponowną wysyłką potwierdzenia i zmianą e-maila). reset-password
+korzysta z user-auth (5 żądań/minutę/IP, wspólnego z login i refresh).
+Przekroczenie limitu IP zwraca 429. Oba limity są lokalne dla instancji aplikacji.
+Migracja nie jest potrzebna; używamy istniejącego UserTokenPurpose.PasswordReset.
+
+Ręczna weryfikacja w Postmanie: zachowaj tokeny sesji, wyślij forgot-password
+(202), odbierz token z maila i ustaw inne hasło przez reset-password (204).
+Sprawdź odrzucenie starego JWT na GET /api/users/profile (401), starego refresh
+tokenu (401), starego hasła (401), ponownego użycia tokenu resetu (400)
+i zaloguj się nowym hasłem (200). Rozłóż próby na okna limitu user-auth.
+Dodatkowo sprawdź adres nieznany/niepotwierdzony (202 bez wysyłki), ponowienie
+przed upływem odstępu (202 bez nowej wysyłki), zastąpiony/wygasły token (400),
+słabe hasło (400 bez zużycia tokenu), token innego przeznaczenia (400),
+równoległe użycie tokenu (tylko jedno 204) i awarię SMTP (202 bez zmiany hasła).
 
 ## Konfiguracja SMTP
 

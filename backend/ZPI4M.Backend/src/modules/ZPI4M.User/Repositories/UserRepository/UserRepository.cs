@@ -104,6 +104,14 @@ public class UserRepository : IUserRepository
 		return affectedRows == 1;
 	}
 
+	public async Task<bool> TryResetPasswordAsync(Guid userId, string email, string passwordHash, CancellationToken cancellationToken = default)
+	{
+		var affectedRows = await _context.Users
+			.Where(u => u.Id == userId && u.Email == email && u.IsActive && u.IsEmailConfirmed)
+			.ExecuteUpdateAsync(setters => setters.SetProperty(u => u.PasswordHash, passwordHash), cancellationToken);
+		return affectedRows == 1;
+	}
+
 	public async Task<PagedResult<Models.User>> GetPageAsync(UserQuery query, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(query);
