@@ -88,16 +88,13 @@ builder.Services.AddScoped<IUserRegistrationService, UserRegistrationService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddSingleton<IUserTokenGenerator, UserTokenGenerator>();
 builder.Services.AddScoped<IEmailConfirmationService, EmailConfirmationService>();
-builder.Services.AddScoped<IEmailConfirmationMessageSender, EmailConfirmationMessageSender>();
 builder.Services.AddOptions<EmailConfirmationOptions>();
 builder.Services.AddScoped<IEmailChangeService, EmailChangeService>();
-builder.Services.AddScoped<IEmailChangeMessageSender, EmailChangeMessageSender>();
 builder.Services.AddOptions<EmailChangeOptions>()
 	.Bind(builder.Configuration.GetSection(EmailChangeOptions.SectionName))
 	.ValidateDataAnnotations()
 	.ValidateOnStart();
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
-builder.Services.AddScoped<IPasswordResetMessageSender, PasswordResetMessageSender>();
 builder.Services.AddOptions<PasswordResetOptions>()
 	.Bind(builder.Configuration.GetSection(PasswordResetOptions.SectionName))
 	.ValidateDataAnnotations()

@@ -74,6 +74,11 @@ w transakcji: parametryzowane zapytanie PostgreSQL `SELECT ... FOR UPDATE`
 blokuje rekord użytkownika przed operacjami na tokenie. Dzięki wspólnej
 kolejności blokad żądania potwierdzenia i ponownej wysyłki są serializowane
 dla danego konta. Wywołania SMTP odbywają się po zakończeniu zapisu/transakcji.
+Serwisy User wysyłają wiadomości bezpośrednio przez wspólny IEmailSender.
+W Integrations/Smtp znajdują się adapter SmtpEmailSender, konfiguracja,
+EmailMessage (Subject, Body) i UserEmailMessages z tematami oraz treściami.
+Obsługa błędu wysyłki pozostaje w serwisie danego przepływu, ponieważ reset hasła
+zachowuje inną odpowiedź niż pozostałe operacje.
 Kontrakty Services i DTOs mogą istnieć przed implementacją pełnego przepływu.
 Wydzielanie Integrations jest możliwością projektową, nie wymogiem tworzenia
 pustych katalogów w każdym module.

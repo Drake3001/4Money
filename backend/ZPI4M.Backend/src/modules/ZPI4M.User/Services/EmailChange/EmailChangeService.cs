@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Npgsql;
 using ZPI4M.User.Database;
 using ZPI4M.User.DTOs.EmailChange;
+using ZPI4M.User.Integrations.Smtp;
 using ZPI4M.User.Models;
 using ZPI4M.User.Repositories.UserRepository;
 using ZPI4M.User.Repositories.UserTokenRepository;
@@ -17,7 +18,7 @@ public sealed class EmailChangeService(
 	UserDbContext dbContext,
 	IPasswordHasher<Models.User> passwordHasher,
 	IUserTokenGenerator tokenGenerator,
-	IEmailChangeMessageSender messageSender,
+	IEmailSender emailSender,
 	IOptions<EmailChangeOptions> options) : IEmailChangeService
 {
 	public async Task<ChangeEmailResult> RequestAsync(Guid userId, ChangeEmailRequest request, CancellationToken cancellationToken = default)
@@ -76,8 +77,16 @@ public sealed class EmailChangeService(
 			await transaction.CommitAsync(cancellationToken);
 		}
 
-		var sent = await messageSender.TrySendAsync(request.NewEmail, rawToken, expiresAt, cancellationToken);
-		return sent ? ChangeEmailResult.Accepted : ChangeEmailResult.EmailDeliveryFailed;
+		var message = UserEmailMessages.EmailChange(rawToken, expiresAt);
+		try
+		{
+			await emailSender.SendAsync(request.NewEmail, message.Subject, message.Body, cancellationToken);
+			return ChangeEmailResult.Accepted;
+		}
+		catch (EmailDeliveryException)
+		{
+			return ChangeEmailResult.EmailDeliveryFailed;
+		}
 	}
 
 	public async Task<ConfirmEmailChangeResult> ConfirmAsync(ConfirmEmailChangeRequest request, CancellationToken cancellationToken = default)

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Npgsql;
 using ZPI4M.User.Database;
 using ZPI4M.User.DTOs.Registration;
+using ZPI4M.User.Integrations.Smtp;
 using ZPI4M.User.Models;
 using ZPI4M.User.Repositories.UserRepository;
 using ZPI4M.User.Services.EmailConfirmation;
@@ -17,7 +18,7 @@ public sealed class UserRegistrationService : IUserRegistrationService
 	private readonly UserDbContext _dbContext;
 	private readonly IPasswordHasher<Models.User> _passwordHasher;
 	private readonly IUserTokenGenerator _tokenGenerator;
-	private readonly IEmailConfirmationMessageSender _confirmationSender;
+	private readonly IEmailSender _emailSender;
 	private readonly EmailConfirmationOptions _confirmationOptions;
 
 	public UserRegistrationService(
@@ -25,14 +26,14 @@ public sealed class UserRegistrationService : IUserRegistrationService
 		UserDbContext dbContext,
 		IPasswordHasher<Models.User> passwordHasher,
 		IUserTokenGenerator tokenGenerator,
-		IEmailConfirmationMessageSender confirmationSender,
+		IEmailSender emailSender,
 		IOptions<EmailConfirmationOptions> confirmationOptions)
 	{
 		_users = users;
 		_dbContext = dbContext;
 		_passwordHasher = passwordHasher;
 		_tokenGenerator = tokenGenerator;
-		_confirmationSender = confirmationSender;
+		_emailSender = emailSender;
 		_confirmationOptions = confirmationOptions.Value;
 	}
 
@@ -90,8 +91,12 @@ public sealed class UserRegistrationService : IUserRegistrationService
 			return (UserRegistrationResult.LoginOrEmailAlreadyInUse, null);
 		}
 
-		var sent = await _confirmationSender.TrySendAsync(user.Email, rawToken, confirmationToken.ExpiresAt, cancellationToken);
-		if (!sent)
+		var message = UserEmailMessages.EmailConfirmation(rawToken, confirmationToken.ExpiresAt);
+		try
+		{
+			await _emailSender.SendAsync(user.Email, message.Subject, message.Body, cancellationToken);
+		}
+		catch (EmailDeliveryException)
 		{
 			return (UserRegistrationResult.EmailDeliveryFailed, null);
 		}

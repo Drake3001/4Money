@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ZPI4M.User.Database;
 using ZPI4M.User.DTOs.EmailConfirmation;
+using ZPI4M.User.Integrations.Smtp;
 using ZPI4M.User.Models;
 using ZPI4M.User.Repositories.UserRepository;
 using ZPI4M.User.Repositories.UserTokenRepository;
@@ -15,7 +16,7 @@ public sealed class EmailConfirmationService : IEmailConfirmationService
 	private readonly IUserTokenRepository _tokens;
 	private readonly UserDbContext _dbContext;
 	private readonly IUserTokenGenerator _tokenGenerator;
-	private readonly IEmailConfirmationMessageSender _messageSender;
+	private readonly IEmailSender _emailSender;
 	private readonly EmailConfirmationOptions _options;
 
 	public EmailConfirmationService(
@@ -23,14 +24,14 @@ public sealed class EmailConfirmationService : IEmailConfirmationService
 		IUserTokenRepository tokens,
 		UserDbContext dbContext,
 		IUserTokenGenerator tokenGenerator,
-		IEmailConfirmationMessageSender messageSender,
+		IEmailSender emailSender,
 		IOptions<EmailConfirmationOptions> options)
 	{
 		_users = users;
 		_tokens = tokens;
 		_dbContext = dbContext;
 		_tokenGenerator = tokenGenerator;
-		_messageSender = messageSender;
+		_emailSender = emailSender;
 		_options = options.Value;
 	}
 
@@ -120,7 +121,15 @@ public sealed class EmailConfirmationService : IEmailConfirmationService
 			await transaction.CommitAsync(cancellationToken);
 		}
 
-		var sent = await _messageSender.TrySendAsync(request.Email, rawToken, expiresAt, cancellationToken);
-		return sent ? ResendEmailConfirmationResult.Accepted : ResendEmailConfirmationResult.EmailDeliveryFailed;
+		var message = UserEmailMessages.EmailConfirmation(rawToken, expiresAt);
+		try
+		{
+			await _emailSender.SendAsync(request.Email, message.Subject, message.Body, cancellationToken);
+			return ResendEmailConfirmationResult.Accepted;
+		}
+		catch (EmailDeliveryException)
+		{
+			return ResendEmailConfirmationResult.EmailDeliveryFailed;
+		}
 	}
 }

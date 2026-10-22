@@ -90,7 +90,8 @@ już zapisane: należy skorzystać z ponownej wysyłki po wymaganym odstępie,
 zamiast ponawiać rejestrację. Anulowanie żądania po zapisie również nie usuwa
 konta. Nie ma automatycznych ponowień wysyłki: błąd po zaakceptowaniu wiadomości
 przez serwer SMTP nie pozwala zagwarantować, czy wiadomość została dostarczona.
-Treść i temat wiadomości znajdują się w `EmailConfirmationMessageSender`.
+Treść i temat wiadomości tworzy `UserEmailMessages.EmailConfirmation` w
+`Integrations/Smtp`. Serwisy wywołują wspólny `IEmailSender.SendAsync`.
 Token i dane logowania SMTP nie trafiają do odpowiedzi API ani logów aplikacji.
 
 `EmailConfirmationOptions` zawiera domyślne `TokenLifetimeHours = 24`
@@ -251,7 +252,8 @@ EmailChange__TokenLifetimeHours=24
 EmailChange__ResendCooldownSeconds=60
 ```
 
-Wysyłka wykorzystuje istniejącą konfigurację Smtp, przez EmailChangeMessageSender.
+Wysyłka wykorzystuje istniejącą konfigurację Smtp i wspólny IEmailSender.
+Temat i treść tworzy UserEmailMessages.EmailChange, a błąd wysyłki obsługuje EmailChangeService.
 Awaria SMTP zwraca 503; poprzedni adres pozostaje bez zmian, nowy token jest już
 zapisany. Ponowienie żądania po wymaganym odstępie wystawia i wysyła nowy token.
 Token nie jest zwracany w API ani logowany. Nie ma automatycznych ponowień SMTP.
@@ -289,7 +291,7 @@ Oba endpointy PasswordResetController są anonimowe i mają Cache-Control: no-st
 
    Poprawne żądanie zwraca 202 bez body również dla nieznanego adresu,
    nieaktywnego lub niepotwierdzonego konta i w okresie między wysyłkami.
-   Awaria SMTP także zachowuje 202; PasswordResetMessageSender zapisuje tylko
+   Awaria SMTP także zachowuje 202; PasswordResetService zapisuje tylko
    ogólne ostrzeżenie, bez adresu, tokenu, hasła i szczegółów wyjątku SMTP.
    Status i treść odpowiedzi nie wskazują, czy istnieje konto; czasy odpowiedzi
    nie są wyrównywane, ponieważ wysyłka SMTP jest wykonywana w ramach żądania.
@@ -352,6 +354,13 @@ równoległe użycie tokenu (tylko jedno 204) i awarię SMTP (202 bez zmiany has
 Interfejs, implementacja i `EmailDeliveryException` są razem w `Integrations/Smtp`.
 Enum `SmtpSecurityMode` jest zdefiniowany w pliku `SmtpOptions.cs`.
 Wysyła wiadomości tekstowe; każda wysyłka tworzy osobne połączenie SMTP.
+Wszystkie przepływy konta korzystają bezpośrednio z tego samego IEmailSender.
+Tematy i treści są w Integrations/Smtp/UserEmailMessages.cs: EmailConfirmation,
+EmailChange i PasswordReset zwracają EmailMessage (Subject, Body) z tego samego
+katalogu. Nie ma osobnych senderów ani interfejsów dla rodzajów wiadomości.
+Obsługa EmailDeliveryException należy do serwisu danego przepływu: rejestracja,
+resend-confirmation i zmiana e-maila zachowują 503, a forgot-password zachowuje
+202 i ogólne ostrzeżenie bez danych konta. Anulowanie żądania jest propagowane.
 Projekt User przypina zależność `System.Security.Cryptography.Pkcs` do 10.0.13,
 aby użyć poprawionej wersji zależności pobieranej przez MailKit/MimeKit
 ([advisory Microsoft](https://github.com/advisories/GHSA-846f-f764-76mx)).

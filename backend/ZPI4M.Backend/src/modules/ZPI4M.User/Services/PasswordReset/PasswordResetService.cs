@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ZPI4M.User.Database;
 using ZPI4M.User.DTOs.PasswordReset;
+using ZPI4M.User.Integrations.Smtp;
 using ZPI4M.User.Models;
 using ZPI4M.User.Repositories.UserRepository;
 using ZPI4M.User.Repositories.UserTokenRepository;
@@ -16,7 +18,8 @@ public sealed class PasswordResetService(
 	UserDbContext dbContext,
 	IPasswordHasher<Models.User> passwordHasher,
 	IUserTokenGenerator tokenGenerator,
-	IPasswordResetMessageSender messageSender,
+	IEmailSender emailSender,
+	ILogger<PasswordResetService> logger,
 	IOptions<PasswordResetOptions> options) : IPasswordResetService
 {
 	public async Task RequestAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
@@ -66,7 +69,15 @@ public sealed class PasswordResetService(
 			await transaction.CommitAsync(cancellationToken);
 		}
 
-		await messageSender.SendAsync(request.Email, rawToken, expiresAt, cancellationToken);
+		var message = UserEmailMessages.PasswordReset(rawToken, expiresAt);
+		try
+		{
+			await emailSender.SendAsync(request.Email, message.Subject, message.Body, cancellationToken);
+		}
+		catch (EmailDeliveryException)
+		{
+			logger.LogWarning("Password reset email delivery failed.");
+		}
 	}
 
 	public async Task<PasswordResetResult> ResetAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)
