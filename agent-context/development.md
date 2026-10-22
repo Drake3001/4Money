@@ -133,7 +133,7 @@ UserAuthentication__RefreshTokenLifetimeDays=7
 
 Login i refresh mają wspólny, oddzielny od wysyłki e-maili limit 5 żądań/minutę
 na IP, lokalny dla instancji. Niepoprawne DTO zwracają 400, limit 429.
-Przykłady wywołań znajdują się w `ZPI4M.Api/ZPI4M.Api.http`.
+Wywołania można wykonywać ręcznie w Postmanie.
 
 W bazie pozostaje tylko hash refresh tokenu (Purpose = RefreshToken).
 Jedna sesja na konto wynika z UNIQUE (FkUserId, Purpose). Nowe logowanie
@@ -148,8 +148,8 @@ uwierzytelnieniu. Wylogowanie unieważnia również niewygasłe JWT dla kolejnyc
 Login, refresh i logout blokują najpierw rekord użytkownika, potem operują na
 tokenie, w jednej transakcji. Warunkowe zużycie refresh tokenu dopuszcza tylko
 jedno udane użycie, także dla równoległych żądań. Nowe przepływy nie wymagają
-migracji. Zmiana hasła, zmiana e-maila, dezaktywacja i reset hasła pozostają
-do implementacji. Odczyt i edycję profilu opisano poniżej.
+migracji. Zmiana hasła, dezaktywacja i reset hasła pozostają do implementacji.
+Odczyt i edycję profilu oraz zmianę e-maila opisano poniżej.
 
 ## Odczyt i edycja własnego profilu
 
@@ -196,7 +196,78 @@ przy następnym logowaniu należy podać nowy login. Migracja nie jest wymagana.
 Ręczna weryfikacja w Postmanie: po loginie pobierz profil (200), wyślij PUT
 i ponownie GET (200 z nowymi danymi). Sprawdź ten sam login (200), login innego
 konta (409), brak imienia/datę przyszłą/błędny telefon (400) oraz brak tokenu
-lub token po logout (401). Przykłady requestów są w `ZPI4M.Api/ZPI4M.Api.http`.
+lub token po logout (401).
+
+## Zmiana adresu e-mail
+
+1. `POST /api/users/profile/change-email` wymaga aktywnej sesji
+   (`Authorization: Bearer ACCESS_TOKEN`) i aktualnego hasła w JSON-ie:
+
+   ```json
+   {
+     "newEmail": "nowy@example.com",
+     "currentPassword": "AKTUALNE_HASLO"
+   }
+   ```
+
+   ID użytkownika pochodzi z JWT. Nowy adres jest przycinany, zamieniany na
+   małe litery i walidowany tak jak podczas rejestracji (maksymalnie 254 znaki).
+   Żądanie jest dostępne dla aktywnego konta z potwierdzonym obecnym adresem.
+   Sukces zwraca 202 bez body; wiadomość SMTP z tokenem trafia na nowy adres.
+   Dotychczasowy e-mail i sesja pozostają aktywne do potwierdzenia.
+
+2. `POST /api/users/confirm-email-change` jest anonimowy i przyjmuje JSON:
+
+   ```json
+   {
+     "token": "TOKEN_Z_WIADOMOSCI"
+   }
+   ```
+
+   Sukces zwraca 204, zmienia User.Email, zachowuje IsEmailConfirmed = true
+   i usuwa wszystkie tokeny konta, w tym sesję. Użytkownik musi zalogować się
+   ponownie dotychczasowym loginem i hasłem. Stare JWT i refresh token przestają
+   działać. Potwierdzenie nie wymaga JWT, bo uwierzytelnia je token z wiadomości.
+
+Żądanie zwraca 400 dla błędnego hasła, niepoprawnych danych lub adresu takiego
+jak obecny; 401 dla niedostępnego konta/braku sesji; 409 dla zajętego adresu.
+Potwierdzenie zwraca 400 dla tokenu niepoprawnego, wygasłego, zastąpionego,
+zużytego lub innego przeznaczenia oraz 409, gdy adres został już zajęty.
+Adres oczekujący nie jest rezerwowany, więc unikalność jest sprawdzana ponownie
+przy potwierdzeniu, z obsługą konfliktu indeksu c_user_unique_email w bazie.
+Konflikt wycofuje transakcję, również zużycie tokenu; obecny adres się nie zmienia.
+
+Token ma Purpose = EmailChange i nowy adres w TargetEmail. W bazie zapisujemy
+tylko hash SHA-256, bez jawnego tokenu i bez PendingEmail na koncie. Domyślna
+ważność to 24 h, odstęp między żądaniami na konto 60 s. Ponowienie żądania po
+tym odstępie zastępuje token, także gdy wskazano inny nowy adres. Odstęp jest
+wspólny dla wszystkich żądań zmiany e-maila danego konta; przekroczenie zwraca 429.
+Oba endpointy korzystają również ze wspólnego limitu user-email
+(5 żądań/minutę/IP, razem z rejestracją i resend-confirmation).
+Opcje EmailChange są wiązane z konfiguracją i walidowane przy starcie:
+
+```dotenv
+EmailChange__TokenLifetimeHours=24
+EmailChange__ResendCooldownSeconds=60
+```
+
+Wysyłka wykorzystuje istniejącą konfigurację Smtp, przez EmailChangeMessageSender.
+Awaria SMTP zwraca 503; poprzedni adres pozostaje bez zmian, nowy token jest już
+zapisany. Ponowienie żądania po wymaganym odstępie wystawia i wysyła nowy token.
+Token nie jest zwracany w API ani logowany. Nie ma automatycznych ponowień SMTP.
+
+Request i confirm blokują najpierw użytkownika, następnie operują na tokenach.
+TryConsumeAsync warunkowo usuwa aktualny niewygasły token. TryChangeEmailAsync
+wykonuje warunkowy UPDATE konta; RemoveByUserAsync i SaveChangesAsync usuwają
+pozostałe tokeny. Wszystkie operacje potwierdzenia są w jednej transakcji,
+a SMTP przy żądaniu działa po zatwierdzeniu zapisu. Migracja nie jest potrzebna.
+
+Ręczna weryfikacja w Postmanie: login, żądanie zmiany (202), GET profilu ze starym
+adresem (200), potwierdzenie tokenem z nowej skrzynki (204), GET starym JWT (401),
+ponowny login i GET z nowym adresem (200), ponowne użycie tokenu (400).
+Dodatkowo sprawdź błędne hasło/ten sam adres (400), zajęty adres (409), odstęp
+między żądaniami (429), zastąpiony/wygasły token (400), awarię SMTP (503) oraz
+konflikt zajęcia adresu pomiędzy żądaniem a potwierdzeniem (409 bez zmiany konta).
 
 ## Konfiguracja SMTP
 

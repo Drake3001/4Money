@@ -47,7 +47,6 @@ public sealed class UserProfileService(IUserRepository users, UserDbContext dbCo
 			ConstraintName: "c_user_unique_login"
 		})
 		{
-			// The unique index also handles concurrent requests claiming the same login.
 			return (UpdateUserProfileResult.LoginAlreadyInUse, null);
 		}
 

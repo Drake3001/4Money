@@ -19,6 +19,7 @@ using ZPI4M.User.Integrations.Smtp;
 using ZPI4M.User.Repositories.UserRepository;
 using ZPI4M.User.Repositories.UserTokenRepository;
 using ZPI4M.User.Services.Authentication;
+using ZPI4M.User.Services.EmailChange;
 using ZPI4M.User.Services.EmailConfirmation;
 using ZPI4M.User.Services.Profile;
 using ZPI4M.User.Services.Registration;
@@ -88,6 +89,12 @@ builder.Services.AddSingleton<IUserTokenGenerator, UserTokenGenerator>();
 builder.Services.AddScoped<IEmailConfirmationService, EmailConfirmationService>();
 builder.Services.AddScoped<IEmailConfirmationMessageSender, EmailConfirmationMessageSender>();
 builder.Services.AddOptions<EmailConfirmationOptions>();
+builder.Services.AddScoped<IEmailChangeService, EmailChangeService>();
+builder.Services.AddScoped<IEmailChangeMessageSender, EmailChangeMessageSender>();
+builder.Services.AddOptions<EmailChangeOptions>()
+	.Bind(builder.Configuration.GetSection(EmailChangeOptions.SectionName))
+	.ValidateDataAnnotations()
+	.ValidateOnStart();
 builder.Services.AddOptions<SmtpOptions>()
 	.Bind(builder.Configuration.GetSection(SmtpOptions.SectionName))
 	.ValidateDataAnnotations()

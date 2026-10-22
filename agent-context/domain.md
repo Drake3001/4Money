@@ -110,8 +110,15 @@ odstępie. Ważność to 24 godziny, odstęp to 60 sekund — wartości domyśln
 z `EmailConfirmationOptions`. Host rejestruje te opcje bez wiązania
 z konfiguracją, więc JSON i env obecnie ich nie nadpisują.
 Potwierdzanie i ponowna wysyłka blokują najpierw rekord
-użytkownika, a następnie operują na tokenie. Pozostałe przepływy tokenów
-(zmiana e-maila i reset hasła) pozostają do implementacji. Login, refresh
+użytkownika, a następnie operują na tokenie. Reset hasła pozostaje do
+implementacji. Zmiana e-maila wymaga aktywnej sesji i aktualnego hasła; nowy
+adres czeka w tokenie EmailChange do potwierdzenia przez SMTP. Potwierdzenie
+zużywa token, ponownie sprawdza unikalność adresu i zmienia User.Email,
+zachowując IsEmailConfirmed = true. W tej samej transakcji usuwa wszystkie
+pozostałe tokeny konta, również sesję; użytkownik musi zalogować się ponownie.
+Ponowne żądanie po odstępie zastępuje oczekujący token. Domyślnie token jest
+ważny 24 godziny, odstęp wynosi 60 sekund; opcje EmailChange są wiązane
+z konfiguracją hosta. Login, refresh
 i logout są zaimplementowane. JWT nie jest zapisywany w bazie; zawiera ID konta
 i ID sesji, której aktualność jest sprawdzana przy uwierzytelnieniu. Refresh
 rotuje hash tokenu, zachowując ID i bezwzględny termin sesji (domyślnie 7 dni).

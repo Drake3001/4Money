@@ -45,7 +45,6 @@ public sealed class UserAuthenticationService(
 		var previousSession = await tokens.GetByUserAsync(user.Id, UserTokenPurpose.RefreshToken, cancellationToken);
 		if (previousSession is not null)
 		{
-			// Delete before inserting because the database permits one session per user.
 			await tokens.RemoveSessionAsync(user.Id, previousSession.Id, cancellationToken);
 			dbContext.Entry(previousSession).State = EntityState.Detached;
 		}
@@ -80,7 +79,6 @@ public sealed class UserAuthenticationService(
 			return null;
 		}
 
-		// Follow the same lock order as login and email confirmation: user, then token.
 		await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 		var user = await users.GetByIdForUpdateAsync(candidate.FkUserId, cancellationToken);
 		var now = DateTime.UtcNow;
@@ -90,8 +88,6 @@ public sealed class UserAuthenticationService(
 			return null;
 		}
 
-		// Preserve the session ID and absolute expiry. Existing access tokens remain
-		// valid within this session, but the previous refresh token cannot be reused.
 		dbContext.Entry(candidate).State = EntityState.Detached;
 		var rawRefreshToken = tokenGenerator.GenerateToken();
 		var session = new UserToken

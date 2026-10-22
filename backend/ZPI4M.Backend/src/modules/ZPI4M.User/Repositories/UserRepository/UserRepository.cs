@@ -94,6 +94,16 @@ public class UserRepository : IUserRepository
 		return affectedRows == 1;
 	}
 
+	public async Task<bool> TryChangeEmailAsync(Guid userId, string currentEmail, string newEmail, CancellationToken cancellationToken = default)
+	{
+		var affectedRows = await _context.Users
+			.Where(u => u.Id == userId && u.Email == currentEmail && u.IsActive && u.IsEmailConfirmed)
+			.ExecuteUpdateAsync(setters => setters
+				.SetProperty(u => u.Email, newEmail)
+				.SetProperty(u => u.IsEmailConfirmed, true), cancellationToken);
+		return affectedRows == 1;
+	}
+
 	public async Task<PagedResult<Models.User>> GetPageAsync(UserQuery query, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(query);
