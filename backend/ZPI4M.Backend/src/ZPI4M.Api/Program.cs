@@ -20,6 +20,7 @@ using ZPI4M.User.Repositories.UserRepository;
 using ZPI4M.User.Repositories.UserTokenRepository;
 using ZPI4M.User.Services.Authentication;
 using ZPI4M.User.Services.EmailConfirmation;
+using ZPI4M.User.Services.Profile;
 using ZPI4M.User.Services.Registration;
 using ZPI4M.User.Services.Tokens;
 
@@ -82,6 +83,7 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
 builder.Services.AddScoped<IPasswordHasher<ZPI4M.User.Models.User>, PasswordHasher<ZPI4M.User.Models.User>>();
 builder.Services.AddScoped<IUserRegistrationService, UserRegistrationService>();
+builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddSingleton<IUserTokenGenerator, UserTokenGenerator>();
 builder.Services.AddScoped<IEmailConfirmationService, EmailConfirmationService>();
 builder.Services.AddScoped<IEmailConfirmationMessageSender, EmailConfirmationMessageSender>();

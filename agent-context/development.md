@@ -148,7 +148,55 @@ uwierzytelnieniu. Wylogowanie unieważnia również niewygasłe JWT dla kolejnyc
 Login, refresh i logout blokują najpierw rekord użytkownika, potem operują na
 tokenie, w jednej transakcji. Warunkowe zużycie refresh tokenu dopuszcza tylko
 jedno udane użycie, także dla równoległych żądań. Nowe przepływy nie wymagają
-migracji. Profil, zmiana e-maila i reset hasła pozostają do implementacji.
+migracji. Zmiana hasła, zmiana e-maila, dezaktywacja i reset hasła pozostają
+do implementacji. Odczyt i edycję profilu opisano poniżej.
+
+## Odczyt i edycja własnego profilu
+
+`UserProfileController` udostępnia `GET /api/users/profile` i `PUT /api/users/profile`.
+Oba endpointy wymagają `[Authorize]` i nagłówka `Authorization: Bearer ACCESS_TOKEN`.
+ID użytkownika pochodzi wyłącznie z claimu `sub`; klient nie wskazuje konta do edycji.
+Brak ważnej sesji albo niedostępne konto zwracają 401.
+
+GET zwraca 200 z `id`, `login`, `name`, `surname`, `email`, `phone`, `birthDate`,
+`icon`, `isEmailConfirmed`, `createdAt` i `lastLoginTime`. Odpowiedź nie zawiera
+hasha hasła, tokenów ani identyfikatora integracji bankowej. Odpowiedzi profilu
+mają Cache-Control: no-store.
+
+PUT przyjmuje kompletny zestaw edytowalnych danych profilu:
+
+```json
+{
+  "login": "nowylogin",
+  "name": "Jan",
+  "surname": "Kowalski",
+  "phone": "+48123456789",
+  "birthDate": "2000-01-01",
+  "icon": null
+}
+```
+
+Login (3–100 znaków) jest przycinany i zamieniany na małe litery; imię i nazwisko
+są wymagane, przycinane i mają maksymalnie 100 znaków, zgodnie z rejestracją.
+Data urodzenia jest wymagana i nie może być domyślną datą 0001-01-01 ani datą
+przyszłą (według daty UTC). Telefon jest opcjonalny, walidowany przez `[Phone]`,
+do 30 znaków. Ikona to opcjonalny tekst do 2048 znaków; endpoint nie obsługuje
+uploadu obrazu. Pominięcie, null lub pusty tekst telefonu/ikony czyści dane pole.
+Niepoprawne dane zwracają 400 z ValidationProblemDetails. E-mail, hasło, flagi
+konta i dane integracyjne nie należą do kontraktu edycji i nie są aktualizowane.
+
+Sukces PUT zwraca 200 z aktualnym profilem; zajęty login zwraca 409.
+Pozostawienie własnego loginu jest dozwolone. Sprawdzenie unikalności jest
+uzupełnione obsługą naruszenia indeksu w bazie przy równoległych żądaniach.
+Serwis blokuje rekord konta przez GetByIdForUpdateAsync, a repozytorium
+UpdateProfileAsync wykonuje natychmiastowy UPDATE wyłącznie pól profilu,
+w transakcji zarządzanej przez serwis. Zmiana loginu zachowuje aktualną sesję;
+przy następnym logowaniu należy podać nowy login. Migracja nie jest wymagana.
+
+Ręczna weryfikacja w Postmanie: po loginie pobierz profil (200), wyślij PUT
+i ponownie GET (200 z nowymi danymi). Sprawdź ten sam login (200), login innego
+konta (409), brak imienia/datę przyszłą/błędny telefon (400) oraz brak tokenu
+lub token po logout (401). Przykłady requestów są w `ZPI4M.Api/ZPI4M.Api.http`.
 
 ## Konfiguracja SMTP
 

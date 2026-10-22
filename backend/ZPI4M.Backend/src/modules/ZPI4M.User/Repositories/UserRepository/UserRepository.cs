@@ -64,6 +64,18 @@ public class UserRepository : IUserRepository
 		return _context.Users.SingleOrDefaultAsync(u => u.Email == email, cancellationToken);
 	}
 
+	public Task UpdateProfileAsync(Models.User user, CancellationToken cancellationToken = default)
+	{
+		return _context.Users.Where(u => u.Id == user.Id)
+			.ExecuteUpdateAsync(setters => setters
+				.SetProperty(u => u.Login, user.Login)
+				.SetProperty(u => u.Name, user.Name)
+				.SetProperty(u => u.Surname, user.Surname)
+				.SetProperty(u => u.Phone, user.Phone)
+				.SetProperty(u => u.BirthDate, user.BirthDate)
+				.SetProperty(u => u.Icon, user.Icon), cancellationToken);
+	}
+
 	public Task<bool> ExistsByEmailAsync(string email, CancellationToken cancellationToken = default)
 	{
 		return _context.Users.AnyAsync(u => u.Email == email, cancellationToken);
