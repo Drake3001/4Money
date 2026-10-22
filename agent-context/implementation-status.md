@@ -1,7 +1,8 @@
 # Stan implementacji i kwestie otwarte
 
-Zweryfikowano: **2026-10-22**, na podstawie lokalnego `ZPI/doc` (`../doc`
-względem katalogu głównego repozytorium), diagramów, kodu i migracji.
+Zweryfikowano: **2026-10-23**, na podstawie aktualnego kodu, solucji, migracji,
+workflow i tekstów w lokalnym `ZPI/doc` (`../doc` względem katalogu głównego
+repozytorium). Wcześniejszy przegląd diagramów zachowuje datę 2026-10-21.
 To przegląd statyczny, nie potwierdzenie zastosowania migracji, testów ani wdrożenia.
 Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 
@@ -13,7 +14,7 @@ Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 | Baza | Modele i konfiguracje Banking, Expense, Grouping, Limits, Notifications, Receipt i User; wspólny AppDbContext i migracje | Obecność migracji nie potwierdza ich zastosowania na każdej bazie |
 | Expense | Modele wydatku, pozycji, kategorii i udziałów; repozytorium udziałów; osobne unikalne indeksy FK paragonu i transakcji w konfiguracji, snapshocie i migracji AddUniqueExpenseSourceReferences | Brak kontrolera i serwisów tworzenia, edycji oraz dopasowania wydatków |
 | Repozytoria | Banking, Grouping, User, UserToken, ExpenseShare i Notification | Nie wykonują SaveChangesAsync; warunkowe UPDATE/DELETE dla potwierdzania e-maila wykonują się od razu; brak kompletnego API wszystkich encji |
-| User | Rejestracja, potwierdzenie i ponowna wysyłka e-maila przez SMTP; login z JWT i hashowanym refresh tokenem, rotacja refresh, logout; jedna sesja na konto i weryfikacja jej aktualności przy uwierzytelnieniu; limity IP; GET/PUT api/users/profile; zmiana e-maila z aktualnym hasłem i potwierdzeniem tokenem SMTP; forgot-password/reset-password z jednorazowym tokenem SMTP i unieważnieniem sesji | Brak strony potwierdzenia/resetu, zmiany hasła po podaniu aktualnego hasła i dezaktywacji; konfiguracja JWT wymaga klucza w środowisku; build i kontrole formatowania nie potwierdzają pełnego przepływu na PostgreSQL ani dostarczenia na rzeczywistą skrzynkę |
+| User | Rejestracja, potwierdzenie i ponowna wysyłka e-maila; login z JWT i hashowanym refresh tokenem, rotacja refresh, logout; jedna sesja na konto i weryfikacja jej aktualności przy uwierzytelnieniu; limity IP; GET/PUT api/users/profile; zmiana e-maila z aktualnym hasłem i potwierdzeniem tokenem; forgot-password/reset-password z unieważnieniem sesji; wspólny IEmailSender/SmtpEmailSender i UserEmailMessages | Brak strony potwierdzenia/resetu, zmiany hasła po podaniu aktualnego hasła i dezaktywacji; konfiguracja JWT wymaga klucza w środowisku; w bieżącym stanie brak projektów testów backendu i potwierdzenia pełnego przepływu na PostgreSQL oraz rzeczywistej skrzynce |
 | Banking | Modele rachunków i transakcji, konfiguracja i repozytoria | Brak kontrolera, serwisów i integracji dostawcy w obecnej gałęzi |
 | Receipt / OCR | Model paragonu i konfiguracja EF | Brak pipeline'u OCR, uploadu oraz potwierdzonej integracji magazynu obrazów |
 | Kategoryzacja | Model kategorii | Brak implementacji modelu klasyfikującego i wyników ewaluacji |
@@ -21,7 +22,7 @@ Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 | Notifications | Notification, NotificationsDbContext, NotificationsConfiguration, repozytorium Add/GetByIdAsync i DI; konfiguracja uwzględniona w AppDbContext | Brak serwisu wysyłki; nie planujemy historii, paginacji, Update ani Remove |
 | Reports | Projekt modułu | Brak usług raportowania |
 | Web / mobile | Założenia w dokumentacji | Brak projektów aplikacji klienckich w repozytorium |
-| Narzędzia | Hooki, testy hooków, workflow backendu | Brak projektów testowych backendu; komunikat CI „not configured” nie oznacza wykonania testów |
+| Narzędzia | Hooki, testy hooków, workflow backendu z wykrywaniem zestawów unit/integration | W tests pozostał tylko .gitkeep, solucja nie zawiera projektów testowych backendu; prace nad testami User odłożono na osobną gałąź; „not configured” nie oznacza wykonania testów |
 | Infrastruktura | Compose PostgreSQL i Terraform Proxmox z workflow | Brak potwierdzenia uruchomienia infrastruktury i wdrożenia 4M; AWS pozostaje planem |
 
 Źródła: [solucja](../backend/ZPI4M.Backend/ZPI4M.Backend.slnx),
@@ -44,6 +45,7 @@ Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 | SQL init nie ma UNIQUE dla FK paragonu i transakcji w Expense; aktualny opis bazy, EF i snapshot już je uwzględniają | Migracja 20261021162958_AddUniqueExpenseSourceReferences tworzy dwa osobne unikalne indeksy; po jej zastosowaniu jeden paragon lub transakcja mogą należeć do najwyżej jednego wydatku |
 | Nie wszystkie FK między modułami i domyślne ograniczenia z SQL init są odwzorowane w EF | Przy zmianie schematu porównuj SQL, migracje i snapshot; szczegóły opisuje domain.md |
 | Produkt obejmuje finanse osobiste, ale Expense wymaga grupy | Sposób reprezentowania osobistej przestrzeni wymaga ustalenia |
+| ExpenseItem ma opcjonalny FkUserId, ale Funkcjonalności.txt (sekcja 3) umieszczają przypisywanie uczestników do produktów poza MVP | MVP obejmuje podział całego wydatku; obecność pola w modelu nie oznacza gotowej funkcji ani obowiązku realizacji rozszerzenia |
 | Dokumentacja stosu wymienia Swagger, mobile i Python OCR | Nie oznacza obecności UI Swagger ani tych aplikacji w kodzie |
 
 Źródła: [pomocnik CI](../tools/ci/backend_checks.sh),
@@ -60,6 +62,7 @@ Aktualny diagram logiczny i opis bazy używają `birth_date`, zgodnie z mapowani
 
 - Wariant mobile: Capacitor czy React Native.
 - Dalsze operacje konta i uprawnienia między modułami. Uwierzytelnianie używa JWT (`sub` = ID użytkownika, `sid` = ID sesji) i rotowanego refresh tokenu; szczegóły w development.md.
+- Testy modułu User będą realizowane na osobnej gałęzi. W bieżącym kodzie nie ma ich projektów, obsługi środowiska Testing ani testowego PostgreSQL w workflow; nie przypisuj tej gałęzi wcześniejszych wyników usuniętego zestawu.
 - Konfiguracja skrzynki SMTP; adapter jest zaimplementowany, wybór serwera i faktyczne dostarczenie wiadomości nie są jeszcze potwierdzone.
 - Dostawca lub symulator importu bankowego i szczegóły integracji.
 - Usługa OCR, magazyn obrazów, kontrakt kategoryzacji i sposób pomiaru jakości.

@@ -5,6 +5,9 @@ Polecenia poniżej są zweryfikowane względem konfiguracji repozytorium; nie
 oznacza to potwierdzenia ich wykonania w każdej sesji. Bieżące ograniczenia
 opisuje [status](implementation-status.md).
 
+Stan konfiguracji hosta i testów ponownie sprawdzono 2026-10-23. Bieżąca gałąź
+zawiera funkcje User opisane niżej, ale nie zawiera projektów testowych backendu.
+
 ## Wymagania
 
 Backend wymaga SDK .NET 10; baza lokalna Docker i Docker Compose. Narzędzia
@@ -356,8 +359,9 @@ Enum `SmtpSecurityMode` jest zdefiniowany w pliku `SmtpOptions.cs`.
 Wysyła wiadomości tekstowe; każda wysyłka tworzy osobne połączenie SMTP.
 Wszystkie przepływy konta korzystają bezpośrednio z tego samego IEmailSender.
 Tematy i treści są w Integrations/Smtp/UserEmailMessages.cs: EmailConfirmation,
-EmailChange i PasswordReset zwracają EmailMessage (Subject, Body) z tego samego
-katalogu. Nie ma osobnych senderów ani interfejsów dla rodzajów wiadomości.
+EmailChange i PasswordReset zwracają EmailMessage (Subject, Body), którego
+rekord jest w tym samym pliku UserEmailMessages.cs. Nie ma osobnego EmailMessage.cs,
+folderu Services/Email ani senderów i interfejsów dla rodzajów wiadomości.
 Obsługa EmailDeliveryException należy do serwisu danego przepływu: rejestracja,
 resend-confirmation i zmiana e-maila zachowują 503, a forgot-password zachowuje
 202 i ogólne ostrzeżenie bez danych konta. Anulowanie żądania jest propagowane.
@@ -468,13 +472,20 @@ bash tools/ci/backend_checks.sh integration --results .cache/backend-results
 ```
 
 Użyj świeżego katalogu wyników przy kolejnych uruchomieniach. Filtry wymagają
-końcówek `.UnitTests.csproj` lub `.IntegrationTests.csproj`. Obecnie w lokalnym
-backendzie nie ma projektów testowych. Komunikat „not configured” nie oznacza
-wykonania testów. Zgodnie z ustaleniami użytkownika nie dodawaj nowych testów
-ani informacyjnych plików w `notes` przy tych pracach. Jeśli zakres zostanie
-zmieniony, nowe projekty testowe uwzględnij w solucji i konwencji CI.
-Integracyjne fixture'y muszą zapewniać zależności; workflow backendu nie
-uruchamia bazy dla testów.
+końcówek `.UnitTests.csproj` lub `.IntegrationTests.csproj` i wybierają tylko
+pliki śledzone przez Git. W bieżącym backendzie nie ma projektów testowych;
+tests zawiera tylko .gitkeep, bez README i fixture'ów. Komunikat „not configured”
+nie oznacza wykonania testów. Testy User zostały usunięte przez użytkownika
+z tego zakresu i mają powstać na osobnej gałęzi; nie odtwarzaj ich w ramach
+bieżących prac. Nie dodawaj informacyjnych plików w notes.
+
+Workflow backendu nie uruchamia PostgreSQL i nie ustawia
+USER_TEST_POSTGRES_CONNECTION_STRING. Program.cs ładuje .env przez Env.Load()
+bez wyjątku dla środowiska Testing i nie ma publicznej części klasy Program
+udostępnianej WebApplicationFactory. Nie zakładaj obecności infrastruktury
+testowej ani wcześniejszych wyników zestawu usuniętego z tej gałęzi.
+Przy wznowieniu testów na osobnej gałęzi uwzględnij projekty w solucji,
+konwencję CI i izolowane zależności integracyjne, zgodnie z ówczesnym zakresem.
 
 ## Hooki i konwencje Git
 

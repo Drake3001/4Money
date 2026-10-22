@@ -22,7 +22,8 @@ osobnych usług ani niezależnych wdrożeń.
 | User | Tożsamość i uprawnienia | Brak innych modułów |
 
 Tabela opisuje projekt zależności z `../doc/Architektura systemu.txt`
-i diagramu systemu, zweryfikowanych 2026-10-21; nie jest listą aktualnych
+i diagramu systemu; tekst ponownie sprawdzono 2026-10-23, diagram 2026-10-21.
+Nie jest to lista aktualnych
 `ProjectReference`. Przed dodaniem
 zależności sprawdź kod i istniejące kontrakty.
 Nie wprowadzaj mikroserwisów ani nowego wzorca komunikacji bez potrzeby zadania.
@@ -76,7 +77,9 @@ kolejności blokad żądania potwierdzenia i ponownej wysyłki są serializowane
 dla danego konta. Wywołania SMTP odbywają się po zakończeniu zapisu/transakcji.
 Serwisy User wysyłają wiadomości bezpośrednio przez wspólny IEmailSender.
 W Integrations/Smtp znajdują się adapter SmtpEmailSender, konfiguracja,
-EmailMessage (Subject, Body) i UserEmailMessages z tematami oraz treściami.
+UserEmailMessages.cs z tematami oraz treściami i rekordem EmailMessage
+(Subject, Body) w tym samym pliku. Nie ma folderu Services/Email ani osobnych
+senderów dla poszczególnych rodzajów wiadomości.
 Obsługa błędu wysyłki pozostaje w serwisie danego przepływu, ponieważ reset hasła
 zachowuje inną odpowiedź niż pozostałe operacje.
 Kontrakty Services i DTOs mogą istnieć przed implementacją pełnego przepływu.
@@ -110,6 +113,7 @@ znajdują się w [instrukcji pracy](development.md#modele-i-migracje).
 | Mobile | Plan React + Capacitor lub React Native; wybór nie jest rozstrzygnięty |
 | OCR | Plan Python i integracja OCR; brak implementacji pipeline'u w obecnym repo |
 | Automatyzacja | GitHub Actions, pre-commit, narzędzia Python zarządzane przez uv |
+| Testy backendu | Brak projektów w bieżącej solucji; tests zawiera tylko .gitkeep, prace nad testami User odłożono na osobną gałąź |
 | Infrastruktura | Obecna konfiguracja Terraform dla Proxmox; Linux i Tailscale w środowisku developerskim |
 | Prezentacja | AWS jako założenie docelowe, nie potwierdzone wdrożenie aplikacji |
 

@@ -4,6 +4,10 @@ Czytaj przed zmianą modeli, wydatków, podziału kosztów, limitów oraz przetw
 paragonów. Zakres zachowań opisuje [produkt](product.md), a organizację kodu
 [architektura](architecture.md).
 
+Zakres MVP i opis tabel ponownie sprawdzono 2026-10-23 względem tekstów
+`Funkcjonalności.txt` i `Baza danych.txt`. Przegląd diagramów opisany niżej
+zachowuje wcześniejszą datę.
+
 ## Pojęcia i encje
 
 | Pojęcie / encja | Znaczenie i właściciel |
@@ -32,7 +36,9 @@ wydatku należy ustalić przy implementacji przepływu.
 - `Expense` należy do grupy; `FkGroupId` jest wymaganym `Guid`. Powiązania
   z paragonem i transakcją bankową są opcjonalne i maksymalnie 1:1.
 - `ExpenseItem` należy do wydatku i kategorii; przypisanie do użytkownika
-  jest opcjonalne. Zawiera cenę jednostkową i ilość.
+  jest opcjonalne. Zawiera cenę jednostkową i ilość. Pole FkUserId istnieje
+  w modelu i opisie bazy, ale przypisywanie uczestników do produktów jest
+  rozszerzeniem poza MVP według sekcji 3 `Funkcjonalności.txt`.
 - `ExpenseShare` łączy wydatek i użytkownika kluczem złożonym oraz procentem.
   Nie jest zapisem wykonanego przelewu.
 - `GroupMember` łączy użytkownika i grupę kluczem złożonym; użytkownik może
@@ -151,7 +157,8 @@ typy aktualizują migracje.
 - OCR i kategoryzacja dają wynik możliwy do ręcznej korekty.
 - Powiązanie paragonu z transakcją jest propozycją do akceptacji lub odrzucenia.
 - Podział kosztów prowadzi do prezentacji zobowiązań; przekazanie środków
-  następuje poza aplikacją.
+  następuje poza aplikacją. MVP obejmuje uczestników i udziały na poziomie całego
+  wydatku, nie rozliczanie uczestników poszczególnych produktów.
 - Analiza osobista i grupowa oraz kategorie produktów są istotnymi częściami
   produktu, nie należy sprowadzać ich wyłącznie do klasyfikacji całej płatności.
 
@@ -160,6 +167,8 @@ typy aktualizują migracje.
 Dokumentacja nie rozstrzyga sposobu reprezentowania wydatków osobistych przy
 wymaganej grupie, algorytmu sald, zaokrąglania udziałów, obsługi wielu walut,
 szczegółowych progów i okresów alertów ani zasad deduplikacji importu.
+Przy pracach nad MVP nie rozszerzaj podziału kosztów na produkty tylko dlatego,
+że ExpenseItem ma opcjonalny FkUserId. To osobna funkcjonalność rozszerzająca.
 Brakuje również pełnego kontraktu płatnika i ewidencji spłaty zobowiązań.
 Nie dodawaj tych reguł wyłącznie na podstawie nazw kolumn.
 
