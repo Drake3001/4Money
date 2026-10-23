@@ -5,7 +5,8 @@ kategoryzacją i integracjami. Stan wykonania opisuje [status](implementation-st
 
 Zakres porównano z tekstami i roadmapą w lokalnym `ZPI/doc` dnia 2026-10-21.
 Tekstowe źródła wymagań, w tym aktualne `Funkcjonalności.txt`, ponownie
-sprawdzono dnia 2026-10-23. Roadmapa i diagramy zachowują datę wcześniejszego przeglądu.
+sprawdzono dnia 2026-10-23, uwzględniając aktualizację `Baza danych.txt`
+o dezaktywację konta. Roadmapa i diagramy zachowują datę wcześniejszego przeglądu.
 Katalog ten znajduje się poza repozytorium, pod `../doc` względem jego katalogu
 głównego; poniższe odnośniki są względne względem plików w `agent-context`.
 
@@ -59,14 +60,18 @@ przypadkowo wybranych wartości jako uzgodnionych wymagań.
 ## Uzgodnione rozszerzenie konta
 
 Opis bazy w `ZPI/doc/Baza danych.txt` uwzględnia już potwierdzenie e-maila
-i `UserToken` z przeznaczeniami weryfikacji, zmiany e-maila, resetu hasła
-oraz odświeżania sesji. Lista MVP w `Funkcjonalności.txt` pozostaje bardziej
-ogólna. Bieżący kod realizuje rejestrację i potwierdzanie e-maila, logowanie,
-odświeżanie i wylogowanie, edycję profilu, zmianę e-maila oraz reset zapomnianego
+i `UserToken` z przeznaczeniami weryfikacji, zmiany e-maila, resetu hasła,
+odświeżania sesji oraz dezaktywacji konta (purpose 5). Lista MVP
+w `Funkcjonalności.txt` pozostaje bardziej ogólna. Bieżący kod realizuje
+rejestrację i potwierdzanie e-maila, logowanie,
+odświeżanie i wylogowanie, edycję profilu, zmianę e-maila, reset zapomnianego
 hasła oraz dezaktywację konta po potwierdzeniu tokenem z e-maila. Dezaktywacja
 ustawia IsActive = false i usuwa wszystkie tokeny konta; dane użytkownika
 pozostają w bazie. Zmiana hasła po podaniu obecnego hasła pozostaje
 niezaimplementowana; szczegóły i ograniczenia opisuje status implementacji.
+Dezaktywacja jest uzgodnionym rozszerzeniem obsługi konta; aktualna lista MVP
+w `Funkcjonalności.txt` nie wymienia jej jako osobnego punktu. Nie obejmuje
+fizycznego usuwania danych ani reaktywacji konta.
 
 Wysyłanie wiadomości odbywa się przez konfigurowalny adapter SMTP. Serwer może
 należeć do zewnętrznego dostawcy, np. o2, albo być utrzymywany samodzielnie.

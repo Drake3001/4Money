@@ -5,7 +5,8 @@ paragonów. Zakres zachowań opisuje [produkt](product.md), a organizację kodu
 [architektura](architecture.md).
 
 Zakres MVP i opis tabel ponownie sprawdzono 2026-10-23 względem tekstów
-`Funkcjonalności.txt` i `Baza danych.txt`. Przegląd diagramów opisany niżej
+`Funkcjonalności.txt` i `Baza danych.txt`, w tym purpose 5 i warunek TargetEmail
+z aktualnego opisu bazy. Przegląd diagramów opisany niżej
 zachowuje wcześniejszą datę.
 
 ## Pojęcia i encje
@@ -13,7 +14,7 @@ zachowuje wcześniejszą datę.
 | Pojęcie / encja | Znaczenie i właściciel |
 | --- | --- |
 | Konto / `User` | Profil użytkownika aplikacji; moduł User. To nie rachunek bankowy. |
-| `UserToken` | Token potwierdzenia lub zmiany e-maila, resetu hasła albo odświeżania sesji; User |
+| `UserToken` | Token potwierdzenia lub zmiany e-maila, resetu hasła, odświeżania sesji albo dezaktywacji konta; User |
 | Grupa wydatkowa / `Group` | Przestrzeń współdzielenia kosztów; Grouping |
 | `GroupMember` | Członkostwo użytkownika w grupie, z flagą administratora; Grouping |
 | Wydatek / `Expense` | Zakup pochodzący z ręcznego wpisu, paragonu lub banku; Expense |
@@ -101,6 +102,10 @@ użytkownika kaskadowo usuwa jego tokeny. Pola tokenu:
 UNIQUE `(FkUserId, Purpose)` pozwala na jeden aktualny token danego rodzaju
 na konto, w tym jedną sesję odnawialną. Konfiguracja EF zawiera również CHECK
 rodzaju tokenu, terminu ważności i zależności `TargetEmail` od `Purpose`.
+`TargetEmail` pozostaje nullable w C# i SQL, ponieważ refresh token wymaga NULL.
+To CHECK wymusza wartość różną od NULL (IS NOT NULL) dla purpose 1–3 i 5;
+nie ustawiaj NOT NULL na całej kolumnie. Dla purpose 5 zapisujemy aktualny
+adres użytkownika, na który wysyłamy token dezaktywacji.
 Przy zmianie e-maila nowy adres czeka w `TargetEmail`; zastępuje `User.Email`
 dopiero po potwierdzeniu. Nie dodajemy `PendingEmail` do użytkownika.
 
@@ -149,8 +154,12 @@ W jednej transakcji zużywa token, ustawia IsActive = false i usuwa wszystkie
 pozostałe tokeny konta. Rekord User i dane finansowe pozostają w bazie;
 login i e-mail nadal są zajęte, brak reaktywacji. JWT nie jest usuwany z klienta,
 ale kolejne uwierzytelnienie odrzuca go po sprawdzeniu sesji i IsActive w bazie.
-Purpose 5 i rozszerzone ograniczenia CHECK dodaje migracja AddAccountDeactivationTokens;
-opis bazy w doc nadal wymienia przeznaczenia 1–4.
+Purpose 5 i rozszerzone ograniczenia CHECK dodaje migracja
+`20261023131244_AddAccountDeactivationTokens`. Aktualny opis `Baza danych.txt`,
+enum, konfiguracja EF i snapshot są zgodne: purpose 1–5, TargetEmail wymagany
+dla 1–3 i 5 oraz NULL dla 4. Ta zgodność nie potwierdza zastosowania migracji
+na konkretnej bazie. Down usuwa oczekujące tokeny rodzaju 5 przed przywróceniem
+CHECK dla 1–4; nie reaktywuje kont.
 
 ## Daty i czas
 

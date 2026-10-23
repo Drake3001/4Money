@@ -2,7 +2,8 @@
 
 Zweryfikowano: **2026-10-23**, na podstawie aktualnego kodu, solucji, migracji,
 workflow i tekstów w lokalnym `ZPI/doc` (`../doc` względem katalogu głównego
-repozytorium). Wcześniejszy przegląd diagramów zachowuje datę 2026-10-21.
+repozytorium), z uwzględnieniem aktualizacji `Baza danych.txt` o purpose 5.
+Wcześniejszy przegląd diagramów zachowuje datę 2026-10-21.
 To przegląd statyczny, nie potwierdzenie zastosowania migracji, testów ani wdrożenia.
 Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 
@@ -31,6 +32,22 @@ Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 [AppDbContext](../backend/ZPI4M.Backend/src/ZPI4M.Database/AppDbContext.cs),
 [infrastruktura](../proxmox-infra/README.md).
 
+Opis `UserToken` w `Baza danych.txt` jest zgodny z aktualnym kodem i snapshotem:
+purpose 1–5, TargetEmail wymagany dla 1–3 i 5, NULL dla 4. Migracja
+`20261023131244_AddAccountDeactivationTokens` rozszerza oba CHECK w istniejącej
+tabeli; jej obecność nie dowodzi zastosowania na lokalnej bazie.
+Down usuwa tokeny rodzaju 5 przed przywróceniem ograniczeń i nie reaktywuje kont.
+
+Uzgodniony podział kontrolerów pozostaje bez zmian: UsersController obsługuje
+rejestrację, potwierdzanie e-maila i sesję; profil, zmiana e-maila, reset hasła
+i dezaktywacja mają osobne kontrolery. Nie planujemy ich łączenia w ramach
+obecnego zakresu. Mapa kontrolerów znajduje się w architecture.md.
+
+Źródła: [opis bazy](../../doc/Baza%20danych.txt),
+[model tokenu](../backend/ZPI4M.Backend/src/modules/ZPI4M.User/Models/UserToken.cs),
+[mapowanie User](../backend/ZPI4M.Backend/src/modules/ZPI4M.User/Database/UserConfiguration.cs),
+[migracja dezaktywacji](../backend/ZPI4M.Backend/src/ZPI4M.Database/Migrations/20261023131244_AddAccountDeactivationTokens.cs),
+[kontrolery](../backend/ZPI4M.Backend/src/modules/ZPI4M.User/ApiControllers/).
 
 ## Rozbieżności istotne podczas pracy
 
@@ -39,7 +56,6 @@ Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 | CI wybiera `.UnitTests.csproj` i `.IntegrationTests.csproj`; obecnie nie ma projektów testowych backendu | Nie traktuj „not configured” jako udanych testów |
 | SQL inicjalizacyjny tworzy `grouping.expense_share`; obecny model mapuje `expense.expense_share` | Zastosuj istniejącą migrację przenoszącą tabelę; nie traktuj SQL jako końcowego stanu modelu |
 | Pierwsza migracja ma puste Up/Down | Zakłada bazę zainicjalizowaną SQL-em; sam `database update` nie tworzy pełnego schematu od zera |
-| Opis bazy w doc wymienia tokeny 1–4; kod dodaje AccountDeactivation = 5 | Migracja 20261023131244_AddAccountDeactivationTokens rozszerza oba CHECK tokenów; przed użyciem dezaktywacji zastosuj ją na właściwej bazie. Down usuwa tokeny rodzaju 5 przed przywróceniem ograniczeń |
 | SQL init ma stare pola refresh tokenu, nie zawiera UserToken i używa timestampów bez strefy | Migracje AddUserTokenTable i TimestampTypeChanges rozwijają stan bazowy; nie aktualizuj historycznego SQL init przy zwykłej zmianie modelu |
 | Notifications istniało w SQL init, ale brakowało go w początkowym modelu EF | AddNotificationsConfigurationClass uzupełnia snapshot i zmienia typ sent_at, zamiast ponownie tworzyć tabelę |
 | Opis bazy używa `ExpenceShare` | Aktualna nazwa klasy to `ExpenseShare`; nie kopiuj literówki do nowych kontraktów |
@@ -62,7 +78,7 @@ Aktualny diagram logiczny i opis bazy używają `birth_date`, zgodnie z mapowani
 ## Otwarte ustalenia
 
 - Wariant mobile: Capacitor czy React Native.
-- Dalsze operacje konta i uprawnienia między modułami. Uwierzytelnianie używa JWT (`sub` = ID użytkownika, `sid` = ID sesji) i rotowanego refresh tokenu; szczegóły w development.md.
+- Zmiana hasła po podaniu aktualnego hasła oraz uprawnienia między modułami. Dezaktywacja jest już zaimplementowana; reaktywacji i fizycznego usuwania konta nie ma. Uwierzytelnianie używa JWT (`sub` = ID użytkownika, `sid` = ID sesji) i rotowanego refresh tokenu; szczegóły w development.md.
 - Testy modułu User będą realizowane na osobnej gałęzi. W bieżącym kodzie nie ma ich projektów, obsługi środowiska Testing ani testowego PostgreSQL w workflow; nie przypisuj tej gałęzi wcześniejszych wyników usuniętego zestawu.
 - Konfiguracja skrzynki SMTP; adapter jest zaimplementowany, wybór serwera i faktyczne dostarczenie wiadomości nie są jeszcze potwierdzone.
 - Dostawca lub symulator importu bankowego i szczegóły integracji.

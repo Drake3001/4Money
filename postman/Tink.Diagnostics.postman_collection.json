@@ -1,0 +1,619 @@
+{
+  "info": {
+    "name": "Tink — diagnostyka Sandbox",
+    "description": "Wyłącznie diagnostyka istniejącego użytkownika aplikacji Tink Sandbox. Nie testuje pełnego backendu 4Money. Nie tworzy użytkowników, nie importuje danych i nie odnawia zgód. Tokeny, kody i URL-e wyłącznie lokalnie. Instrukcja: notes/POSTMAN.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "item": [
+    {
+      "name": "10 — Token aplikacji",
+      "description": "Uruchom przed folderem 20 lub 30. Wymagane lokalne sekrety aplikacji Sandbox.",
+      "item": [
+        {
+          "name": "11 — Uzyskaj Client Access Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "url": "{{tinkApiBaseUrl}}/api/v1/oauth/token",
+            "description": "Wyłącznie aplikacja Sandbox. Scope authorization:grant; nie tworzy użytkownika. Resetuje poprzednie tokeny i kody diagnostyczne. Tokeny nie są wypisywane przez skrypty.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "client_id",
+                  "value": "{{tinkClientId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "{{tinkClientSecret}}",
+                  "type": "text"
+                },
+                {
+                  "key": "grant_type",
+                  "value": "client_credentials",
+                  "type": "text"
+                },
+                {
+                  "key": "scope",
+                  "value": "authorization:grant",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function stop(message) {",
+                  "    pm.test('Warunki wstępne', function () { throw new Error(message); });",
+                  "    pm.execution.setNextRequest(null);",
+                  "    pm.execution.skipRequest();",
+                  "}",
+                  "function need(names) {",
+                  "    const missing = names.filter(function (name) {",
+                  "        const value = pm.environment.get(name);",
+                  "        return typeof value !== 'string' || !value.trim() || value.includes('{{');",
+                  "    });",
+                  "    if (missing.length) stop('Uzupełnij lokalne środowisko: ' + missing.join(', '));",
+                  "}",
+                  "function clear(names) { names.forEach(function (name) { pm.environment.unset(name); }); }",
+                  "clear([\"tinkClientAccessToken\", \"tinkClientTokenExpiresAt\", \"tinkConsentCode\", \"tinkConsentAccessToken\", \"tinkConsentTokenExpiresAt\", \"tinkDelegatedCode\", \"tinkAuthorizationUrl\", \"tinkDiagnosticState\"]);",
+                  "need(['tinkApiBaseUrl', 'tinkClientId', 'tinkClientSecret']);",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function check(name, predicate) {",
+                  "    let ok = false;",
+                  "    try { ok = Boolean(predicate()); } catch (_) { /* Do not expose response values. */ }",
+                  "    pm.test(name, function () { pm.expect(ok, name).to.equal(true); });",
+                  "    if (!ok) {",
+                  "        pm.execution.setNextRequest(null);",
+                  "        throw new Error('Przerwano: ' + name);",
+                  "    }",
+                  "}",
+                  "function jsonResponse(status, noStore) {",
+                  "    check('Oczekiwany status HTTP ' + status, function () { return pm.response.code === status; });",
+                  "    check('Odpowiedź JSON', function () {",
+                  "        return /application\\/(?:problem\\+)?json/i.test(pm.response.headers.get('Content-Type') || '');",
+                  "    });",
+                  "    if (noStore) check('Cache-Control: no-store', function () {",
+                  "        return /(?:^|,)\\s*no-store\\s*(?:,|$)/i.test(pm.response.headers.get('Cache-Control') || '');",
+                  "    });",
+                  "    let body;",
+                  "    check('Poprawny dokument JSON', function () { body = pm.response.json(); return body !== null; });",
+                  "    return body;",
+                  "}",
+                  "function saveToken(body, tokenKey, expiryKey) {",
+                  "    check('Niepusty token i dodatnie expires_in', function () {",
+                  "        return typeof body.access_token === 'string' && body.access_token.trim().length > 0",
+                  "            && Number.isFinite(body.expires_in) && body.expires_in > 0;",
+                  "    });",
+                  "    pm.environment.set(tokenKey, body.access_token);",
+                  "    const seconds = body.expires_in - Math.min(60, body.expires_in * 0.1);",
+                  "    pm.environment.set(expiryKey, String(Date.now() + seconds * 1000));",
+                  "}",
+                  "const body = jsonResponse(200, false);",
+                  "saveToken(body, 'tinkClientAccessToken', 'tinkClientTokenExpiresAt');",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "20 — Token użytkownika i zgody",
+      "description": "Uruchom całość po folderze 10. Kończy bieg przed niezależną ścieżką Link.",
+      "item": [
+        {
+          "name": "21 — Utwórz grant do odczytu zgód",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "url": "{{tinkApiBaseUrl}}/api/v1/oauth/authorization-grant",
+            "description": "Kod dla naszego backendu; bez /delegate. Użytkownik musi już należeć do tej aplikacji Tink. Nie tworzy użytkownika.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tinkClientAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "user_id",
+                  "value": "{{tinkUserId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "scope",
+                  "value": "provider-consents:read",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function stop(message) {",
+                  "    pm.test('Warunki wstępne', function () { throw new Error(message); });",
+                  "    pm.execution.setNextRequest(null);",
+                  "    pm.execution.skipRequest();",
+                  "}",
+                  "function need(names) {",
+                  "    const missing = names.filter(function (name) {",
+                  "        const value = pm.environment.get(name);",
+                  "        return typeof value !== 'string' || !value.trim() || value.includes('{{');",
+                  "    });",
+                  "    if (missing.length) stop('Uzupełnij lokalne środowisko: ' + missing.join(', '));",
+                  "}",
+                  "function clear(names) { names.forEach(function (name) { pm.environment.unset(name); }); }",
+                  "function validToken(tokenKey, expiryKey) {",
+                  "    need([tokenKey, expiryKey]);",
+                  "    if (!(Number(pm.environment.get(expiryKey)) > Date.now()))",
+                  "        stop('Token wygasł lub ma niepoprawną datę. Uruchom ponownie odpowiednią sekwencję tokenu.');",
+                  "}",
+                  "clear(['tinkConsentCode', 'tinkConsentAccessToken', 'tinkConsentTokenExpiresAt']);",
+                  "need(['tinkApiBaseUrl', 'tinkUserId']);",
+                  "validToken('tinkClientAccessToken', 'tinkClientTokenExpiresAt');",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function check(name, predicate) {",
+                  "    let ok = false;",
+                  "    try { ok = Boolean(predicate()); } catch (_) { /* Do not expose response values. */ }",
+                  "    pm.test(name, function () { pm.expect(ok, name).to.equal(true); });",
+                  "    if (!ok) {",
+                  "        pm.execution.setNextRequest(null);",
+                  "        throw new Error('Przerwano: ' + name);",
+                  "    }",
+                  "}",
+                  "function jsonResponse(status, noStore) {",
+                  "    check('Oczekiwany status HTTP ' + status, function () { return pm.response.code === status; });",
+                  "    check('Odpowiedź JSON', function () {",
+                  "        return /application\\/(?:problem\\+)?json/i.test(pm.response.headers.get('Content-Type') || '');",
+                  "    });",
+                  "    if (noStore) check('Cache-Control: no-store', function () {",
+                  "        return /(?:^|,)\\s*no-store\\s*(?:,|$)/i.test(pm.response.headers.get('Cache-Control') || '');",
+                  "    });",
+                  "    let body;",
+                  "    check('Poprawny dokument JSON', function () { body = pm.response.json(); return body !== null; });",
+                  "    return body;",
+                  "}",
+                  "const body = jsonResponse(200, false);",
+                  "check('Niepusty kod grantu użytkownika', function () { return typeof body.code === 'string' && body.code.trim().length > 0; });",
+                  "pm.environment.set('tinkConsentCode', body.code);",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "22 — Wymień kod na User Access Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "url": "{{tinkApiBaseUrl}}/api/v1/oauth/token",
+            "description": "Kod jest jednorazowy. Po błędzie lub niejednoznacznym wyniku wróć do kroku 21. Nie wykorzystuj kodu delegowanego Link.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "client_id",
+                  "value": "{{tinkClientId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "{{tinkClientSecret}}",
+                  "type": "text"
+                },
+                {
+                  "key": "grant_type",
+                  "value": "authorization_code",
+                  "type": "text"
+                },
+                {
+                  "key": "code",
+                  "value": "{{tinkConsentCode}}",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function stop(message) {",
+                  "    pm.test('Warunki wstępne', function () { throw new Error(message); });",
+                  "    pm.execution.setNextRequest(null);",
+                  "    pm.execution.skipRequest();",
+                  "}",
+                  "function need(names) {",
+                  "    const missing = names.filter(function (name) {",
+                  "        const value = pm.environment.get(name);",
+                  "        return typeof value !== 'string' || !value.trim() || value.includes('{{');",
+                  "    });",
+                  "    if (missing.length) stop('Uzupełnij lokalne środowisko: ' + missing.join(', '));",
+                  "}",
+                  "function clear(names) { names.forEach(function (name) { pm.environment.unset(name); }); }",
+                  "clear(['tinkConsentAccessToken', 'tinkConsentTokenExpiresAt']);",
+                  "need(['tinkApiBaseUrl', 'tinkClientId', 'tinkClientSecret']);",
+                  "need(['tinkConsentCode']);",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function check(name, predicate) {",
+                  "    let ok = false;",
+                  "    try { ok = Boolean(predicate()); } catch (_) { /* Do not expose response values. */ }",
+                  "    pm.test(name, function () { pm.expect(ok, name).to.equal(true); });",
+                  "    if (!ok) {",
+                  "        pm.execution.setNextRequest(null);",
+                  "        throw new Error('Przerwano: ' + name);",
+                  "    }",
+                  "}",
+                  "function clear(names) { names.forEach(function (name) { pm.environment.unset(name); }); }",
+                  "function jsonResponse(status, noStore) {",
+                  "    check('Oczekiwany status HTTP ' + status, function () { return pm.response.code === status; });",
+                  "    check('Odpowiedź JSON', function () {",
+                  "        return /application\\/(?:problem\\+)?json/i.test(pm.response.headers.get('Content-Type') || '');",
+                  "    });",
+                  "    if (noStore) check('Cache-Control: no-store', function () {",
+                  "        return /(?:^|,)\\s*no-store\\s*(?:,|$)/i.test(pm.response.headers.get('Cache-Control') || '');",
+                  "    });",
+                  "    let body;",
+                  "    check('Poprawny dokument JSON', function () { body = pm.response.json(); return body !== null; });",
+                  "    return body;",
+                  "}",
+                  "function saveToken(body, tokenKey, expiryKey) {",
+                  "    check('Niepusty token i dodatnie expires_in', function () {",
+                  "        return typeof body.access_token === 'string' && body.access_token.trim().length > 0",
+                  "            && Number.isFinite(body.expires_in) && body.expires_in > 0;",
+                  "    });",
+                  "    pm.environment.set(tokenKey, body.access_token);",
+                  "    const seconds = body.expires_in - Math.min(60, body.expires_in * 0.1);",
+                  "    pm.environment.set(expiryKey, String(Date.now() + seconds * 1000));",
+                  "}",
+                  "clear(['tinkConsentCode']);",
+                  "const body = jsonResponse(200, false);",
+                  "saveToken(body, 'tinkConsentAccessToken', 'tinkConsentTokenExpiresAt');",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "23 — Odczytaj provider-consents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{tinkApiBaseUrl}}/api/v1/provider-consents",
+            "description": "Surowy odczyt diagnostyczny Tink. Wymaga provider-consents:read w aplikacji. Nie odświeża danych bankowych ani nie przedłuża zgody. Zwraca też zgody bez lokalnego połączenia 4Money.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tinkConsentAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function stop(message) {",
+                  "    pm.test('Warunki wstępne', function () { throw new Error(message); });",
+                  "    pm.execution.setNextRequest(null);",
+                  "    pm.execution.skipRequest();",
+                  "}",
+                  "function need(names) {",
+                  "    const missing = names.filter(function (name) {",
+                  "        const value = pm.environment.get(name);",
+                  "        return typeof value !== 'string' || !value.trim() || value.includes('{{');",
+                  "    });",
+                  "    if (missing.length) stop('Uzupełnij lokalne środowisko: ' + missing.join(', '));",
+                  "}",
+                  "function validToken(tokenKey, expiryKey) {",
+                  "    need([tokenKey, expiryKey]);",
+                  "    if (!(Number(pm.environment.get(expiryKey)) > Date.now()))",
+                  "        stop('Token wygasł lub ma niepoprawną datę. Uruchom ponownie odpowiednią sekwencję tokenu.');",
+                  "}",
+                  "need(['tinkApiBaseUrl']);",
+                  "validToken('tinkConsentAccessToken', 'tinkConsentTokenExpiresAt');",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function check(name, predicate) {",
+                  "    let ok = false;",
+                  "    try { ok = Boolean(predicate()); } catch (_) { /* Do not expose response values. */ }",
+                  "    pm.test(name, function () { pm.expect(ok, name).to.equal(true); });",
+                  "    if (!ok) {",
+                  "        pm.execution.setNextRequest(null);",
+                  "        throw new Error('Przerwano: ' + name);",
+                  "    }",
+                  "}",
+                  "function jsonResponse(status, noStore) {",
+                  "    check('Oczekiwany status HTTP ' + status, function () { return pm.response.code === status; });",
+                  "    check('Odpowiedź JSON', function () {",
+                  "        return /application\\/(?:problem\\+)?json/i.test(pm.response.headers.get('Content-Type') || '');",
+                  "    });",
+                  "    if (noStore) check('Cache-Control: no-store', function () {",
+                  "        return /(?:^|,)\\s*no-store\\s*(?:,|$)/i.test(pm.response.headers.get('Cache-Control') || '');",
+                  "    });",
+                  "    let body;",
+                  "    check('Poprawny dokument JSON', function () { body = pm.response.json(); return body !== null; });",
+                  "    return body;",
+                  "}",
+                  "const body = jsonResponse(200, false);",
+                  "check('Kontrakt listy providerConsents', function () {",
+                  "    return Array.isArray(body.providerConsents) && body.providerConsents.every(function (item) {",
+                  "        return item && typeof item.credentialsId === 'string' && item.credentialsId.trim().length > 0",
+                  "            && typeof item.status === 'string' && item.status.trim().length > 0",
+                  "            && (item.sessionExpiryDate == null || (Number.isSafeInteger(item.sessionExpiryDate)",
+                  "                && Number.isFinite(new Date(item.sessionExpiryDate).getTime())))",
+                  "            && (item.sessionExtendable == null || typeof item.sessionExtendable === 'boolean')",
+                  "            && (item.accountIds == null || (Array.isArray(item.accountIds)",
+                  "                && item.accountIds.every(function (id) { return typeof id === 'string'; })));",
+                  "    });",
+                  "});",
+                  "pm.execution.setNextRequest(null);",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "30 — Tink Link (osobno, ręcznie)",
+      "description": "Oddzielny kod delegowany i redirect diagnostyczny; nie korzysta z callbacku backendu.",
+      "item": [
+        {
+          "name": "31 — Deleguj Tink Link i zbuduj URL",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "url": "{{tinkApiBaseUrl}}/api/v1/oauth/authorization-grant/delegate",
+            "description": "Osobna ręczna ścieżka diagnostyczna dla istniejącego Tink User. Po sukcesie otwórz lokalną tinkAuthorizationUrl w przeglądarce. Redirect musi być dopuszczony w Tink Console; nie używaj callbacku 4Money. Nie wymieniaj otrzymanego kodu na token użytkownika.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tinkClientAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "user_id",
+                  "value": "{{tinkUserId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "actor_client_id",
+                  "value": "{{tinkActorClientId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "id_hint",
+                  "value": "{{tinkIdHint}}",
+                  "type": "text"
+                },
+                {
+                  "key": "scope",
+                  "value": "{{tinkDelegatedScopes}}",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function stop(message) {",
+                  "    pm.test('Warunki wstępne', function () { throw new Error(message); });",
+                  "    pm.execution.setNextRequest(null);",
+                  "    pm.execution.skipRequest();",
+                  "}",
+                  "function need(names) {",
+                  "    const missing = names.filter(function (name) {",
+                  "        const value = pm.environment.get(name);",
+                  "        return typeof value !== 'string' || !value.trim() || value.includes('{{');",
+                  "    });",
+                  "    if (missing.length) stop('Uzupełnij lokalne środowisko: ' + missing.join(', '));",
+                  "}",
+                  "function clear(names) { names.forEach(function (name) { pm.environment.unset(name); }); }",
+                  "function validToken(tokenKey, expiryKey) {",
+                  "    need([tokenKey, expiryKey]);",
+                  "    if (!(Number(pm.environment.get(expiryKey)) > Date.now()))",
+                  "        stop('Token wygasł lub ma niepoprawną datę. Uruchom ponownie odpowiednią sekwencję tokenu.');",
+                  "}",
+                  "clear(['tinkDelegatedCode', 'tinkAuthorizationUrl', 'tinkDiagnosticState']);",
+                  "    need(['tinkApiBaseUrl', 'tinkUserId']);",
+                  "validToken('tinkClientAccessToken', 'tinkClientTokenExpiresAt');",
+                  "    need(['tinkActorClientId', 'tinkIdHint', 'tinkLinkUrl', 'tinkDiagnosticRedirectUri', 'tinkMarket', 'tinkLocale', 'tinkRefreshableItems', 'tinkDelegatedScopes']);",
+                  "    if (pm.environment.get('tinkActorClientId') === pm.environment.get('tinkClientId'))",
+                  "        stop('ActorClientId Tink Link musi być odrębny od ClientId aplikacji.');",
+                  "    let redirect;",
+                  "    try { redirect = new URL(pm.environment.get('tinkDiagnosticRedirectUri')); } catch (_) { stop('Niepoprawny redirect URI.'); }",
+                  "    if (redirect.pathname.split('/').filter(Boolean).join('/') === 'api/banking/tink/callback')",
+                  "        stop('Diagnostyka bez lokalnej próby nie może używać callbacku 4Money.');",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function check(name, predicate) {",
+                  "    let ok = false;",
+                  "    try { ok = Boolean(predicate()); } catch (_) { /* Do not expose response values. */ }",
+                  "    pm.test(name, function () { pm.expect(ok, name).to.equal(true); });",
+                  "    if (!ok) {",
+                  "        pm.execution.setNextRequest(null);",
+                  "        throw new Error('Przerwano: ' + name);",
+                  "    }",
+                  "}",
+                  "function jsonResponse(status, noStore) {",
+                  "    check('Oczekiwany status HTTP ' + status, function () { return pm.response.code === status; });",
+                  "    check('Odpowiedź JSON', function () {",
+                  "        return /application\\/(?:problem\\+)?json/i.test(pm.response.headers.get('Content-Type') || '');",
+                  "    });",
+                  "    if (noStore) check('Cache-Control: no-store', function () {",
+                  "        return /(?:^|,)\\s*no-store\\s*(?:,|$)/i.test(pm.response.headers.get('Cache-Control') || '');",
+                  "    });",
+                  "    let body;",
+                  "    check('Poprawny dokument JSON', function () { body = pm.response.json(); return body !== null; });",
+                  "    return body;",
+                  "}",
+                  "const body = jsonResponse(200, false);",
+                  "check('Niepusty kod delegowany', function () { return typeof body.code === 'string' && body.code.trim().length > 0; });",
+                  "let url;",
+                  "check('Poprawny bazowy Tink Link URL', function () {",
+                  "    url = new URL(pm.environment.get('tinkLinkUrl'));",
+                  "    return url.protocol === 'https:' && url.pathname === '/1.0/transactions/connect-accounts';",
+                  "});",
+                  "const state = pm.variables.replaceIn('{{$guid}}');",
+                  "const params = {",
+                  "    client_id: pm.environment.get('tinkClientId'), authorization_code: body.code,",
+                  "    redirect_uri: pm.environment.get('tinkDiagnosticRedirectUri'), market: pm.environment.get('tinkMarket'),",
+                  "    locale: pm.environment.get('tinkLocale'), refreshable_items: pm.environment.get('tinkRefreshableItems'), state: state",
+                  "};",
+                  "Object.keys(params).forEach(function (key) { url.searchParams.set(key, params[key]); });",
+                  "pm.environment.set('tinkDelegatedCode', body.code);",
+                  "pm.environment.set('tinkDiagnosticState', state);",
+                  "pm.environment.set('tinkAuthorizationUrl', url.toString());",
+                  "pm.execution.setNextRequest(null);",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    }
+  ]
+}

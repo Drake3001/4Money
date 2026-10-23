@@ -43,6 +43,14 @@ Po przygotowaniu bazy i migracji uruchom z katalogu `ZPI4M.Api`:
 dotnet run --launch-profile http
 ```
 
+Samo `dotnet run` wybiera pierwszy profil z `Properties/launchSettings.json`,
+czyli obecnie `http`, więc daje ten sam efekt co powyższa komenda.
+`dotnet run --launch-profile https` uruchamia HTTPS na 7278 i HTTP na 5283.
+Oba profile ustawiają `ASPNETCORE_ENVIRONMENT=Development`.
+`dotnet run --no-launch-profile` pomija ustawienia launchSettings; adresy
+i środowisko wynikają wtedy z pozostałej konfiguracji (domyślnie Production,
+jeśli nie ustawiono środowiska). Wywołanie `Env.Load()` nadal jest wykonywane.
+
 Uruchamianie z tego katalogu zapewnia właściwy kontekst odczytu `.env` przez
 `DotNetEnv`. Profil HTTP wskazuje `http://localhost:5283`, profil HTTPS także
 `https://localhost:7278`. Host używa przekierowania HTTPS; sprawdź profil
@@ -141,6 +149,13 @@ Login, refresh i reset-password mają wspólny, oddzielny od wysyłki e-maili li
 na IP, lokalny dla instancji. Niepoprawne DTO zwracają 400, limit 429.
 Wywołania można wykonywać ręcznie w Postmanie.
 
+Kolekcja [4Money.User](../postman/4Money.User.postman_collection.json) zawiera
+14 żądań obejmujących obecne API User. Korzysta ze wspólnego środowiska
+`postman/environments/4Money.Local.example.postman_environment.json`.
+Login zapisuje tokeny, a tokeny z maili wklejamy ręcznie. Każde żądanie
+zatrzymuje Runner; nie jest to automatyczny test całego przepływu.
+Zmienne i kolejność opisuje [README Postmana](../postman/README.md).
+
 W bazie pozostaje tylko hash refresh tokenu (Purpose = RefreshToken).
 Jedna sesja na konto wynika z UNIQUE (FkUserId, Purpose). Nowe logowanie
 zastępuje sesję i unieważnia oba poprzednie tokeny. Refresh zachowuje ID sesji,
@@ -153,8 +168,10 @@ uwierzytelnieniu. Wylogowanie unieważnia również niewygasłe JWT dla kolejnyc
 
 Login, refresh i logout blokują najpierw rekord użytkownika, potem operują na
 tokenie, w jednej transakcji. Warunkowe zużycie refresh tokenu dopuszcza tylko
-jedno udane użycie, także dla równoległych żądań. Nowe przepływy nie wymagają
-migracji. Zmiana hasła po podaniu aktualnego hasła pozostaje do implementacji.
+jedno udane użycie, także dla równoległych żądań. Login, refresh i logout
+korzystają z istniejącej tabeli UserToken, bez osobnej migracji uwierzytelniania.
+Dezaktywacja wymaga migracji opisanej w swojej sekcji.
+Zmiana hasła po podaniu aktualnego hasła pozostaje do implementacji.
 Odczyt i edycję profilu, zmianę e-maila, reset hasła i dezaktywację opisano poniżej.
 
 ## Odczyt i edycja własnego profilu
@@ -355,11 +372,18 @@ równoległe użycie tokenu (tylko jedno 204) i awarię SMTP (202 bez zmiany has
 
 ## Dezaktywacja konta
 
-Przed użyciem zastosuj nową migrację `AddAccountDeactivationTokens` przez
+Przed użyciem zastosuj migrację `20261023131244_AddAccountDeactivationTokens` przez
 `AppDbContext`. Rozszerza CHECK rodzaju tokenu o AccountDeactivation = 5 oraz
 wymaga TargetEmail także dla tego rodzaju. Migracja nie jest stosowana automatycznie.
 Jej Down usuwa oczekujące tokeny dezaktywacji przed przywróceniem CHECK dla 1–4;
 nie przywraca aktywności kont już dezaktywowanych.
+Opis w `../doc/Baza danych.txt` uwzględnia już purpose 5 i wymagany TargetEmail.
+Z katalogu `backend/ZPI4M.Backend/src/ZPI4M.Api`, po przygotowaniu właściwej
+lokalnej bazy i `.env`, migracje stosuje się poleceniem:
+
+```bash
+dotnet ef database update --project ../ZPI4M.Database --startup-project . --context AppDbContext
+```
 
 1. `POST /api/users/profile/deactivate` z `Authorization: Bearer ACCESS_TOKEN`,
    bez body: 202 po wysyłce tokenu na aktualny adres. Konto pozostaje aktywne.
@@ -370,6 +394,12 @@ nie przywraca aktywności kont już dezaktywowanych.
 3. Potwierdzenie atomowo ustawia `is_active=false` i usuwa wszystkie wpisy
    `user_token` tego konta. Zapis obejmuje blokadę użytkownika FOR UPDATE,
    warunkowe zużycie tokenu i zmianę IsActive w jednej transakcji.
+
+Żądanie dezaktywacji nie wymaga hasła w body; wymaga aktualnej sesji,
+a potwierdzenie posiadania adresu następuje przez token wysłany e-mailem.
+Wiadomość na razie zawiera surowy token do Postmana. Przyszły link powinien
+otwierać stronę frontendu przekazującą token do POST confirm-deactivation;
+samo GET linku nie jest obecnie endpointem zmieniającym stan konta.
 
 Token jest generowany kryptograficznie (43 znaki Base64Url), w bazie zostaje
 tylko SHA-256. Domyślnie ważność wynosi 30 minut, odstęp między wysyłkami 60 sekund.
@@ -473,6 +503,8 @@ typ `sent_at`; jej snapshot zawiera już encję Notification.
 na `expense.expense.fk_bank_transaction_id` i `fk_receipt_id`. Kolumny nadal
 dopuszczają NULL. Istniejące powtórzenia niepustych FK uniemożliwią utworzenie
 indeksów; przed zastosowaniem tej migracji sprawdź dane, jeśli baza nie jest pusta.
+`20261023131244_AddAccountDeactivationTokens` rozszerza CHECK purpose i TargetEmail
+w `user.user_token`; nie dodaje kolumny ani nowej tabeli.
 
 Nie edytuj SQL init ani zastosowanych migracji w ramach kolejnej zmiany modelu.
 Snapshot i plik Designer są generowane wraz z nową migracją i trafiają do Git.

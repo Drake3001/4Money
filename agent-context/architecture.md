@@ -90,6 +90,24 @@ Kontrakty Services i DTOs mogą istnieć przed implementacją pełnego przepływ
 Wydzielanie Integrations jest możliwością projektową, nie wymogiem tworzenia
 pustych katalogów w każdym module.
 
+## Obecny podział kontrolerów User
+
+Pozostawiamy uzgodniony podział kontrolerów. Ogólna nazwa UsersController
+nie oznacza, że należy przenosić do niego pozostałe funkcjonalności.
+
+| Kontroler | Operacje pod `/api/users` |
+| --- | --- |
+| UsersController | register, confirm-email, resend-confirmation, login, refresh, logout |
+| UserProfileController | GET/PUT profile |
+| EmailChangeController | POST profile/change-email, confirm-email-change |
+| PasswordResetController | POST forgot-password, reset-password |
+| AccountDeactivationController | POST profile/deactivate, confirm-deactivation |
+
+Kontrolery współdzielą prefiks tras; nazwy klas nie wyznaczają adresów,
+ponieważ routing jest jawny. Nie ma osobnych AuthenticationController
+ani RegistrationController. Szczegóły autoryzacji i odpowiedzi opisuje
+[instrukcja pracy](development.md).
+
 ## Persystencja i migracje
 
 PostgreSQL przechowuje dane w schematach modułowych. Moduły mają własne
