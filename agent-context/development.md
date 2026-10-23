@@ -123,7 +123,9 @@ UserAuthentication__RefreshTokenLifetimeDays=7
 - `POST /api/users/login`: JSON `{"login":"LOGIN","password":"HASLO"}`.
   Login jest przycinany i zamieniany na małe litery tak jak przy rejestracji.
   Wymagane aktywne konto z potwierdzonym e-mailem. Nieznany login, błędne hasło
-  i niedostępne konto zwracają jednakowe 401. Sukces aktualizuje LastLoginTime
+  i niepotwierdzone konto zwracają jednakowe 401. Dezaktywowane konto po podaniu
+  poprawnego hasła zwraca 403 z tytułem `Account is deactivated.`; błędne hasło
+  nadal daje ogólne 401. Sukces aktualizuje LastLoginTime
   i w razie potrzeby odświeża hash hasła przez IPasswordHasher.
 - `POST /api/users/refresh`: JSON `{"refreshToken":"TOKEN"}`. Każde udane
   odświeżenie wymienia refresh token; poprzedni zwraca 401. Termin sesji jest
@@ -152,8 +154,8 @@ uwierzytelnieniu. Wylogowanie unieważnia również niewygasłe JWT dla kolejnyc
 Login, refresh i logout blokują najpierw rekord użytkownika, potem operują na
 tokenie, w jednej transakcji. Warunkowe zużycie refresh tokenu dopuszcza tylko
 jedno udane użycie, także dla równoległych żądań. Nowe przepływy nie wymagają
-migracji. Zmiana hasła po podaniu aktualnego hasła i dezaktywacja pozostają
-do implementacji. Odczyt i edycję profilu, zmianę e-maila i reset hasła opisano poniżej.
+migracji. Zmiana hasła po podaniu aktualnego hasła pozostaje do implementacji.
+Odczyt i edycję profilu, zmianę e-maila, reset hasła i dezaktywację opisano poniżej.
 
 ## Odczyt i edycja własnego profilu
 
@@ -351,6 +353,41 @@ przed upływem odstępu (202 bez nowej wysyłki), zastąpiony/wygasły token (40
 słabe hasło (400 bez zużycia tokenu), token innego przeznaczenia (400),
 równoległe użycie tokenu (tylko jedno 204) i awarię SMTP (202 bez zmiany hasła).
 
+## Dezaktywacja konta
+
+Przed użyciem zastosuj nową migrację `AddAccountDeactivationTokens` przez
+`AppDbContext`. Rozszerza CHECK rodzaju tokenu o AccountDeactivation = 5 oraz
+wymaga TargetEmail także dla tego rodzaju. Migracja nie jest stosowana automatycznie.
+Jej Down usuwa oczekujące tokeny dezaktywacji przed przywróceniem CHECK dla 1–4;
+nie przywraca aktywności kont już dezaktywowanych.
+
+1. `POST /api/users/profile/deactivate` z `Authorization: Bearer ACCESS_TOKEN`,
+   bez body: 202 po wysyłce tokenu na aktualny adres. Konto pozostaje aktywne.
+   Brak sesji/niedostępne konto daje 401, cooldown lub limit IP 429, awaria SMTP 503.
+2. `POST /api/users/confirm-deactivation`, anonimowo, JSON `{"token":"TOKEN_Z_MAILA"}`:
+   204 po dezaktywacji; token błędny, wygasły, zastąpiony lub użyty daje 400.
+   Token innego przeznaczenia oraz niezgodny aktualny adres także dają 400.
+3. Potwierdzenie atomowo ustawia `is_active=false` i usuwa wszystkie wpisy
+   `user_token` tego konta. Zapis obejmuje blokadę użytkownika FOR UPDATE,
+   warunkowe zużycie tokenu i zmianę IsActive w jednej transakcji.
+
+Token jest generowany kryptograficznie (43 znaki Base64Url), w bazie zostaje
+tylko SHA-256. Domyślnie ważność wynosi 30 minut, odstęp między wysyłkami 60 sekund.
+Po odstępie nowe żądanie zastępuje poprzedni token. Opcje AccountDeactivation
+są wiązane z konfiguracją i walidowane przy starcie; bez nadpisania obowiązują
+wartości z klasy. Opcjonalne klucze: `AccountDeactivation__TokenLifetimeMinutes`
+i `AccountDeactivation__ResendCooldownSeconds`. Oba endpointy mają no-store
+i wspólny limit `user-email` (5/min/IP).
+
+W Postmanie po 202 sprawdź, że profil nadal działa. Po 204 sprawdź stare JWT
+na profilu (401), stary refresh token (401), ponowne potwierdzenie (400)
+oraz logowanie poprawnym hasłem (403, `Account is deactivated.`).
+W bazie konto powinno mieć IsActive = false i zero tokenów niezależnie od rodzaju.
+Profil, zmiana e-maila, potwierdzanie e-maila, reset hasła i refresh sprawdzają
+aktywność konta; walidacja JWT sprawdza sesję oraz IsActive przy każdym
+uwierzytelnieniu. Forgot-password dla nieaktywnego konta pozostawia ogólne 202
+bez wysyłki. Nie ma reaktywacji ani fizycznego usuwania konta.
+
 ## Konfiguracja SMTP
 
 `IEmailSender` z modułu User ma implementację `SmtpEmailSender` opartą na MailKit.
@@ -359,11 +396,11 @@ Enum `SmtpSecurityMode` jest zdefiniowany w pliku `SmtpOptions.cs`.
 Wysyła wiadomości tekstowe; każda wysyłka tworzy osobne połączenie SMTP.
 Wszystkie przepływy konta korzystają bezpośrednio z tego samego IEmailSender.
 Tematy i treści są w Integrations/Smtp/UserEmailMessages.cs: EmailConfirmation,
-EmailChange i PasswordReset zwracają EmailMessage (Subject, Body), którego
+EmailChange, PasswordReset i AccountDeactivation zwracają EmailMessage (Subject, Body), którego
 rekord jest w tym samym pliku UserEmailMessages.cs. Nie ma osobnego EmailMessage.cs,
 folderu Services/Email ani senderów i interfejsów dla rodzajów wiadomości.
 Obsługa EmailDeliveryException należy do serwisu danego przepływu: rejestracja,
-resend-confirmation i zmiana e-maila zachowują 503, a forgot-password zachowuje
+resend-confirmation, zmiana e-maila i dezaktywacja zachowują 503, a forgot-password zachowuje
 202 i ogólne ostrzeżenie bez danych konta. Anulowanie żądania jest propagowane.
 Projekt User przypina zależność `System.Security.Cryptography.Pkcs` do 10.0.13,
 aby użyć poprawionej wersji zależności pobieranej przez MailKit/MimeKit

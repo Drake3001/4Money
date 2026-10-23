@@ -7,7 +7,8 @@ public enum UserTokenPurpose
 	EmailConfirmation = 1,
 	EmailChange = 2,
 	PasswordReset = 3,
-	RefreshToken = 4
+	RefreshToken = 4,
+	AccountDeactivation = 5
 }
 
 public partial class UserToken

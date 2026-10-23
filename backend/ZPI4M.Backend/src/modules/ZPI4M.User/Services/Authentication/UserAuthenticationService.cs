@@ -19,26 +19,36 @@ public sealed class UserAuthenticationService(
 	IAccessTokenGenerator accessTokenGenerator,
 	IOptions<AuthenticationOptions> options) : IUserAuthenticationService
 {
-	public async Task<AuthenticationResponse?> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
+	public async Task<(LoginResult Result, AuthenticationResponse? Response)> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(request);
 		var candidate = await users.GetByLoginAsync(request.Login, cancellationToken);
 		if (candidate is null)
 		{
-			return null;
+			return (LoginResult.InvalidCredentials, null);
 		}
 
 		await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 		var user = await users.GetByIdForUpdateAsync(candidate.Id, cancellationToken);
-		if (user is null || user.Login != request.Login || !user.IsActive || !user.IsEmailConfirmed)
+		if (user is null || user.Login != request.Login)
 		{
-			return null;
+			return (LoginResult.InvalidCredentials, null);
 		}
 
 		var verification = passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
 		if (verification == PasswordVerificationResult.Failed)
 		{
-			return null;
+			return (LoginResult.InvalidCredentials, null);
+		}
+
+		if (!user.IsActive)
+		{
+			return (LoginResult.AccountInactive, null);
+		}
+
+		if (!user.IsEmailConfirmed)
+		{
+			return (LoginResult.InvalidCredentials, null);
 		}
 
 		var now = DateTime.UtcNow;
@@ -66,7 +76,7 @@ public sealed class UserAuthenticationService(
 		await users.RecordLoginAsync(user.Id, passwordHash, now, cancellationToken);
 		await dbContext.SaveChangesAsync(cancellationToken);
 		await transaction.CommitAsync(cancellationToken);
-		return response;
+		return (LoginResult.LoggedIn, response);
 	}
 
 	public async Task<AuthenticationResponse?> RefreshAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default)

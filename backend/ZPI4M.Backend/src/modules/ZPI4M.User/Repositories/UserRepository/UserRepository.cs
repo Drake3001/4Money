@@ -112,6 +112,14 @@ public class UserRepository : IUserRepository
 		return affectedRows == 1;
 	}
 
+	public async Task<bool> TryDeactivateAsync(Guid userId, string email, CancellationToken cancellationToken = default)
+	{
+		var affectedRows = await _context.Users
+			.Where(u => u.Id == userId && u.Email == email && u.IsActive && u.IsEmailConfirmed)
+			.ExecuteUpdateAsync(setters => setters.SetProperty(u => u.IsActive, false), cancellationToken);
+		return affectedRows == 1;
+	}
+
 	public async Task<PagedResult<Models.User>> GetPageAsync(UserQuery query, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(query);

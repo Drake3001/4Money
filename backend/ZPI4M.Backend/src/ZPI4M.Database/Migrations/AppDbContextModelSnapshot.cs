@@ -553,9 +553,9 @@ namespace ZPI4M.Database.Migrations
                         {
                             t.HasCheckConstraint("c_user_token_expiry_after_creation", "expires_at > created_at");
 
-                            t.HasCheckConstraint("c_user_token_target_email", "(purpose IN (1, 2, 3) AND target_email IS NOT NULL) OR (purpose = 4 AND target_email IS NULL)");
+                            t.HasCheckConstraint("c_user_token_target_email", "(purpose IN (1, 2, 3, 5) AND target_email IS NOT NULL) OR (purpose = 4 AND target_email IS NULL)");
 
-                            t.HasCheckConstraint("c_user_token_valid_purpose", "purpose IN (1, 2, 3, 4)");
+                            t.HasCheckConstraint("c_user_token_valid_purpose", "purpose IN (1, 2, 3, 4, 5)");
                         });
                 });
 

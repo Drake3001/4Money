@@ -18,6 +18,7 @@ using ZPI4M.User.Database;
 using ZPI4M.User.Integrations.Smtp;
 using ZPI4M.User.Repositories.UserRepository;
 using ZPI4M.User.Repositories.UserTokenRepository;
+using ZPI4M.User.Services.AccountDeactivation;
 using ZPI4M.User.Services.Authentication;
 using ZPI4M.User.Services.EmailChange;
 using ZPI4M.User.Services.EmailConfirmation;
@@ -80,6 +81,11 @@ builder.Services.AddScoped<IBankTransactionRepository, BankTransactionRepository
 
 // User module
 builder.Services.AddUserAuthentication(builder.Configuration);
+builder.Services.AddScoped<IAccountDeactivationService, AccountDeactivationService>();
+builder.Services.AddOptions<AccountDeactivationOptions>()
+	.Bind(builder.Configuration.GetSection(AccountDeactivationOptions.SectionName))
+	.ValidateDataAnnotations()
+	.ValidateOnStart();
 builder.Services.AddDbContext<UserDbContext>(options => options.UseNpgsql(dbConnectionString));
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();

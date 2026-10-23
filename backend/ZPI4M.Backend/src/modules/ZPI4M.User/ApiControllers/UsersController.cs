@@ -34,12 +34,20 @@ public sealed class UsersController : ControllerBase
 	[ProducesResponseType(typeof(AuthenticationResponse), StatusCodes.Status200OK)]
 	[ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
 	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
 	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
 	public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
 	{
-		var response = await _authenticationService.LoginAsync(request, cancellationToken);
-		return response is not null ? Ok(response) : Problem(
-			statusCode: StatusCodes.Status401Unauthorized, title: "Invalid credentials or account unavailable.");
+		var (result, response) = await _authenticationService.LoginAsync(request, cancellationToken);
+		return result switch
+		{
+			LoginResult.LoggedIn => Ok(response),
+			LoginResult.AccountInactive => Problem(
+				statusCode: StatusCodes.Status403Forbidden, title: "Account is deactivated."),
+			LoginResult.InvalidCredentials => Problem(
+				statusCode: StatusCodes.Status401Unauthorized, title: "Invalid credentials or account unavailable."),
+			_ => throw new InvalidOperationException("Unknown login result.")
+		};
 	}
 
 	[HttpPost("refresh")]

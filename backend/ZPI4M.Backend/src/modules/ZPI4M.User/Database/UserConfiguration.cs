@@ -56,9 +56,9 @@ namespace ZPI4M.User.Database
 				entity.ToTable("user_token", "user", table =>
 				{
 					table.HasCheckConstraint("c_user_token_expiry_after_creation", "expires_at > created_at");
-					table.HasCheckConstraint("c_user_token_valid_purpose", "purpose IN (1, 2, 3, 4)");
+					table.HasCheckConstraint("c_user_token_valid_purpose", "purpose IN (1, 2, 3, 4, 5)");
 					table.HasCheckConstraint("c_user_token_target_email",
-						"(purpose IN (1, 2, 3) AND target_email IS NOT NULL) OR (purpose = 4 AND target_email IS NULL)");
+						"(purpose IN (1, 2, 3, 5) AND target_email IS NOT NULL) OR (purpose = 4 AND target_email IS NULL)");
 				});
 
 				entity.HasIndex(e => e.TokenHash, "c_user_token_unique_token_hash").IsUnique();

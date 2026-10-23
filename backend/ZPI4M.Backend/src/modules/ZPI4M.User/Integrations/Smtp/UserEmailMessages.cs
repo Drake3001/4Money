@@ -4,6 +4,16 @@ public sealed record EmailMessage(string Subject, string Body);
 
 public static class UserEmailMessages
 {
+	public static EmailMessage AccountDeactivation(string token, DateTime expiresAt)
+	{
+		return new EmailMessage("4Money - potwierdź dezaktywację konta",
+			"Otrzymaliśmy prośbę o dezaktywację Twojego konta w 4Money.\n\n" +
+			$"Aby potwierdzić dezaktywację, użyj poniższego tokenu:\n\n{token}\n\n" +
+			$"Token jest ważny do {expiresAt:yyyy-MM-dd HH:mm:ss} UTC i można go użyć tylko raz.\n\n" +
+			"Po potwierdzeniu konto zostanie dezaktywowane, a wszystkie sesje i tokeny unieważnione.\n\n" +
+			"Jeśli nie proszono o dezaktywację, zignoruj tę wiadomość. Bez potwierdzenia konto pozostaje aktywne.");
+	}
+
 	public static EmailMessage EmailConfirmation(string token, DateTime expiresAt)
 	{
 		return new EmailMessage("4Money - potwierdź adres e-mail",

@@ -82,6 +82,10 @@ UserEmailMessages.cs z tematami oraz treściami i rekordem EmailMessage
 senderów dla poszczególnych rodzajów wiadomości.
 Obsługa błędu wysyłki pozostaje w serwisie danego przepływu, ponieważ reset hasła
 zachowuje inną odpowiedź niż pozostałe operacje.
+Potwierdzenie dezaktywacji używa tej samej kolejności blokad i transakcji:
+jednorazowo zużywa token, ustawia IsActive = false i usuwa wszystkie tokeny konta.
+Każda walidacja JWT sprawdza istnienie sesji i aktywność konta w bazie,
+więc dezaktywacja odrzuca też wcześniej wydane JWT przy kolejnych żądaniach.
 Kontrakty Services i DTOs mogą istnieć przed implementacją pełnego przepływu.
 Wydzielanie Integrations jest możliwością projektową, nie wymogiem tworzenia
 pustych katalogów w każdym module.

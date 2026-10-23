@@ -93,8 +93,8 @@ użytkownika kaskadowo usuwa jego tokeny. Pola tokenu:
 | `Id` | Identyfikator wpisu, mapowany na `_id` |
 | `FkUserId` | Właściciel tokenu |
 | `TokenHash` | Unikalny skrót tokenu, bez przechowywania jawnego tokenu |
-| `Purpose` | Enum zapisany jako integer: 1 — EmailConfirmation, 2 — EmailChange, 3 — PasswordReset, 4 — RefreshToken |
-| `TargetEmail` | Wymagany dla purpose 1–3, NULL dla purpose 4 |
+| `Purpose` | Enum zapisany jako integer: 1 — EmailConfirmation, 2 — EmailChange, 3 — PasswordReset, 4 — RefreshToken, 5 — AccountDeactivation |
+| `TargetEmail` | Wymagany dla purpose 1–3 i 5, NULL dla purpose 4 |
 | `CreatedAt` | Utworzenie tokenu; domyślnie CURRENT_TIMESTAMP |
 | `ExpiresAt` | Wygaśnięcie tokenu, późniejsze niż CreatedAt |
 
@@ -138,6 +138,19 @@ i ID sesji, której aktualność jest sprawdzana przy uwierzytelnieniu. Refresh
 rotuje hash tokenu, zachowując ID i bezwzględny termin sesji (domyślnie 7 dni).
 Nowe logowanie nadaje nowe ID sesji; wylogowanie usuwa sesję. Oba zdarzenia
 unieważniają także wcześniejsze JWT. Konfigurację i kontrakty opisuje development.md.
+
+## Dezaktywacja konta
+
+Dezaktywacja wymaga aktywnej sesji do wysłania tokenu na aktualny e-mail.
+Token AccountDeactivation jest jednorazowy, domyślnie ważny 30 minut,
+z odstępem 60 sekund między wysyłkami. Potwierdzenie jest anonimowe i wymaga
+zgodności TargetEmail z aktualnym adresem aktywnego, potwierdzonego konta.
+W jednej transakcji zużywa token, ustawia IsActive = false i usuwa wszystkie
+pozostałe tokeny konta. Rekord User i dane finansowe pozostają w bazie;
+login i e-mail nadal są zajęte, brak reaktywacji. JWT nie jest usuwany z klienta,
+ale kolejne uwierzytelnienie odrzuca go po sprawdzeniu sesji i IsActive w bazie.
+Purpose 5 i rozszerzone ograniczenia CHECK dodaje migracja AddAccountDeactivationTokens;
+opis bazy w doc nadal wymienia przeznaczenia 1–4.
 
 ## Daty i czas
 

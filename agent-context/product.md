@@ -63,8 +63,10 @@ i `UserToken` z przeznaczeniami weryfikacji, zmiany e-maila, resetu hasła
 oraz odświeżania sesji. Lista MVP w `Funkcjonalności.txt` pozostaje bardziej
 ogólna. Bieżący kod realizuje rejestrację i potwierdzanie e-maila, logowanie,
 odświeżanie i wylogowanie, edycję profilu, zmianę e-maila oraz reset zapomnianego
-hasła. Zmiana hasła po podaniu obecnego hasła i dezaktywacja pozostają
-niezaimplementowane; szczegóły i ograniczenia opisuje status implementacji.
+hasła oraz dezaktywację konta po potwierdzeniu tokenem z e-maila. Dezaktywacja
+ustawia IsActive = false i usuwa wszystkie tokeny konta; dane użytkownika
+pozostają w bazie. Zmiana hasła po podaniu obecnego hasła pozostaje
+niezaimplementowana; szczegóły i ograniczenia opisuje status implementacji.
 
 Wysyłanie wiadomości odbywa się przez konfigurowalny adapter SMTP. Serwer może
 należeć do zewnętrznego dostawcy, np. o2, albo być utrzymywany samodzielnie.
