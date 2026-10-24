@@ -48,7 +48,15 @@ po oczekiwanej odpowiedzi, a login przed wysłaniem czyści poprzednie tokeny se
 Skrypty sprawdzają status sukcesu; oczekiwane błędy podczas prób negatywnych
 spowodują czerwony wynik testu sukcesu i należy wtedy sprawdzić ProblemDetails.
 
-Limity `user-email` i `user-auth` wynoszą po 5 żądań/minutę/IP. Cooldown wysyłek
+Limity na IP są osobne: `user-login` 30/min, `user-refresh` 120/min,
+`user-password-reset` 10/min. `user-email` pozostaje wspólny: 5/min/IP.
+Wyczerpanie jednej polityki nie blokuje pozostałych. Liczniki działają lokalnie
+dla instancji w stałych oknach 60 s, bez kolejki; przekroczenie daje 429.
+Błędne żądania też zużywają limit, a osoby za wspólnym IP dzielą licznik operacji.
+Progi uwierzytelniania można nadpisać dodatnimi liczbami całkowitymi przez
+`UserRateLimiting__LoginPermitLimit`, `UserRateLimiting__RefreshPermitLimit`
+i `UserRateLimiting__PasswordResetPermitLimit`; błędne wartości blokują start API.
+Cooldown wysyłek
 na konto to domyślnie 60 s. Tokeny potwierdzenia i zmiany e-maila są ważne 24 h,
 resetu i dezaktywacji 30 min. `forgot-password` zwraca 202 również bez wysyłki
 (np. konto nieaktywne, cooldown lub awaria SMTP).

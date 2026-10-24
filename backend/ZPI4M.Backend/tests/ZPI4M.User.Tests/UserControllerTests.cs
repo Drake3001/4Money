@@ -6,6 +6,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -24,11 +25,12 @@ using ZPI4M.User.Services.EmailChange;
 using ZPI4M.User.Services.EmailConfirmation;
 using ZPI4M.User.Services.PasswordReset;
 using ZPI4M.User.Services.Profile;
+using ZPI4M.User.Services.RateLimiting;
 using ZPI4M.User.Services.Registration;
 
 namespace ZPI4M.User.Tests;
 
-public sealed class UserControllerTests
+public sealed partial class UserControllerTests
 {
 	[Theory]
 	[InlineData("GET", "profile")]
@@ -180,11 +182,14 @@ public sealed class UserControllerTests
 			Client.DefaultRequestHeaders.Add("X-Test-User", UserId.ToString());
 			Client.DefaultRequestHeaders.Add("X-Test-Session", SessionId.ToString());
 		}
-		public static async Task<TestHost> StartAsync()
+		public static async Task<TestHost> StartAsync(Dictionary<string, string?>? configuration = null)
 		{
 			var builder = WebApplication.CreateBuilder();
 			builder.WebHost.UseTestServer();
 			builder.Logging.ClearProviders();
+			if (configuration is not null)
+				builder.Configuration.AddInMemoryCollection(configuration);
+			builder.Services.AddUserRateLimiting(builder.Configuration);
 			builder.Services.AddControllers().AddApplicationPart(typeof(UsersController).Assembly);
 			builder.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, TestAuthentication>("Test", _ => { });
 			builder.Services.AddAuthorization();
@@ -197,10 +202,27 @@ public sealed class UserControllerTests
 			builder.Services.AddSingleton<IPasswordResetService>(services);
 			builder.Services.AddSingleton<IAccountDeactivationService>(services);
 			var app = builder.Build();
+			// Only this test host accepts a header for selecting the simulated remote IP.
+			app.Use(async (context, next) =>
+			{
+				context.Connection.RemoteIpAddress = context.Request.Headers.TryGetValue("X-Test-IP", out var address)
+					? IPAddress.Parse(address.ToString()) : IPAddress.Loopback;
+				await next(context);
+			});
+			app.UseRouting();
+			app.UseRateLimiter();
 			app.UseAuthentication();
 			app.UseAuthorization();
 			app.MapControllers();
-			await app.StartAsync();
+			try
+			{
+				await app.StartAsync();
+			}
+			catch
+			{
+				await app.DisposeAsync();
+				throw;
+			}
 			return new(app, app.GetTestClient(), services);
 		}
 		public async ValueTask DisposeAsync()

@@ -145,8 +145,27 @@ UserAuthentication__RefreshTokenLifetimeDays=7
   bez body. Usuwa bieżącą sesję i zwraca 204; brak ważnego JWT zwraca 401.
   Z wygasłym JWT można najpierw odświeżyć tokeny, a potem się wylogować.
 
-Login, refresh i reset-password mają wspólny, oddzielny od wysyłki e-maili limit 5 żądań/minutę
-na IP, lokalny dla instancji. Niepoprawne DTO zwracają 400, limit 429.
+Login, refresh i reset-password mają osobne limity na IP, lokalne dla instancji:
+`user-login` — 30/min, `user-refresh` — 120/min, `user-password-reset` — 10/min.
+Wyczerpanie jednej polityki nie blokuje pozostałych. Okna są stałe, po 60 sekund,
+bez kolejki; każde dopuszczone żądanie zużywa limit, również przy błędnym DTO
+lub haśle. Niepoprawne DTO zwracają 400, przekroczenie limitu 429.
+Osoby za wspólnym IP współdzielą limit danej operacji. Kluczem jest
+Connection.RemoteIpAddress (lub `unknown` przy braku adresu), bez samodzielnego
+odczytu nagłówków proxy. Limity nie są współdzielone między instancjami.
+
+Progi można nadpisać w sekcji UserRateLimiting lub zmiennymi środowiskowymi:
+
+```dotenv
+UserRateLimiting__LoginPermitLimit=30
+UserRateLimiting__RefreshPermitLimit=120
+UserRateLimiting__PasswordResetPermitLimit=10
+```
+
+Wszystkie progi muszą być dodatnimi liczbami całkowitymi; niepoprawna konfiguracja
+zatrzymuje start aplikacji. Rejestracja polityk jest współdzielona przez host API
+i testy HTTP przez AddUserRateLimiting. Polityka user-email pozostaje wspólna,
+z limitem 5/min/IP.
 Wywołania można wykonywać ręcznie w Postmanie.
 
 Kolekcja [4Money.User](../postman/4Money.User.postman_collection.json) zawiera
@@ -356,15 +375,15 @@ PasswordReset__ResendCooldownSeconds=60
 
 forgot-password korzysta z limitu user-email (5 żądań/minutę/IP, wspólnego
 z rejestracją, ponowną wysyłką potwierdzenia i zmianą e-maila). reset-password
-korzysta z user-auth (5 żądań/minutę/IP, wspólnego z login i refresh).
-Przekroczenie limitu IP zwraca 429. Oba limity są lokalne dla instancji aplikacji.
+korzysta z osobnej polityki user-password-reset (domyślnie 10 żądań/minutę/IP).
+Przekroczenie limitu IP zwraca 429. Limity są lokalne dla instancji aplikacji.
 Migracja nie jest potrzebna; używamy istniejącego UserTokenPurpose.PasswordReset.
 
 Ręczna weryfikacja w Postmanie: zachowaj tokeny sesji, wyślij forgot-password
 (202), odbierz token z maila i ustaw inne hasło przez reset-password (204).
 Sprawdź odrzucenie starego JWT na GET /api/users/profile (401), starego refresh
 tokenu (401), starego hasła (401), ponownego użycia tokenu resetu (400)
-i zaloguj się nowym hasłem (200). Rozłóż próby na okna limitu user-auth.
+i zaloguj się nowym hasłem (200). Uwzględnij osobne limity login, refresh i reset-password.
 Dodatkowo sprawdź adres nieznany/niepotwierdzony (202 bez wysyłki), ponowienie
 przed upływem odstępu (202 bez nowej wysyłki), zastąpiony/wygasły token (400),
 słabe hasło (400 bez zużycia tokenu), token innego przeznaczenia (400),

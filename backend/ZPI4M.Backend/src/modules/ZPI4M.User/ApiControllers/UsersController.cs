@@ -7,6 +7,7 @@ using ZPI4M.User.DTOs.EmailConfirmation;
 using ZPI4M.User.DTOs.Registration;
 using ZPI4M.User.Services.Authentication;
 using ZPI4M.User.Services.EmailConfirmation;
+using ZPI4M.User.Services.RateLimiting;
 using ZPI4M.User.Services.Registration;
 
 namespace ZPI4M.User.ApiControllers;
@@ -29,7 +30,7 @@ public sealed class UsersController : ControllerBase
 
 	[HttpPost("login")]
 	[AllowAnonymous]
-	[EnableRateLimiting("user-auth")]
+	[EnableRateLimiting(UserRateLimitingPolicies.Login)]
 	[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 	[ProducesResponseType(typeof(AuthenticationResponse), StatusCodes.Status200OK)]
 	[ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -52,7 +53,7 @@ public sealed class UsersController : ControllerBase
 
 	[HttpPost("refresh")]
 	[AllowAnonymous]
-	[EnableRateLimiting("user-auth")]
+	[EnableRateLimiting(UserRateLimitingPolicies.Refresh)]
 	[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 	[ProducesResponseType(typeof(AuthenticationResponse), StatusCodes.Status200OK)]
 	[ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]

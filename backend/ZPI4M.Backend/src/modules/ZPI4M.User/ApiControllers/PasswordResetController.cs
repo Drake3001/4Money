@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using ZPI4M.User.DTOs.PasswordReset;
 using ZPI4M.User.Services.PasswordReset;
+using ZPI4M.User.Services.RateLimiting;
 
 namespace ZPI4M.User.ApiControllers;
 
@@ -25,7 +26,7 @@ public sealed class PasswordResetController(IPasswordResetService passwordResetS
 	}
 
 	[HttpPost("reset-password")]
-	[EnableRateLimiting("user-auth")]
+	[EnableRateLimiting(UserRateLimitingPolicies.PasswordReset)]
 	[ProducesResponseType(StatusCodes.Status204NoContent)]
 	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
 	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]

@@ -1,4 +1,3 @@
-using System.Threading.RateLimiting;
 using DotNetEnv;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -31,6 +30,7 @@ using ZPI4M.User.Services.EmailChange;
 using ZPI4M.User.Services.EmailConfirmation;
 using ZPI4M.User.Services.PasswordReset;
 using ZPI4M.User.Services.Profile;
+using ZPI4M.User.Services.RateLimiting;
 using ZPI4M.User.Services.Registration;
 using ZPI4M.User.Services.Tokens;
 
@@ -46,26 +46,7 @@ builder.Services.AddControllers()
 builder.Services.AddProblemDetails();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
-builder.Services.AddRateLimiter(options =>
-{
-	options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-	options.AddPolicy("user-email", context => RateLimitPartition.GetFixedWindowLimiter(
-		context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-		_ => new FixedWindowRateLimiterOptions
-		{
-			PermitLimit = 5,
-			Window = TimeSpan.FromMinutes(1),
-			QueueLimit = 0
-		}));
-	options.AddPolicy("user-auth", context => RateLimitPartition.GetFixedWindowLimiter(
-		context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-		_ => new FixedWindowRateLimiterOptions
-		{
-			PermitLimit = 5,
-			Window = TimeSpan.FromMinutes(1),
-			QueueLimit = 0
-		}));
-});
+builder.Services.AddUserRateLimiting(builder.Configuration);
 
 // Add database context
 var dbConnectionString = Environment.GetEnvironmentVariable("DB_LOCAL_CONNECTION_STRING");

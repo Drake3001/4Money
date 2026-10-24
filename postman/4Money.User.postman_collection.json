@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "4Money — User",
-    "description": "Obecna implementacja modułu User. Wspólne środowisko 4Money.Local. Tokeny z maili wklejaj ręcznie. Każde żądanie zatrzymuje Runner; wybieraj żądania przez Send. Limity user-email i user-auth po 5/min/IP, cooldown wysyłek 60 s. Instrukcja: postman/README.md. Dane i tokeny tylko w lokalnym środowisku.",
+    "description": "Obecna implementacja modułu User. Wspólne środowisko 4Money.Local. Tokeny z maili wklejaj ręcznie. Każde żądanie zatrzymuje Runner; wybieraj żądania przez Send. Osobne limity na IP: user-login 30/min, user-refresh 120/min, user-password-reset 10/min; wspólny user-email 5/min/IP. Limity lokalne dla instancji, stałe okna 60 s, bez kolejki, przekroczenie daje 429. Progi uwierzytelniania konfiguruje sekcja UserRateLimiting. Cooldown wysyłek 60 s. Instrukcja: postman/README.md. Dane i tokeny tylko w lokalnym środowisku.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
