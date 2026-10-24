@@ -1,0 +1,1001 @@
+{
+  "info": {
+    "name": "4Money — User",
+    "description": "Obecna implementacja modułu User. Wspólne środowisko 4Money.Local. Tokeny z maili wklejaj ręcznie. Każde żądanie zatrzymuje Runner; wybieraj żądania przez Send. Osobne limity na IP: user-login 30/min, user-refresh 120/min, user-password-reset 10/min; wspólny user-email 5/min/IP. Limity lokalne dla instancji, stałe okna 60 s, bez kolejki, przekroczenie daje 429. Progi uwierzytelniania konfiguruje sekcja UserRateLimiting. Cooldown wysyłek 60 s. Instrukcja: postman/README.md. Dane i tokeny tylko w lokalnym środowisku.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "10 — Rejestracja i potwierdzenie e-maila",
+      "description": "Po rejestracji odbierz token i uzupełnij userEmailConfirmationToken.",
+      "item": [
+        {
+          "name": "11 — Zarejestruj konto",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/register",
+            "description": "Nowy login i dostępna skrzynka. Hasło: 8–128 znaków, wielka litera, cyfra i znak specjalny. Po 201 potwierdź e-mail. Zajęty login/e-mail: 409. Przy awarii SMTP konto może już istnieć; użyj resend-confirmation.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{userLogin}}\",\n  \"name\": \"{{userName}}\",\n  \"surname\": \"{{userSurname}}\",\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\",\n  \"birthDate\": \"{{userBirthDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"userLogin\", \"userName\", \"userSurname\", \"userEmail\", \"userPassword\", \"userBirthDate\"];",
+                  "const missing = required.filter(function (key) { const value = pm.environment.get(key); return typeof value !== 'string' || !value.trim() || value.includes('{{'); });",
+                  "if (missing.length) {",
+                  "    pm.test('Uzupełnione zmienne ?rodowiska', function () { throw new Error('Uzupełnij: ' + missing.join(', ')); });",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "pm.request.body.update(JSON.stringify({",
+                  "    \"login\": pm.environment.get('userLogin'),\n    \"name\": pm.environment.get('userName'),\n    \"surname\": pm.environment.get('userSurname'),\n    \"email\": pm.environment.get('userEmail'),\n    \"password\": pm.environment.get('userPassword'),\n    \"birthDate\": pm.environment.get('userBirthDate')",
+                  "}, null, 2));",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('Status HTTP 201', function () { pm.expect(pm.response.code).to.equal(201); });",
+                  "if (pm.response.code !== 201) return;",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "12 — Potwierdź adres e-mail",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/confirm-email",
+            "description": "Token z maila, ważny 24 h. Błędny, użyty, zastąpiony lub wygasły token: 400.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{userEmailConfirmationToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"userEmailConfirmationToken\"];",
+                  "const missing = required.filter(function (key) { const value = pm.environment.get(key); return typeof value !== 'string' || !value.trim() || value.includes('{{'); });",
+                  "if (missing.length) {",
+                  "    pm.test('Uzupełnione zmienne ?rodowiska', function () { throw new Error('Uzupełnij: ' + missing.join(', ')); });",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "pm.request.body.update(JSON.stringify({",
+                  "    \"token\": pm.environment.get('userEmailConfirmationToken')",
+                  "}, null, 2));",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('Status HTTP 204', function () { pm.expect(pm.response.code).to.equal(204); });",
+                  "if (pm.response.code !== 204) return;",
+                  "pm.environment.unset('userEmailConfirmationToken');",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "13 — Wyślij ponownie potwierdzenie",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/resend-confirmation",
+            "description": "Cooldown 60 s. Nowy token zastępuje stary; wpisz go do userEmailConfirmationToken. Dla nieznanego, nieaktywnego lub potwierdzonego konta także 202 bez wysyłki.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"userEmail\"];",
+                  "const missing = required.filter(function (key) { const value = pm.environment.get(key); return typeof value !== 'string' || !value.trim() || value.includes('{{'); });",
+                  "if (missing.length) {",
+                  "    pm.test('Uzupełnione zmienne ?rodowiska', function () { throw new Error('Uzupełnij: ' + missing.join(', ')); });",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "pm.request.body.update(JSON.stringify({",
+                  "    \"email\": pm.environment.get('userEmail')",
+                  "}, null, 2));",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('Status HTTP 202', function () { pm.expect(pm.response.code).to.equal(202); });",
+                  "if (pm.response.code !== 202) return;",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "20 — Logowanie i sesja",
+      "description": "Po loginie tokeny zapisują się w środowisku. Logout uruchom po operacjach chronionych.",
+      "item": [
+        {
+          "name": "21 — Zaloguj",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/login",
+            "description": "Wymaga aktywnego konta z potwierdzonym e-mailem. Błędne dane: 401. Nieaktywne konto z poprawnym hasłem: 403, Account is deactivated. Nowy login zastępuje poprzednią sesję. Przed wysłaniem usuwa stare tokeny lokalne.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{userLogin}}\",\n  \"password\": \"{{userPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"userLogin\", \"userPassword\"];",
+                  "const missing = required.filter(function (key) { const value = pm.environment.get(key); return typeof value !== 'string' || !value.trim() || value.includes('{{'); });",
+                  "if (missing.length) {",
+                  "    pm.test('Uzupełnione zmienne ?rodowiska', function () { throw new Error('Uzupełnij: ' + missing.join(', ')); });",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "pm.environment.unset('fourMoneyAccessToken');",
+                  "pm.environment.unset('fourMoneyRefreshToken');",
+                  "pm.request.body.update(JSON.stringify({",
+                  "    \"login\": pm.environment.get('userLogin'),\n    \"password\": pm.environment.get('userPassword')",
+                  "}, null, 2));",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('Status HTTP 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "if (pm.response.code !== 200) return;",
+                  "const body = pm.response.json();",
+                  "const valid = typeof body.accessToken === 'string' && body.accessToken.length > 0 && typeof body.refreshToken === 'string' && /^[A-Za-z0-9_-]{43}$/.test(body.refreshToken) && body.tokenType === 'Bearer' && Number.isFinite(Date.parse(body.accessTokenExpiresAt)) && Number.isFinite(Date.parse(body.refreshTokenExpiresAt));",
+                  "pm.test('Kontrakt tokenów sesji', function () { pm.expect(valid).to.equal(true); });",
+                  "if (!valid) return;",
+                  "pm.environment.set('fourMoneyAccessToken', body.accessToken);",
+                  "pm.environment.set('fourMoneyRefreshToken', body.refreshToken);",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "22 — Odśwież sesję",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/refresh",
+            "description": "Bez access tokenu. Refresh token w JSON. Sukces zapisuje nową parę tokenów; stary refresh przestaje działać. Nieważna sesja: 401.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{fourMoneyRefreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"fourMoneyRefreshToken\"];",
+                  "const missing = required.filter(function (key) { const value = pm.environment.get(key); return typeof value !== 'string' || !value.trim() || value.includes('{{'); });",
+                  "if (missing.length) {",
+                  "    pm.test('Uzupełnione zmienne ?rodowiska', function () { throw new Error('Uzupełnij: ' + missing.join(', ')); });",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "pm.request.body.update(JSON.stringify({",
+                  "    \"refreshToken\": pm.environment.get('fourMoneyRefreshToken')",
+                  "}, null, 2));",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('Status HTTP 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "if (pm.response.code !== 200) return;",
+                  "const body = pm.response.json();",
+                  "const valid = typeof body.accessToken === 'string' && body.accessToken.length > 0 && typeof body.refreshToken === 'string' && /^[A-Za-z0-9_-]{43}$/.test(body.refreshToken) && body.tokenType === 'Bearer' && Number.isFinite(Date.parse(body.accessTokenExpiresAt)) && Number.isFinite(Date.parse(body.refreshTokenExpiresAt));",
+                  "pm.test('Kontrakt tokenów sesji', function () { pm.expect(valid).to.equal(true); });",
+                  "if (!valid) return;",
+                  "pm.environment.set('fourMoneyAccessToken', body.accessToken);",
+                  "pm.environment.set('fourMoneyRefreshToken', body.refreshToken);",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "23 — Wyloguj",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{fourMoneyAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/logout",
+            "description": "Bearer access token, bez body. Usuwa sesję i po 204 czyści lokalne tokeny. Stare JWT i refresh przestają działać.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"fourMoneyAccessToken\"];",
+                  "const missing = required.filter(function (key) { const value = pm.environment.get(key); return typeof value !== 'string' || !value.trim() || value.includes('{{'); });",
+                  "if (missing.length) {",
+                  "    pm.test('Uzupełnione zmienne ?rodowiska', function () { throw new Error('Uzupełnij: ' + missing.join(', ')); });",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('Status HTTP 204', function () { pm.expect(pm.response.code).to.equal(204); });",
+                  "if (pm.response.code !== 204) return;",
+                  "pm.environment.unset('fourMoneyAccessToken');",
+                  "pm.environment.unset('fourMoneyRefreshToken');",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "30 — Profil",
+      "description": "Wymaga aktywnej sesji.",
+      "item": [
+        {
+          "name": "31 — Pobierz profil",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{fourMoneyAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/profile",
+            "description": "Odczyt własnego profilu. ID pochodzi z JWT.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"fourMoneyAccessToken\"];",
+                  "const missing = required.filter(function (key) { const value = pm.environment.get(key); return typeof value !== 'string' || !value.trim() || value.includes('{{'); });",
+                  "if (missing.length) {",
+                  "    pm.test('Uzupełnione zmienne ?rodowiska', function () { throw new Error('Uzupełnij: ' + missing.join(', ')); });",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('Status HTTP 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "if (pm.response.code !== 200) return;",
+                  "const body = pm.response.json();",
+                  "pm.test('Profil bez sekretów', function () { pm.expect(typeof body.id).to.equal('string'); pm.expect(body).not.to.have.property('passwordHash'); pm.expect(body).not.to.have.property('accessToken'); });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "32 — Edytuj profil",
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{fourMoneyAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/profile",
+            "description": "Pełny zestaw pól. Pusty telefon/ikona zapisują null. Nie zmienia hasła ani e-maila. Zajęty login: 409. Zmiana loginu zachowuje sesję; do kolejnego logowania użyj nowego loginu.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{userLogin}}\",\n  \"name\": \"{{userName}}\",\n  \"surname\": \"{{userSurname}}\",\n  \"phone\": \"{{userPhone}}\",\n  \"birthDate\": \"{{userBirthDate}}\",\n  \"icon\": \"{{userIcon}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"fourMoneyAccessToken\", \"userLogin\", \"userName\", \"userSurname\", \"userBirthDate\"];",
+                  "const missing = required.filter(function (key) { const value = pm.environment.get(key); return typeof value !== 'string' || !value.trim() || value.includes('{{'); });",
+                  "if (missing.length) {",
+                  "    pm.test('Uzupełnione zmienne ?rodowiska', function () { throw new Error('Uzupełnij: ' + missing.join(', ')); });",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "pm.request.body.update(JSON.stringify({",
+                  "    \"login\": pm.environment.get('userLogin'),\n    \"name\": pm.environment.get('userName'),\n    \"surname\": pm.environment.get('userSurname'),\n    \"phone\": (pm.environment.get('userPhone') || null),\n    \"birthDate\": pm.environment.get('userBirthDate'),\n    \"icon\": (pm.environment.get('userIcon') || null)",
+                  "}, null, 2));",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('Status HTTP 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "if (pm.response.code !== 200) return;",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "40 — Zmiana e-maila",
+      "description": "Token z NOWEJ skrzynki wpisz do userEmailChangeToken. Potwierdzenie wylogowuje konto.",
+      "item": [
+        {
+          "name": "41 — Poproś o zmianę e-maila",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{fourMoneyAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/profile/change-email",
+            "description": "Aktualne hasło i nowy, wolny adres inny od obecnego. Do potwierdzenia adres pozostaje bez zmian. Ważność tokenu 24 h, cooldown 60 s.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newEmail\": \"{{userNewEmail}}\",\n  \"currentPassword\": \"{{userPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"fourMoneyAccessToken\", \"userNewEmail\", \"userPassword\"];",
+                  "const missing = required.filter(function (key) { const value = pm.environment.get(key); return typeof value !== 'string' || !value.trim() || value.includes('{{'); });",
+                  "if (missing.length) {",
+                  "    pm.test('Uzupełnione zmienne ?rodowiska', function () { throw new Error('Uzupełnij: ' + missing.join(', ')); });",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "pm.request.body.update(JSON.stringify({",
+                  "    \"newEmail\": pm.environment.get('userNewEmail'),\n    \"currentPassword\": pm.environment.get('userPassword')",
+                  "}, null, 2));",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('Status HTTP 202', function () { pm.expect(pm.response.code).to.equal(202); });",
+                  "if (pm.response.code !== 202) return;",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "42 — Potwierdź zmianę e-maila",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/confirm-email-change",
+            "description": "Bez Bearer, token z nowej skrzynki. Po 204 wszystkie tokeny konta są usunięte, lokalne userEmail zaktualizowane. Zaloguj się ponownie.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{userEmailChangeToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"userEmailChangeToken\"];",
+                  "const missing = required.filter(function (key) { const value = pm.environment.get(key); return typeof value !== 'string' || !value.trim() || value.includes('{{'); });",
+                  "if (missing.length) {",
+                  "    pm.test('Uzupełnione zmienne ?rodowiska', function () { throw new Error('Uzupełnij: ' + missing.join(', ')); });",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "pm.request.body.update(JSON.stringify({",
+                  "    \"token\": pm.environment.get('userEmailChangeToken')",
+                  "}, null, 2));",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('Status HTTP 204', function () { pm.expect(pm.response.code).to.equal(204); });",
+                  "if (pm.response.code !== 204) return;",
+                  "pm.environment.unset('fourMoneyAccessToken');",
+                  "pm.environment.unset('fourMoneyRefreshToken');",
+                  "pm.environment.set('userEmail', pm.environment.get('userNewEmail'));",
+                  "pm.environment.unset('userEmailChangeToken');",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "50 — Reset zapomnianego hasła",
+      "description": "Token z maila wpisz do userPasswordResetToken, nowe hasło do userNewPassword.",
+      "item": [
+        {
+          "name": "51 — Poproś o reset hasła",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/forgot-password",
+            "description": "Bez logowania. 202 także dla nieznanego/nieaktywnego/niepotwierdzonego konta, cooldownu lub awarii SMTP. 202 nie gwarantuje wysyłki. Token ważny 30 min, cooldown 60 s.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"userEmail\"];",
+                  "const missing = required.filter(function (key) { const value = pm.environment.get(key); return typeof value !== 'string' || !value.trim() || value.includes('{{'); });",
+                  "if (missing.length) {",
+                  "    pm.test('Uzupełnione zmienne ?rodowiska', function () { throw new Error('Uzupełnij: ' + missing.join(', ')); });",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "pm.request.body.update(JSON.stringify({",
+                  "    \"email\": pm.environment.get('userEmail')",
+                  "}, null, 2));",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('Status HTTP 202', function () { pm.expect(pm.response.code).to.equal(202); });",
+                  "if (pm.response.code !== 202) return;",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "52 — Ustaw nowe hasło",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/reset-password",
+            "description": "Hasło podlega walidacji jak przy rejestracji. Po 204 usuwa wszystkie tokeny konta, aktualizuje lokalne userPassword i czyści sesję. Zaloguj się ponownie.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{userPasswordResetToken}}\",\n  \"newPassword\": \"{{userNewPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"userPasswordResetToken\", \"userNewPassword\"];",
+                  "const missing = required.filter(function (key) { const value = pm.environment.get(key); return typeof value !== 'string' || !value.trim() || value.includes('{{'); });",
+                  "if (missing.length) {",
+                  "    pm.test('Uzupełnione zmienne ?rodowiska', function () { throw new Error('Uzupełnij: ' + missing.join(', ')); });",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "pm.request.body.update(JSON.stringify({",
+                  "    \"token\": pm.environment.get('userPasswordResetToken'),\n    \"newPassword\": pm.environment.get('userNewPassword')",
+                  "}, null, 2));",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('Status HTTP 204', function () { pm.expect(pm.response.code).to.equal(204); });",
+                  "if (pm.response.code !== 204) return;",
+                  "pm.environment.unset('fourMoneyAccessToken');",
+                  "pm.environment.unset('fourMoneyRefreshToken');",
+                  "pm.environment.set('userPassword', pm.environment.get('userNewPassword'));",
+                  "pm.environment.unset('userNewPassword');",
+                  "pm.environment.unset('userPasswordResetToken');",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "60 — Dezaktywacja konta",
+      "description": "Uruchom na końcu na koncie testowym. Brak endpointu reaktywacji.",
+      "item": [
+        {
+          "name": "61 — Poproś o dezaktywację",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{fourMoneyAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/profile/deactivate",
+            "description": "Bearer, bez body. Token trafia na aktualny e-mail. Konto nadal działa. Token wpisz do userDeactivationToken. Ważność 30 min, cooldown 60 s.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"fourMoneyAccessToken\"];",
+                  "const missing = required.filter(function (key) { const value = pm.environment.get(key); return typeof value !== 'string' || !value.trim() || value.includes('{{'); });",
+                  "if (missing.length) {",
+                  "    pm.test('Uzupełnione zmienne ?rodowiska', function () { throw new Error('Uzupełnij: ' + missing.join(', ')); });",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('Status HTTP 202', function () { pm.expect(pm.response.code).to.equal(202); });",
+                  "if (pm.response.code !== 202) return;",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "62 — Potwierdź dezaktywację",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/confirm-deactivation",
+            "description": "Bez Bearer. Ręcznie potwierdza is_active=false i usunięcie WSZYSTKICH tokenów konta w transakcji. Dane pozostają. Powtórne użycie: 400; stare JWT/refresh: 401; login poprawnym hasłem: 403.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{userDeactivationToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"userDeactivationToken\"];",
+                  "const missing = required.filter(function (key) { const value = pm.environment.get(key); return typeof value !== 'string' || !value.trim() || value.includes('{{'); });",
+                  "if (missing.length) {",
+                  "    pm.test('Uzupełnione zmienne ?rodowiska', function () { throw new Error('Uzupełnij: ' + missing.join(', ')); });",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "pm.request.body.update(JSON.stringify({",
+                  "    \"token\": pm.environment.get('userDeactivationToken')",
+                  "}, null, 2));",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('Status HTTP 204', function () { pm.expect(pm.response.code).to.equal(204); });",
+                  "if (pm.response.code !== 204) return;",
+                  "pm.environment.unset('fourMoneyAccessToken');",
+                  "pm.environment.unset('fourMoneyRefreshToken');",
+                  "pm.environment.unset('userDeactivationToken');",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,776 @@
+{
+  "info": {
+    "name": "4Money — Banking / Tink",
+    "description": "Wyłącznie flow integracji Tink. Uruchamiaj etapami według notes/POSTMAN.md. Nie zawiera loginu ani testów innych modułów. Chronione żądania wymagają przyszłego auth 4Money; obecny host zwraca 401. Sekrety i dane procesu wyłącznie w lokalnym środowisku.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{fourMoneyAccessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "10 — Rozpoczęcie połączenia",
+      "description": "Uruchom przed otwarciem Tink Link. Runner kończy po PENDING.",
+      "item": [
+        {
+          "name": "11 — Rozpocznij połączenie z bankiem",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/banking/connection-attempts",
+            "description": "Wymaga działającego auth 4Money i poprawnej konfiguracji Tink/backendu. Tworzy trwałą próbę. Czyści zmienne poprzedniej próby; nie otwiera URL automatycznie."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function stop(message) {",
+                  "    pm.test('Warunki wstępne', function () { throw new Error(message); });",
+                  "    pm.execution.setNextRequest(null);",
+                  "    pm.execution.skipRequest();",
+                  "}",
+                  "function need(names) {",
+                  "    const missing = names.filter(function (name) {",
+                  "        const value = pm.environment.get(name);",
+                  "        return typeof value !== 'string' || !value.trim() || value.includes('{{');",
+                  "    });",
+                  "    if (missing.length) stop('Uzupełnij lokalne środowisko: ' + missing.join(', '));",
+                  "}",
+                  "function clear(names) { names.forEach(function (name) { pm.environment.unset(name); }); }",
+                  "clear([\"attemptId\", \"attemptExpiresAt\", \"authorizationUrl\", \"callbackState\", \"connectionId\", \"callbackCredentialsId\"]);",
+                  "need(['baseUrl', 'fourMoneyAccessToken']);",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function check(name, predicate) {",
+                  "    let ok = false;",
+                  "    try { ok = Boolean(predicate()); } catch (_) { /* Do not expose response values. */ }",
+                  "    pm.test(name, function () { pm.expect(ok, name).to.equal(true); });",
+                  "    if (!ok) {",
+                  "        pm.execution.setNextRequest(null);",
+                  "        throw new Error('Przerwano: ' + name);",
+                  "    }",
+                  "}",
+                  "function isGuid(value) {",
+                  "    return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)",
+                  "        && value !== '00000000-0000-0000-0000-000000000000';",
+                  "}",
+                  "function isDate(value) { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }",
+                  "function publicBody(value) {",
+                  "    const forbidden = ['clientSecret', 'client_secret', 'accessToken', 'access_token', 'refreshToken', 'refresh_token',",
+                  "        'authorizationCode', 'authorization_code', 'tinkUserId', 'credentialsId', 'credentials_id', 'accountIds'];",
+                  "    if (Array.isArray(value)) return value.every(publicBody);",
+                  "    if (value && typeof value === 'object') return Object.keys(value).every(function (key) {",
+                  "        return !forbidden.includes(key) && publicBody(value[key]);",
+                  "    });",
+                  "    return true;",
+                  "}",
+                  "function jsonResponse(status, noStore) {",
+                  "    check('Oczekiwany status HTTP ' + status, function () { return pm.response.code === status; });",
+                  "    check('Odpowiedź JSON', function () {",
+                  "        return /application\\/(?:problem\\+)?json/i.test(pm.response.headers.get('Content-Type') || '');",
+                  "    });",
+                  "    if (noStore) check('Cache-Control: no-store', function () {",
+                  "        return /(?:^|,)\\s*no-store\\s*(?:,|$)/i.test(pm.response.headers.get('Cache-Control') || '');",
+                  "    });",
+                  "    let body;",
+                  "    check('Poprawny dokument JSON', function () { body = pm.response.json(); return body !== null; });",
+                  "    return body;",
+                  "}",
+                  "const body = jsonResponse(201, true);",
+                  "check('Kontrakt rozpoczęcia i brak danych dostawcy', function () {",
+                  "    return isGuid(body.attemptId) && isDate(body.expiresAt) && publicBody(body);",
+                  "});",
+                  "let link;",
+                  "check('Tink Link zawiera kod, state i wymagane parametry', function () {",
+                  "    link = new URL(body.authorizationUrl);",
+                  "    return link.protocol === 'https:' && link.pathname === '/1.0/transactions/connect-accounts'",
+                  "        && ['authorization_code', 'state', 'client_id', 'redirect_uri', 'market', 'locale', 'refreshable_items']",
+                  "            .every(function (key) { return Boolean(link.searchParams.get(key)); })",
+                  "        && /^[A-Za-z0-9_-]{43}$/.test(link.searchParams.get('state'));",
+                  "});",
+                  "check('Location wskazuje utworzoną próbę', function () {",
+                  "    const location = new URL(pm.response.headers.get('Location'), pm.environment.get('baseUrl'));",
+                  "    return location.pathname === '/api/banking/connection-attempts/' + body.attemptId;",
+                  "});",
+                  "pm.environment.set('attemptId', body.attemptId);",
+                  "pm.environment.set('attemptExpiresAt', body.expiresAt);",
+                  "pm.environment.set('authorizationUrl', body.authorizationUrl);",
+                  "pm.environment.set('callbackState', link.searchParams.get('state'));",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "12 — Sprawdź próbę PENDING; zatrzymaj przed przeglądarką",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/banking/connection-attempts/{{attemptId}}",
+            "description": "Uruchom przed otwarciem linku. Runner zatrzyma się tutaj. Otwórz lokalną authorizationUrl w przeglądarce, ukończ Tink Link i przejdź do folderu 20. Nie udostępniaj URL."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function stop(message) {",
+                  "    pm.test('Warunki wstępne', function () { throw new Error(message); });",
+                  "    pm.execution.setNextRequest(null);",
+                  "    pm.execution.skipRequest();",
+                  "}",
+                  "function need(names) {",
+                  "    const missing = names.filter(function (name) {",
+                  "        const value = pm.environment.get(name);",
+                  "        return typeof value !== 'string' || !value.trim() || value.includes('{{');",
+                  "    });",
+                  "    if (missing.length) stop('Uzupełnij lokalne środowisko: ' + missing.join(', '));",
+                  "}",
+                  "need(['baseUrl', 'fourMoneyAccessToken']);",
+                  "need(['attemptId']);",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function check(name, predicate) {",
+                  "    let ok = false;",
+                  "    try { ok = Boolean(predicate()); } catch (_) { /* Do not expose response values. */ }",
+                  "    pm.test(name, function () { pm.expect(ok, name).to.equal(true); });",
+                  "    if (!ok) {",
+                  "        pm.execution.setNextRequest(null);",
+                  "        throw new Error('Przerwano: ' + name);",
+                  "    }",
+                  "}",
+                  "function isDate(value) { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }",
+                  "function publicBody(value) {",
+                  "    const forbidden = ['clientSecret', 'client_secret', 'accessToken', 'access_token', 'refreshToken', 'refresh_token',",
+                  "        'authorizationCode', 'authorization_code', 'tinkUserId', 'credentialsId', 'credentials_id', 'accountIds'];",
+                  "    if (Array.isArray(value)) return value.every(publicBody);",
+                  "    if (value && typeof value === 'object') return Object.keys(value).every(function (key) {",
+                  "        return !forbidden.includes(key) && publicBody(value[key]);",
+                  "    });",
+                  "    return true;",
+                  "}",
+                  "function jsonResponse(status, noStore) {",
+                  "    check('Oczekiwany status HTTP ' + status, function () { return pm.response.code === status; });",
+                  "    check('Odpowiedź JSON', function () {",
+                  "        return /application\\/(?:problem\\+)?json/i.test(pm.response.headers.get('Content-Type') || '');",
+                  "    });",
+                  "    if (noStore) check('Cache-Control: no-store', function () {",
+                  "        return /(?:^|,)\\s*no-store\\s*(?:,|$)/i.test(pm.response.headers.get('Cache-Control') || '');",
+                  "    });",
+                  "    let body;",
+                  "    check('Poprawny dokument JSON', function () { body = pm.response.json(); return body !== null; });",
+                  "    return body;",
+                  "}",
+                  "const body = jsonResponse(200, false);",
+                  "check('Próba PENDING należy do bieżącego procesu', function () {",
+                  "    return body.id === pm.environment.get('attemptId') && body.status === 'PENDING'",
+                  "        && body.connectionId === null && isDate(body.expiresAt) && publicBody(body);",
+                  "});",
+                  "pm.execution.setNextRequest(null);",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "20 — Po powrocie z banku",
+      "description": "Uruchom ręcznie po zakończeniu callbacku w przeglądarce.",
+      "item": [
+        {
+          "name": "21 — Odczytaj zakończoną próbę",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/banking/connection-attempts/{{attemptId}}",
+            "description": "Dopiero po ukończeniu flow w przeglądarce i poprawnym callbacku backendu. PENDING nie jest sukcesem. Nie wykonuje callbacku ponownie."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function stop(message) {",
+                  "    pm.test('Warunki wstępne', function () { throw new Error(message); });",
+                  "    pm.execution.setNextRequest(null);",
+                  "    pm.execution.skipRequest();",
+                  "}",
+                  "function need(names) {",
+                  "    const missing = names.filter(function (name) {",
+                  "        const value = pm.environment.get(name);",
+                  "        return typeof value !== 'string' || !value.trim() || value.includes('{{');",
+                  "    });",
+                  "    if (missing.length) stop('Uzupełnij lokalne środowisko: ' + missing.join(', '));",
+                  "}",
+                  "function clear(names) { names.forEach(function (name) { pm.environment.unset(name); }); }",
+                  "clear(['connectionId']);",
+                  "need(['baseUrl', 'fourMoneyAccessToken']);",
+                  "need(['attemptId']);",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function check(name, predicate) {",
+                  "    let ok = false;",
+                  "    try { ok = Boolean(predicate()); } catch (_) { /* Do not expose response values. */ }",
+                  "    pm.test(name, function () { pm.expect(ok, name).to.equal(true); });",
+                  "    if (!ok) {",
+                  "        pm.execution.setNextRequest(null);",
+                  "        throw new Error('Przerwano: ' + name);",
+                  "    }",
+                  "}",
+                  "function isGuid(value) {",
+                  "    return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)",
+                  "        && value !== '00000000-0000-0000-0000-000000000000';",
+                  "}",
+                  "function isDate(value) { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }",
+                  "function publicBody(value) {",
+                  "    const forbidden = ['clientSecret', 'client_secret', 'accessToken', 'access_token', 'refreshToken', 'refresh_token',",
+                  "        'authorizationCode', 'authorization_code', 'tinkUserId', 'credentialsId', 'credentials_id', 'accountIds'];",
+                  "    if (Array.isArray(value)) return value.every(publicBody);",
+                  "    if (value && typeof value === 'object') return Object.keys(value).every(function (key) {",
+                  "        return !forbidden.includes(key) && publicBody(value[key]);",
+                  "    });",
+                  "    return true;",
+                  "}",
+                  "function jsonResponse(status, noStore) {",
+                  "    check('Oczekiwany status HTTP ' + status, function () { return pm.response.code === status; });",
+                  "    check('Odpowiedź JSON', function () {",
+                  "        return /application\\/(?:problem\\+)?json/i.test(pm.response.headers.get('Content-Type') || '');",
+                  "    });",
+                  "    if (noStore) check('Cache-Control: no-store', function () {",
+                  "        return /(?:^|,)\\s*no-store\\s*(?:,|$)/i.test(pm.response.headers.get('Cache-Control') || '');",
+                  "    });",
+                  "    let body;",
+                  "    check('Poprawny dokument JSON', function () { body = pm.response.json(); return body !== null; });",
+                  "    return body;",
+                  "}",
+                  "const body = jsonResponse(200, false);",
+                  "check('Próba COMPLETED i lokalne ID połączenia', function () {",
+                  "    return body.id === pm.environment.get('attemptId') && body.status === 'COMPLETED'",
+                  "        && isGuid(body.connectionId) && isDate(body.completedAt) && publicBody(body);",
+                  "});",
+                  "pm.environment.set('connectionId', body.connectionId);",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "22 — Sprawdź zapisane połączenie",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/banking/connections/{{connectionId}}",
+            "description": "Weryfikuje rezultat łączenia, bez importowania rachunków i transakcji."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function stop(message) {",
+                  "    pm.test('Warunki wstępne', function () { throw new Error(message); });",
+                  "    pm.execution.setNextRequest(null);",
+                  "    pm.execution.skipRequest();",
+                  "}",
+                  "function need(names) {",
+                  "    const missing = names.filter(function (name) {",
+                  "        const value = pm.environment.get(name);",
+                  "        return typeof value !== 'string' || !value.trim() || value.includes('{{');",
+                  "    });",
+                  "    if (missing.length) stop('Uzupełnij lokalne środowisko: ' + missing.join(', '));",
+                  "}",
+                  "need(['baseUrl', 'fourMoneyAccessToken']);",
+                  "need(['connectionId']);",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function check(name, predicate) {",
+                  "    let ok = false;",
+                  "    try { ok = Boolean(predicate()); } catch (_) { /* Do not expose response values. */ }",
+                  "    pm.test(name, function () { pm.expect(ok, name).to.equal(true); });",
+                  "    if (!ok) {",
+                  "        pm.execution.setNextRequest(null);",
+                  "        throw new Error('Przerwano: ' + name);",
+                  "    }",
+                  "}",
+                  "function publicBody(value) {",
+                  "    const forbidden = ['clientSecret', 'client_secret', 'accessToken', 'access_token', 'refreshToken', 'refresh_token',",
+                  "        'authorizationCode', 'authorization_code', 'tinkUserId', 'credentialsId', 'credentials_id', 'accountIds'];",
+                  "    if (Array.isArray(value)) return value.every(publicBody);",
+                  "    if (value && typeof value === 'object') return Object.keys(value).every(function (key) {",
+                  "        return !forbidden.includes(key) && publicBody(value[key]);",
+                  "    });",
+                  "    return true;",
+                  "}",
+                  "function jsonResponse(status, noStore) {",
+                  "    check('Oczekiwany status HTTP ' + status, function () { return pm.response.code === status; });",
+                  "    check('Odpowiedź JSON', function () {",
+                  "        return /application\\/(?:problem\\+)?json/i.test(pm.response.headers.get('Content-Type') || '');",
+                  "    });",
+                  "    if (noStore) check('Cache-Control: no-store', function () {",
+                  "        return /(?:^|,)\\s*no-store\\s*(?:,|$)/i.test(pm.response.headers.get('Cache-Control') || '');",
+                  "    });",
+                  "    let body;",
+                  "    check('Poprawny dokument JSON', function () { body = pm.response.json(); return body !== null; });",
+                  "    return body;",
+                  "}",
+                  "const body = jsonResponse(200, false);",
+                  "check('Połączenie CONNECTED, synchronizacja NOT_STARTED', function () {",
+                  "    return body.id === pm.environment.get('connectionId') && body.connectionStatus === 'CONNECTED'",
+                  "        && body.syncStatus === 'NOT_STARTED' && publicBody(body);",
+                  "});",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "23 — Znajdź połączenie na liście",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/banking/connections",
+            "description": "Lista może zawierać więcej banków; nie zakładamy dokładnie jednego elementu."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function stop(message) {",
+                  "    pm.test('Warunki wstępne', function () { throw new Error(message); });",
+                  "    pm.execution.setNextRequest(null);",
+                  "    pm.execution.skipRequest();",
+                  "}",
+                  "function need(names) {",
+                  "    const missing = names.filter(function (name) {",
+                  "        const value = pm.environment.get(name);",
+                  "        return typeof value !== 'string' || !value.trim() || value.includes('{{');",
+                  "    });",
+                  "    if (missing.length) stop('Uzupełnij lokalne środowisko: ' + missing.join(', '));",
+                  "}",
+                  "need(['baseUrl', 'fourMoneyAccessToken']);",
+                  "need(['connectionId']);",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function check(name, predicate) {",
+                  "    let ok = false;",
+                  "    try { ok = Boolean(predicate()); } catch (_) { /* Do not expose response values. */ }",
+                  "    pm.test(name, function () { pm.expect(ok, name).to.equal(true); });",
+                  "    if (!ok) {",
+                  "        pm.execution.setNextRequest(null);",
+                  "        throw new Error('Przerwano: ' + name);",
+                  "    }",
+                  "}",
+                  "function publicBody(value) {",
+                  "    const forbidden = ['clientSecret', 'client_secret', 'accessToken', 'access_token', 'refreshToken', 'refresh_token',",
+                  "        'authorizationCode', 'authorization_code', 'tinkUserId', 'credentialsId', 'credentials_id', 'accountIds'];",
+                  "    if (Array.isArray(value)) return value.every(publicBody);",
+                  "    if (value && typeof value === 'object') return Object.keys(value).every(function (key) {",
+                  "        return !forbidden.includes(key) && publicBody(value[key]);",
+                  "    });",
+                  "    return true;",
+                  "}",
+                  "function jsonResponse(status, noStore) {",
+                  "    check('Oczekiwany status HTTP ' + status, function () { return pm.response.code === status; });",
+                  "    check('Odpowiedź JSON', function () {",
+                  "        return /application\\/(?:problem\\+)?json/i.test(pm.response.headers.get('Content-Type') || '');",
+                  "    });",
+                  "    if (noStore) check('Cache-Control: no-store', function () {",
+                  "        return /(?:^|,)\\s*no-store\\s*(?:,|$)/i.test(pm.response.headers.get('Cache-Control') || '');",
+                  "    });",
+                  "    let body;",
+                  "    check('Poprawny dokument JSON', function () { body = pm.response.json(); return body !== null; });",
+                  "    return body;",
+                  "}",
+                  "const body = jsonResponse(200, false);",
+                  "check('Lista zawiera utworzone połączenie, bez danych dostawcy', function () {",
+                  "    return Array.isArray(body) && body.some(function (item) { return item.id === pm.environment.get('connectionId'); })",
+                  "        && publicBody(body);",
+                  "});",
+                  "pm.execution.setNextRequest(null);",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "30 — Zgody",
+      "description": "Niezależny odczyt aktualnych zgód.",
+      "item": [
+        {
+          "name": "31 — Pobierz bieżące zgody",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/banking/consents",
+            "description": "Odczyt na żądanie; brak zapisu/odświeżania danych bankowych. Pusta lista jest poprawna. Brak zgody w odpowiedzi nie oznacza automatycznie cofnięcia dostępu."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function stop(message) {",
+                  "    pm.test('Warunki wstępne', function () { throw new Error(message); });",
+                  "    pm.execution.setNextRequest(null);",
+                  "    pm.execution.skipRequest();",
+                  "}",
+                  "function need(names) {",
+                  "    const missing = names.filter(function (name) {",
+                  "        const value = pm.environment.get(name);",
+                  "        return typeof value !== 'string' || !value.trim() || value.includes('{{');",
+                  "    });",
+                  "    if (missing.length) stop('Uzupełnij lokalne środowisko: ' + missing.join(', '));",
+                  "}",
+                  "need(['baseUrl', 'fourMoneyAccessToken']);",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function check(name, predicate) {",
+                  "    let ok = false;",
+                  "    try { ok = Boolean(predicate()); } catch (_) { /* Do not expose response values. */ }",
+                  "    pm.test(name, function () { pm.expect(ok, name).to.equal(true); });",
+                  "    if (!ok) {",
+                  "        pm.execution.setNextRequest(null);",
+                  "        throw new Error('Przerwano: ' + name);",
+                  "    }",
+                  "}",
+                  "function isGuid(value) {",
+                  "    return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)",
+                  "        && value !== '00000000-0000-0000-0000-000000000000';",
+                  "}",
+                  "function isDate(value) { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }",
+                  "function publicBody(value) {",
+                  "    const forbidden = ['clientSecret', 'client_secret', 'accessToken', 'access_token', 'refreshToken', 'refresh_token',",
+                  "        'authorizationCode', 'authorization_code', 'tinkUserId', 'credentialsId', 'credentials_id', 'accountIds'];",
+                  "    if (Array.isArray(value)) return value.every(publicBody);",
+                  "    if (value && typeof value === 'object') return Object.keys(value).every(function (key) {",
+                  "        return !forbidden.includes(key) && publicBody(value[key]);",
+                  "    });",
+                  "    return true;",
+                  "}",
+                  "function jsonResponse(status, noStore) {",
+                  "    check('Oczekiwany status HTTP ' + status, function () { return pm.response.code === status; });",
+                  "    check('Odpowiedź JSON', function () {",
+                  "        return /application\\/(?:problem\\+)?json/i.test(pm.response.headers.get('Content-Type') || '');",
+                  "    });",
+                  "    if (noStore) check('Cache-Control: no-store', function () {",
+                  "        return /(?:^|,)\\s*no-store\\s*(?:,|$)/i.test(pm.response.headers.get('Cache-Control') || '');",
+                  "    });",
+                  "    let body;",
+                  "    check('Poprawny dokument JSON', function () { body = pm.response.json(); return body !== null; });",
+                  "    return body;",
+                  "}",
+                  "const body = jsonResponse(200, true);",
+                  "check('Kontrakt listy zgód z lokalnymi ID', function () {",
+                  "    return Array.isArray(body) && publicBody(body) && body.every(function (item) {",
+                  "        return isGuid(item.connectionId) && typeof item.providerStatus === 'string' && item.providerStatus.trim().length > 0",
+                  "            && (item.sessionExpiresAt === null || isDate(item.sessionExpiresAt))",
+                  "            && (item.sessionExtendable === null || typeof item.sessionExtendable === 'boolean');",
+                  "    });",
+                  "});",
+                  "pm.execution.setNextRequest(null);",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "90 — Błędy flow Tink (ręcznie)",
+      "description": "Niepoprawny callback oraz replay zakończonej próby. Dla 92 wymagane lokalne dane callbacku.",
+      "item": [
+        {
+          "name": "91 — Odrzuć niepoprawny callback",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/banking/tink/callback?state=invalid&credentials_id=synthetic-invalid",
+            "description": "Można uruchomić bez auth. Syntetyczny błędny state nie powinien dotrzeć do Tink ani zmienić próby.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function stop(message) {",
+                  "    pm.test('Warunki wstępne', function () { throw new Error(message); });",
+                  "    pm.execution.setNextRequest(null);",
+                  "    pm.execution.skipRequest();",
+                  "}",
+                  "function need(names) {",
+                  "    const missing = names.filter(function (name) {",
+                  "        const value = pm.environment.get(name);",
+                  "        return typeof value !== 'string' || !value.trim() || value.includes('{{');",
+                  "    });",
+                  "    if (missing.length) stop('Uzupełnij lokalne środowisko: ' + missing.join(', '));",
+                  "}",
+                  "need(['baseUrl']);",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function check(name, predicate) {",
+                  "    let ok = false;",
+                  "    try { ok = Boolean(predicate()); } catch (_) { /* Do not expose response values. */ }",
+                  "    pm.test(name, function () { pm.expect(ok, name).to.equal(true); });",
+                  "    if (!ok) {",
+                  "        pm.execution.setNextRequest(null);",
+                  "        throw new Error('Przerwano: ' + name);",
+                  "    }",
+                  "}",
+                  "function publicBody(value) {",
+                  "    const forbidden = ['clientSecret', 'client_secret', 'accessToken', 'access_token', 'refreshToken', 'refresh_token',",
+                  "        'authorizationCode', 'authorization_code', 'tinkUserId', 'credentialsId', 'credentials_id', 'accountIds'];",
+                  "    if (Array.isArray(value)) return value.every(publicBody);",
+                  "    if (value && typeof value === 'object') return Object.keys(value).every(function (key) {",
+                  "        return !forbidden.includes(key) && publicBody(value[key]);",
+                  "    });",
+                  "    return true;",
+                  "}",
+                  "function jsonResponse(status, noStore) {",
+                  "    check('Oczekiwany status HTTP ' + status, function () { return pm.response.code === status; });",
+                  "    check('Odpowiedź JSON', function () {",
+                  "        return /application\\/(?:problem\\+)?json/i.test(pm.response.headers.get('Content-Type') || '');",
+                  "    });",
+                  "    if (noStore) check('Cache-Control: no-store', function () {",
+                  "        return /(?:^|,)\\s*no-store\\s*(?:,|$)/i.test(pm.response.headers.get('Cache-Control') || '');",
+                  "    });",
+                  "    let body;",
+                  "    check('Poprawny dokument JSON', function () { body = pm.response.json(); return body !== null; });",
+                  "    return body;",
+                  "}",
+                  "const body = jsonResponse(400, true);",
+                  "check('Bezpieczny błąd callbacku', function () {",
+                  "    return body.status === 400 && body.code === 'BANKING_INVALID_CALLBACK' && publicBody(body);",
+                  "});",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "92 — Odrzuć ponowienie zakończonego callbacku",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/banking/tink/callback?state={{callbackState}}&credentials_id={{callbackCredentialsIdEncoded}}",
+            "description": "Tylko po poprawnym folderze 20. Wpisz lokalnie callbackCredentialsId z query string adresu callbacku w przeglądarce. Nie uruchamiaj dla aktywnej próby. Zakończona próba ma zwrócić 409.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function stop(message) {",
+                  "    pm.test('Warunki wstępne', function () { throw new Error(message); });",
+                  "    pm.execution.setNextRequest(null);",
+                  "    pm.execution.skipRequest();",
+                  "}",
+                  "function need(names) {",
+                  "    const missing = names.filter(function (name) {",
+                  "        const value = pm.environment.get(name);",
+                  "        return typeof value !== 'string' || !value.trim() || value.includes('{{');",
+                  "    });",
+                  "    if (missing.length) stop('Uzupełnij lokalne środowisko: ' + missing.join(', '));",
+                  "}",
+                  "need(['baseUrl', 'attemptId', 'connectionId', 'callbackState', 'callbackCredentialsId']);",
+                  "pm.variables.set('callbackCredentialsIdEncoded', encodeURIComponent(pm.environment.get('callbackCredentialsId')));",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "function check(name, predicate) {",
+                  "    let ok = false;",
+                  "    try { ok = Boolean(predicate()); } catch (_) { /* Do not expose response values. */ }",
+                  "    pm.test(name, function () { pm.expect(ok, name).to.equal(true); });",
+                  "    if (!ok) {",
+                  "        pm.execution.setNextRequest(null);",
+                  "        throw new Error('Przerwano: ' + name);",
+                  "    }",
+                  "}",
+                  "function publicBody(value) {",
+                  "    const forbidden = ['clientSecret', 'client_secret', 'accessToken', 'access_token', 'refreshToken', 'refresh_token',",
+                  "        'authorizationCode', 'authorization_code', 'tinkUserId', 'credentialsId', 'credentials_id', 'accountIds'];",
+                  "    if (Array.isArray(value)) return value.every(publicBody);",
+                  "    if (value && typeof value === 'object') return Object.keys(value).every(function (key) {",
+                  "        return !forbidden.includes(key) && publicBody(value[key]);",
+                  "    });",
+                  "    return true;",
+                  "}",
+                  "function jsonResponse(status, noStore) {",
+                  "    check('Oczekiwany status HTTP ' + status, function () { return pm.response.code === status; });",
+                  "    check('Odpowiedź JSON', function () {",
+                  "        return /application\\/(?:problem\\+)?json/i.test(pm.response.headers.get('Content-Type') || '');",
+                  "    });",
+                  "    if (noStore) check('Cache-Control: no-store', function () {",
+                  "        return /(?:^|,)\\s*no-store\\s*(?:,|$)/i.test(pm.response.headers.get('Cache-Control') || '');",
+                  "    });",
+                  "    let body;",
+                  "    check('Poprawny dokument JSON', function () { body = pm.response.json(); return body !== null; });",
+                  "    return body;",
+                  "}",
+                  "const body = jsonResponse(409, true);",
+                  "check('Powtórzony callback nie tworzy połączenia', function () {",
+                  "    return body.status === 409 && body.code === 'BANKING_CONFLICT'",
+                  "        && body.attemptId === pm.environment.get('attemptId') && publicBody(body);",
+                  "});",
+                  "pm.execution.setNextRequest(null);",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    }
+  ]
+}

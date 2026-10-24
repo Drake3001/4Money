@@ -16,6 +16,8 @@
     <ProjectReference Include="..\..\ZPI4M.Shared\ZPI4M.Shared.csproj" />
     <ProjectReference Include="..\ZPI4M.Grouping\ZPI4M.Grouping.csproj" />
     <ProjectReference Include="..\ZPI4M.User\ZPI4M.User.csproj" />
+    <ProjectReference Include="..\ZPI4M.Banking\ZPI4M.Banking.csproj" />
+    <ProjectReference Include="..\ZPI4M.Receipt\ZPI4M.Receipt.csproj" />
   </ItemGroup>
 
   <ItemGroup>

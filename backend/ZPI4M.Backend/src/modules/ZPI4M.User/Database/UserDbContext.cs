@@ -14,6 +14,8 @@ public partial class UserDbContext : DbContext
 
 	public virtual DbSet<Models.User> Users { get; set; }
 
+	public virtual DbSet<UserToken> UserTokens { get; set; }
+
 	protected override void OnModelCreating(ModelBuilder modelBuilder)
 	{
 		base.OnModelCreating(modelBuilder);

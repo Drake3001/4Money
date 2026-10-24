@@ -15,7 +15,9 @@ public partial class User
 
 	public string PasswordHash { get; set; } = null!;
 
-	public string? Email { get; set; }
+	public string Email { get; set; } = null!;
+
+	public bool IsEmailConfirmed { get; set; }
 
 	public string? Phone { get; set; }
 
@@ -29,9 +31,7 @@ public partial class User
 
 	public string? Icon { get; set; }
 
-	public string? RefreshToken { get; set; }
-
-	public DateTime? RefreshTokenExpiryTime { get; set; }
-
 	public string? TinkUserId { get; set; }
+
+	public virtual ICollection<UserToken> UserTokens { get; set; } = new List<UserToken>();
 }
