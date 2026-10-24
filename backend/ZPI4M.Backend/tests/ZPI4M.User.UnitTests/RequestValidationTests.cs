@@ -56,6 +56,15 @@ public sealed class RequestValidationTests
 	}
 
 	[Fact]
+	public void RegistrationRejectsInvalidBirthDatesAndAcceptsToday()
+	{
+		var today = DateOnly.FromDateTime(DateTime.UtcNow);
+		Assert.False(IsValid(Registration("Password1!", DateOnly.MinValue)));
+		Assert.False(IsValid(Registration("Password1!", today.AddDays(1))));
+		Assert.True(IsValid(Registration("Password1!", today)));
+	}
+
+	[Fact]
 	public void ProfileNormalizesOptionalFieldsAndRejectsFutureBirthDate()
 	{
 		var request = Profile(new DateOnly(2000, 1, 1));
@@ -69,14 +78,14 @@ public sealed class RequestValidationTests
 
 	private static bool IsValid(object request) => Validator.TryValidateObject(request, new ValidationContext(request), [], true);
 
-	private static RegisterUserRequest Registration(string password) => new()
+	private static RegisterUserRequest Registration(string password, DateOnly? birthDate = null) => new()
 	{
 		Login = " TEST.USER ",
 		Name = " Anna ",
 		Surname = " Testowa ",
 		Email = " TEST@EXAMPLE.TEST ",
 		Password = password,
-		BirthDate = new DateOnly(2000, 1, 1)
+		BirthDate = birthDate ?? new DateOnly(2000, 1, 1)
 	};
 
 	private static UpdateUserProfileRequest Profile(DateOnly birthDate) => new()

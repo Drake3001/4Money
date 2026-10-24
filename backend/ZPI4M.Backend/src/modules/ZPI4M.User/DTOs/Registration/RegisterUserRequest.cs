@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace ZPI4M.User.DTOs.Registration;
 
-public sealed class RegisterUserRequest
+public sealed class RegisterUserRequest : IValidatableObject
 {
 	private string _login = string.Empty;
 	private string _name = string.Empty;
@@ -43,4 +43,12 @@ public sealed class RegisterUserRequest
 	public string Password { get; init; } = string.Empty;
 
 	public required DateOnly BirthDate { get; init; }
+
+	public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+	{
+		if (BirthDate == DateOnly.MinValue || BirthDate > DateOnly.FromDateTime(DateTime.UtcNow))
+		{
+			yield return new ValidationResult("Birth date must be a valid date that is not in the future.", [nameof(BirthDate)]);
+		}
+	}
 }
