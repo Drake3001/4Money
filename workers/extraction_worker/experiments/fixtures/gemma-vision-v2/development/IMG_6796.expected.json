@@ -1,0 +1,77 @@
+{
+  "source": "IMG_6796.JPEG",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "store": "ALDI",
+  "receipt_number": "173144/0307",
+  "date": "2026-10-08",
+  "time": "10:22",
+  "currency": "PLN",
+  "total": "24.98",
+  "amount_due": "24.98",
+  "items": [
+    {
+      "name": "PIERŚ PIECZ KURCZ 100G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "4.99",
+      "before_discount": "4.99",
+      "discount": "0.00",
+      "total": "4.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "RĘCZNIK PAPIER FOXY TOR",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "19.99",
+      "before_discount": "19.99",
+      "discount": "0.00",
+      "total": "19.99",
+      "tax_code": "A",
+      "printed_marker": null,
+      "category": "dom i ogród"
+    }
+  ],
+  "deposits": [],
+  "payment": {
+    "label": "Karta",
+    "amount": "24.98"
+  },
+  "tax_summary": [
+    {
+      "code": "A",
+      "rate_percent": "23",
+      "sales": "19.99",
+      "tax": "3.74"
+    },
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "4.99",
+      "tax": "0.24"
+    }
+  ],
+  "tax_total": "3.98",
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia, bez kopiowania wyniku OCR; oczekuje na sprawdzenie użytkownika.",
+    "Zachowano nazwy i skróty z wydruku; reklamy, identyfikatory techniczne i obce paragony w tle pominięto.",
+    "gemma-vision-v2: assistant visually checked source images before new predictions; not human gold. Existing transcription fields were retained. No numerical or name corrections were required. Historical pending-user-review notes remain as provenance; current review_status describes this review.",
+    "Two purchases 4.99 + 19.99 = 24.98. RĘCZNIK PAPIER FOXY TOR is a paper towel, category dom i ogród. Date 2026-10-08, time 10:22.",
+    "Monetary fields represent gross amounts. Item total is after signed discount; tax_summary.sales and document total already include VAT. Do not add VAT again or invent unprinted net values."
+  ],
+  "uncertain_fields": [],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "reference_review": {
+    "method": "visual_check_against_original_source_images_before_new_predictions",
+    "verified_scope": "all_main_receipt_purchase_rows_financial_fields_date_and_deposits",
+    "source_images": [
+      "data/input/IMG_6796.JPEG"
+    ],
+    "numerical_corrections": 0,
+    "other_transcription_corrections": 0
+  }
+}

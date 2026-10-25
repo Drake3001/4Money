@@ -8,6 +8,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 from extraction.contracts import (
+    AnalyzedReceipt,
     DocumentPage,
     OCRPage,
     OCRResult,
@@ -108,6 +109,10 @@ def _check(expected, observed, *, numeric=False, approximate=False):
 
 def evaluate_receipt(reference, prediction):
     """References are used only after prediction, never by the parsing step."""
+    if isinstance(prediction, AnalyzedReceipt):
+        prediction = prediction.receipt
+    elif isinstance(prediction, dict) and "receipt" in prediction and "annotations" in prediction:
+        prediction = prediction["receipt"]
     observed = to_dict(prediction) if isinstance(prediction, ReceiptData) else prediction
     case = {
         "source": reference["source"],
@@ -265,12 +270,14 @@ def write_parser_evaluation(run_dir, references_dir, results=None):
                     )
             if results is not None and source in results:
                 outcome = results[source]
-                if not outcome.ok or not isinstance(outcome.output, ReceiptData):
+                if not outcome.ok or not isinstance(outcome.output, (ReceiptData, AnalyzedReceipt)):
                     raise ValueError("No successful parsed receipt")
                 prediction = outcome.output
             else:
                 raw = json.loads((run_dir / source / "result.json").read_text(encoding="utf-8"))
                 prediction = raw["output"]
+                if isinstance(prediction, dict) and "receipt" in prediction and "annotations" in prediction:
+                    prediction = prediction["receipt"]
                 if (
                     raw.get("error")
                     or not isinstance(prediction, dict)

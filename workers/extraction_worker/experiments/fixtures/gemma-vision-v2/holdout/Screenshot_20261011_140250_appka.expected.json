@@ -1,0 +1,59 @@
+{
+  "source": "Screenshot_20261011_140250_appka.jpg",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "store": "Żabka",
+  "receipt_number": "413090",
+  "date": "2026-06-30",
+  "time": "06:28",
+  "currency": "PLN",
+  "total": "8.50",
+  "amount_due": "9.00",
+  "items": [
+    {
+      "name": "LEMONIADA WYCISK M-C",
+      "quantity": "1",
+      "unit": "szt.",
+      "unit_price": "8.50",
+      "before_discount": "8.50",
+      "discount": "0.00",
+      "total": "8.50",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    }
+  ],
+  "deposits": [
+    {
+      "name": "KAUCJA ZA BUT. PLASTIKOWA",
+      "quantity": null,
+      "unit_price": null,
+      "total": "0.50"
+    }
+  ],
+  "payment": {
+    "label": "INNA Karta kred.",
+    "amount": "9.00"
+  },
+  "tax_summary": [
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "8.50",
+      "tax": "0.40"
+    }
+  ],
+  "tax_total": "0.40",
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia, bez kopiowania wyniku OCR; oczekuje na sprawdzenie użytkownika.",
+    "Zachowano nazwy i skróty z wydruku; reklamy, identyfikatory techniczne i obce paragony w tle pominięto.",
+    "E-paragon pokazuje samą kwotę kaucji; ilości i ceny jednostkowej nie dopisano (null).",
+    "gemma-vision-v2: Visually checked original image(s); item count, quantities, unit prices, before-discount gross amounts, signed discounts, after-discount totals, goods total, amount due, deposits and date confirmed. No numerical or date corrections were necessary. Current assistant_verified_not_human status supersedes historical pending-review wording in retained notes. These are silver references, not human gold.",
+    "Bottled lemon drink is a retail food/beverage purchase. Deposit total 0.50 is printed without explicit quantity or unit-price fields; those existing null values are retained, not inferred as quantity 1."
+  ],
+  "uncertain_fields": [],
+  "document_type": "e_receipt_screenshot",
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "verification_method": "Source-image review of complete purchase rows, numeric fields, date and deposits before new gemma-vision-v2 predictions. Existing reference retained except added metadata/category labels."
+}

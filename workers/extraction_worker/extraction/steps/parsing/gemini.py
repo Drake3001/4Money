@@ -3,18 +3,20 @@
 import hashlib
 import json
 import re
-from dataclasses import fields
-from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from ...contracts import (
-    ExtractionWarning, FieldEvidence, OCRResult, ReceiptData, ReceiptDeposit,
-    ReceiptItem, StepResult,
+    ExtractionWarning, FieldEvidence, OCRResult, ReceiptData,
+    StepResult,
 )
 from ...reporting import write_json
+from .context import ocr_pages
+from .common import (
+    DEPOSIT_SCHEMA, ITEM_SCHEMA, NUMERIC, TEXT, object_schema, decode_receipt_fields, populated_fields,
+)
 
 MAX_OUTPUT_TOKENS = 16384
 PROMPT = """Extract a receipt from the supplied OCR fragments and their geometry.
@@ -44,24 +46,13 @@ When ambiguous, return null and describe the ambiguity in issues. Output JSON on
 """
 
 
-def _object(properties):
-    return {"type": "object", "properties": properties,
-            "required": list(properties), "additionalProperties": False}
-
-
-TEXT = {"type": ["string", "null"]}
-NUMERIC = {**TEXT, "description": "Decimal string with dot separator, or null."}
-ITEM_SCHEMA = _object({field.name: TEXT if field.name in ("name", "unit") else NUMERIC
-                       for field in fields(ReceiptItem)})
-DEPOSIT_SCHEMA = _object({field.name: TEXT if field.name == "name" else NUMERIC
-                          for field in fields(ReceiptDeposit)})
-SCHEMA = _object({
+SCHEMA = object_schema({
     "store": TEXT, "date": {**TEXT, "description": "YYYY-MM-DD or null"}, "currency": TEXT,
     "total": NUMERIC, "amount_due": NUMERIC,
     "items": {"type": "array", "items": ITEM_SCHEMA},
     "deposits": {"type": "array", "items": DEPOSIT_SCHEMA},
     "deposit_returns": {"type": "array", "items": DEPOSIT_SCHEMA},
-    "evidence": {"type": "array", "items": _object({
+    "evidence": {"type": "array", "items": object_schema({
         "field": {"type": "string"},
         "fragments": {"type": "array", "items": {"type": "string"}, "minItems": 1},
         "method": {"type": "string", "enum": ["observed", "derived"]},
@@ -71,17 +62,7 @@ SCHEMA = _object({
 
 
 def build_request(ocr):
-    pages = []
-    for page in ocr.pages:
-        if page.width <= 0 or page.height <= 0:
-            raise ValueError("OCR page dimensions must be positive")
-        pages.append({"page": page.page_number, "fragments": [
-            {"id": f"p{page.page_number}:f{index}", "text": fragment.text,
-             "confidence": round(fragment.confidence, 3),
-             "box": [[round(x / page.width * 1000), round(y / page.height * 1000)]
-                     for x, y in fragment.box]}
-            for index, fragment in enumerate(page.lines)
-        ]})
+    pages = ocr_pages(ocr)
     return {"systemInstruction": {"parts": [{"text": PROMPT}]},
             "contents": [{"role": "user", "parts": [{"text": json.dumps(pages, ensure_ascii=False)}]}],
             "generationConfig": {"temperature": 0, "candidateCount": 1,
@@ -89,51 +70,17 @@ def build_request(ocr):
                                  "responseMimeType": "application/json", "responseJsonSchema": SCHEMA}}
 
 
-def _number(value, *, money):
-    if value is None:
-        return None
-    pattern = r"-?\d+\.\d{2}" if money else r"-?\d+(?:\.\d+)?"
-    if not isinstance(value, str) or not re.fullmatch(pattern, value):
-        raise ValueError("Gemini returned an invalid decimal string")
-    return Decimal(value)
-
 
 def decode_receipt(raw, ocr):
     if not isinstance(raw, dict) or set(raw) != set(SCHEMA["properties"]):
         raise ValueError("Gemini receipt does not match the expected fields")
-    for name in ("store", "currency", "date"):
-        if raw[name] is not None and not isinstance(raw[name], str):
-            raise ValueError("Gemini returned invalid receipt text")
-    if raw["date"] is not None and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw["date"]):
-        raise ValueError("Gemini returned an invalid date")
-    receipt = ReceiptData(store=raw["store"], currency=raw["currency"],
-                          date=date.fromisoformat(raw["date"]) if raw["date"] else None,
-                          total=_number(raw["total"], money=True),
-                          amount_due=_number(raw["amount_due"], money=True))
-    populated = {name for name in ("store", "currency", "date", "total", "amount_due")
-                 if getattr(receipt, name) is not None}
-    for group, cls in (("items", ReceiptItem), ("deposits", ReceiptDeposit), ("deposit_returns", ReceiptDeposit)):
-        if not isinstance(raw[group], list):
-            raise ValueError("Gemini receipt group must be an array")
-        names = {field.name for field in fields(cls)}
-        for index, entry in enumerate(raw[group]):
-            if not isinstance(entry, dict) or set(entry) != names:
-                raise ValueError("Gemini entry does not match the expected fields")
-            values = {}
-            for name, value in entry.items():
-                if name in ("name", "unit"):
-                    if value is not None and not isinstance(value, str):
-                        raise ValueError("Gemini entry text must be string or null")
-                    values[name] = value
-                else:
-                    values[name] = _number(value, money=name != "quantity")
-                if value is not None:
-                    populated.add(f"{group}[{index}].{name}")
-            getattr(receipt, group).append(cls(**values))
+    decoded = decode_receipt_fields({key: value for key, value in raw.items() if key != "evidence"})
+    receipt = decoded.output
+    populated = populated_fields(receipt)
     refs = {f"p{page.page_number}:f{index}": (page.page_number, index)
             for page in ocr.pages for index in range(len(page.lines))}
-    if not isinstance(raw["evidence"], list) or not isinstance(raw["issues"], list):
-        raise ValueError("Gemini evidence and issues must be arrays")
+    if not isinstance(raw["evidence"], list):
+        raise ValueError("Gemini evidence must be an array")
     for entry in raw["evidence"]:
         if (not isinstance(entry, dict) or set(entry) != {"field", "fragments", "method"}
                 or not isinstance(entry["field"], str) or entry["field"] not in populated
@@ -144,9 +91,7 @@ def decode_receipt(raw, ocr):
             raise ValueError("Gemini evidence has an unknown field, fragment, or method")
         receipt.evidence[entry["field"]] = FieldEvidence(
             tuple(dict.fromkeys(refs[ref] for ref in entry["fragments"])), entry["method"])
-    if any(not isinstance(issue, str) for issue in raw["issues"]):
-        raise ValueError("Gemini issues must be strings")
-    warnings = [ExtractionWarning("ai_uncertain", issue) for issue in raw["issues"]]
+    warnings = list(decoded.warnings)
     warnings.extend(ExtractionWarning("missing_ai_evidence", "No source evidence returned", field)
                     for field in sorted(populated - receipt.evidence.keys()))
     source_text = {f"p{page.page_number}:f{index}": fragment.text

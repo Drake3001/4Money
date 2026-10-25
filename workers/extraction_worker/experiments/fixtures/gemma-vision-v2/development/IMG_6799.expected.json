@@ -1,0 +1,202 @@
+{
+  "source": "IMG_6799.JPEG",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "store": "ALDI",
+  "receipt_number": "482814/0591",
+  "date": "2026-10-07",
+  "time": "13:36",
+  "currency": "PLN",
+  "total": "44.89",
+  "amount_due": "17.89",
+  "items": [
+    {
+      "name": "SNICKERS BATON 50G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "3.99",
+      "before_discount": "3.99",
+      "discount": "0.00",
+      "total": "3.99",
+      "tax_code": "A",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "K.JUMI JUMI NAPÓJ 320ML",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "3.99",
+      "before_discount": "3.99",
+      "discount": "0.00",
+      "total": "3.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "BISZKOPTY Z GAL 135G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "4.99",
+      "before_discount": "4.99",
+      "discount": "0.00",
+      "total": "4.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "MINI WAF ZB-RYŻ/KUK.45G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "3.39",
+      "before_discount": "3.39",
+      "discount": "0.00",
+      "total": "3.39",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "MINI WAF ZB-RYŻ/KUK.45G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "3.39",
+      "before_discount": "3.39",
+      "discount": "0.00",
+      "total": "3.39",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "DROŻDŻÓWKA Z SEREM 100G",
+      "quantity": "2",
+      "unit": "SZT",
+      "unit_price": "2.29",
+      "before_discount": "4.58",
+      "discount": "0.00",
+      "total": "4.58",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "DAN. RAMEN 136/138/140G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "5.99",
+      "before_discount": "5.99",
+      "discount": "0.00",
+      "total": "5.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "DAN. RAMEN 136/138/140G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "5.99",
+      "before_discount": "5.99",
+      "discount": "0.00",
+      "total": "5.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "CIASTKA KRUCHE 200G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "3.59",
+      "before_discount": "3.59",
+      "discount": "0.00",
+      "total": "3.59",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "K. DR WITT NAP.OWOC.1L",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "4.99",
+      "before_discount": "4.99",
+      "discount": "0.00",
+      "total": "4.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    }
+  ],
+  "deposits": [
+    {
+      "name": "Opak. zwrot.",
+      "quantity": "1",
+      "unit_price": "0.50",
+      "total": "0.50"
+    },
+    {
+      "name": "Opak. zwrot.",
+      "quantity": "1",
+      "unit_price": "0.50",
+      "total": "0.50"
+    }
+  ],
+  "payment": {
+    "label": "Karta",
+    "amount": "17.89"
+  },
+  "tax_summary": [
+    {
+      "code": "A",
+      "rate_percent": "23",
+      "sales": "3.99",
+      "tax": "0.75"
+    },
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "40.90",
+      "tax": "1.95"
+    }
+  ],
+  "tax_total": "2.70",
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia, bez kopiowania wyniku OCR; oczekuje na sprawdzenie użytkownika.",
+    "Zachowano nazwy i skróty z wydruku; reklamy, identyfikatory techniczne i obce paragony w tle pominięto.",
+    "Zwroty opakowań -6.00 i -22.00 nie są rabatami produktów; zapisano je w deposit_returns. 44.89 + 1.00 - 28.00 = 17.89.",
+    "Powtórzone pozycje MINI WAF oraz DAN. RAMEN zachowano osobno, zgodnie z wydrukiem.",
+    "gemma-vision-v2: assistant visually checked source images before new predictions; not human gold. Existing transcription fields were retained. No numerical or name corrections were required. Historical pending-user-review notes remain as provenance; current review_status describes this review.",
+    "Ten purchase rows including separate repeated MINI WAF and DAN. RAMEN rows. Doughnut quantity is 2 at 2.29 = 4.58. Goods total 44.89. Two issued deposits +0.50 each and two separate returns -6.00 and -22.00 give amount_due 17.89. Returns are not item discounts. Date 2026-10-07, time 13:36.",
+    "Monetary fields represent gross amounts. Item total is after signed discount; tax_summary.sales and document total already include VAT. Do not add VAT again or invent unprinted net values."
+  ],
+  "uncertain_fields": [],
+  "deposit_returns": [
+    {
+      "name": "Zwrot opak.",
+      "quantity": "1",
+      "unit_price": "-6.00",
+      "total": "-6.00"
+    },
+    {
+      "name": "Zwrot opak.",
+      "quantity": "1",
+      "unit_price": "-22.00",
+      "total": "-22.00"
+    }
+  ],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "reference_review": {
+    "method": "visual_check_against_original_source_images_before_new_predictions",
+    "verified_scope": "all_main_receipt_purchase_rows_financial_fields_date_and_deposits",
+    "source_images": [
+      "data/input/IMG_6799.JPEG"
+    ],
+    "numerical_corrections": 0,
+    "other_transcription_corrections": 0
+  }
+}

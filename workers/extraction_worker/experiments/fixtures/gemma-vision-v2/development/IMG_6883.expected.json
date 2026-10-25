@@ -1,0 +1,184 @@
+{
+  "source": "IMG_6883.JPEG",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "transcription_scope": "partial",
+  "store": "Biedronka",
+  "receipt_number": "515452",
+  "date": "2026-10-14",
+  "time": "16:45",
+  "currency": "PLN",
+  "total": "45.30",
+  "amount_due": "45.30",
+  "items": [
+    {
+      "name": "ApapExtra10szt",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "10.99",
+      "before_discount": "10.99",
+      "discount": "0.00",
+      "total": "10.99",
+      "tax_code": "B",
+      "printed_marker": null,
+      "category": "zdrowie"
+    },
+    {
+      "name": "Ręcznik Milla X2",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "4.69",
+      "before_discount": "4.69",
+      "discount": "0.00",
+      "total": "4.69",
+      "tax_code": "A",
+      "printed_marker": null,
+      "category": "dom i ogród"
+    },
+    {
+      "name": "Jogurt Nat 200g",
+      "quantity": "2",
+      "unit": null,
+      "unit_price": "1.05",
+      "before_discount": "2.10",
+      "discount": "0.00",
+      "total": "2.10",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "MakSpagLub400g 550g",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "5.19",
+      "before_discount": "5.19",
+      "discount": "0.00",
+      "total": "5.19",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "KabExPaTarcz95 g",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "6.79",
+      "before_discount": "6.79",
+      "discount": "0.00",
+      "total": "6.79",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "KabExPaTarcz95 g",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "6.79",
+      "before_discount": "6.79",
+      "discount": "0.00",
+      "total": "6.79",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "PasztPodDrob100g",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "1.79",
+      "before_discount": "1.79",
+      "discount": "0.00",
+      "total": "1.79",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Rożek z Jabłk 95g",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "2.79",
+      "before_discount": "2.79",
+      "discount": "0.00",
+      "total": "2.79",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "BułkaZeSłonecznik70g",
+      "quantity": "2",
+      "unit": null,
+      "unit_price": "1.69",
+      "before_discount": "3.38",
+      "discount": "0.00",
+      "total": "3.38",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Torba T-SHIRT",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "0.79",
+      "before_discount": "0.79",
+      "discount": "0.00",
+      "total": "0.79",
+      "tax_code": "A",
+      "printed_marker": null,
+      "category": "dom i ogród",
+      "accepted_categories": [
+        "dom i ogród",
+        "inne"
+      ]
+    }
+  ],
+  "deposits": [],
+  "payment": {
+    "label": "KARTA VISA 07 1",
+    "amount": "45.30"
+  },
+  "tax_summary": [
+    {
+      "code": "A",
+      "rate_percent": "23",
+      "sales": "5.48",
+      "tax": "1.02"
+    },
+    {
+      "code": "B",
+      "rate_percent": "8",
+      "sales": "10.99",
+      "tax": "0.81"
+    },
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "28.83",
+      "tax": "1.37"
+    }
+  ],
+  "tax_total": "3.20",
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia; oczekuje na sprawdzenie użytkownika.",
+    "Zachowano skróty i powtórzone wiersze produktów; pominięto reklamy, identyfikatory techniczne i obce wydruki w tle.",
+    "gemma-vision-v2: assistant visually checked source images before new predictions; not human gold. Existing transcription fields were retained. No numerical or name corrections were required. Historical pending-user-review notes remain as provenance; current review_status describes this review.",
+    "Ten purchase rows including two separate KabExPaTarcz95 g rows at 6.79. Jogurt quantity 2 at 1.05 = 2.10; Bułka quantity 2 at 1.69 = 3.38. Both 400g and 550g appear in the printed pasta name and are intentionally preserved. Goods/payment total 45.30. No explicit quantity unit tokens, so unit remains null. Date 2026-10-14, time 16:45. Ręcznik Milla X2 is assigned home category; this is consistent whether the towel is paper or textile. Torba T-SHIRT is a grocery carrier bag rather than a garment; dom i ogród is primary, inne is accepted because the current taxonomy does not explicitly assign disposable shopping packaging.",
+    "Monetary fields represent gross amounts. Item total is after signed discount; tax_summary.sales and document total already include VAT. Do not add VAT again or invent unprinted net values."
+  ],
+  "uncertain_fields": [],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "reference_review": {
+    "method": "visual_check_against_original_source_images_before_new_predictions",
+    "verified_scope": "all_main_receipt_purchase_rows_financial_fields_date_and_deposits",
+    "source_images": [
+      "data/input/IMG_6883.JPEG"
+    ],
+    "numerical_corrections": 0,
+    "other_transcription_corrections": 0
+  }
+}

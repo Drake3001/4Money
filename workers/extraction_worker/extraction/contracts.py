@@ -134,6 +134,56 @@ class OCRResult:
 
 
 @dataclass(frozen=True)
+class ParsedReceipt:
+    """Parser output plus the OCR context needed by a following enrichment step."""
+
+    receipt: ReceiptData
+    ocr: OCRResult
+
+
+@dataclass(frozen=True)
+class ImageOCRInput:
+    sources: SourceFiles
+    ocr: OCRResult
+
+
+@dataclass(frozen=True)
+class ItemAnnotation:
+    id: int
+    name_raw: str | None
+    name_corrected: str | None
+    category: str | None
+    needs_review: bool
+    review_reason: str | None
+
+
+@dataclass(frozen=True)
+class ImageEvidence:
+    """Model-declared image references; deliberately separate from OCR evidence."""
+
+    field: str
+    images: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class AnalyzedReceipt:
+    """Shared text/vision output. Proposed names never overwrite extracted facts."""
+
+    receipt: ReceiptData
+    annotations: tuple[ItemAnnotation, ...]
+    image_evidence: tuple[ImageEvidence, ...] = ()
+
+    def __post_init__(self):
+        object.__setattr__(self, "annotations", tuple(self.annotations))
+        object.__setattr__(self, "image_evidence", tuple(self.image_evidence))
+        if len(self.annotations) != len(self.receipt.items):
+            raise ValueError("Annotations must cover every receipt item")
+        for index, (annotation, item) in enumerate(zip(self.annotations, self.receipt.items)):
+            if type(annotation.id) is not int or annotation.id != index or annotation.name_raw != item.name:
+                raise ValueError("Annotation identities must match receipt item order and raw names")
+
+
+@dataclass(frozen=True)
 class StepResult:
     output: Any
     warnings: tuple[ExtractionWarning, ...] = ()

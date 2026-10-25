@@ -1,0 +1,94 @@
+{
+  "source": "20261016_210327.jpg",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "transcription_scope": "partial",
+  "store": "PIZZERIA \"BRAVO\"",
+  "receipt_number": "115610",
+  "date": "2026-10-16",
+  "time": "20:57",
+  "currency": "PLN",
+  "total": "143.00",
+  "amount_due": "143.00",
+  "items": [
+    {
+      "name": "Roma familijna",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "56.10",
+      "before_discount": "56.10",
+      "discount": "0.00",
+      "total": "56.10",
+      "tax_code": "B",
+      "printed_marker": null,
+      "total_is_printed": true,
+      "category": "restauracje i kawiarnie"
+    },
+    {
+      "name": "Lody czekolada",
+      "quantity": "1",
+      "unit": "szt.",
+      "unit_price": "11.90",
+      "before_discount": "11.90",
+      "discount": "0.00",
+      "total": "11.90",
+      "tax_code": "B",
+      "printed_marker": null,
+      "total_is_printed": true,
+      "category": "restauracje i kawiarnie"
+    },
+    {
+      "name": "Piwo0.5 lane białe Żywiec",
+      "quantity": "6",
+      "unit": "szt",
+      "unit_price": "12.50",
+      "before_discount": "75.00",
+      "discount": "0.00",
+      "total": "75.00",
+      "tax_code": "A",
+      "printed_marker": null,
+      "total_is_printed": true,
+      "category": "alkohol i tytoń"
+    }
+  ],
+  "deposits": [],
+  "deposit_returns": [],
+  "tax_summary": [
+    {
+      "code": "A",
+      "rate_percent": "23",
+      "sales": "75.00",
+      "tax": "14.02"
+    },
+    {
+      "code": "B",
+      "rate_percent": "8",
+      "sales": "68.00",
+      "tax": "5.04"
+    }
+  ],
+  "tax_total": "19.06",
+  "payment": {
+    "label": "KARTA",
+    "amount": "143.00"
+  },
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia i powiększeń, bez używania OCR; oczekuje na sprawdzenie użytkownika.",
+    "Zakres: główny paragon bez reklam, kodów kreskowych i identyfikatorów technicznych. Zgodność rachunkowa nie potwierdza niezależnie każdego znaku transkrypcji.",
+    "gemma-vision-v2: assistant visually checked source images before new predictions; not human gold. Existing transcription fields were retained. No numerical or name corrections were required. Historical pending-user-review notes remain as provenance; current review_status describes this review.",
+    "Three purchase rows: Roma familijna 56.10, ice cream 11.90, beer 6 x 12.50 = 75.00. Goods total and payment 143.00. Food is restaurant category because PIZZERIA BRAVO is explicit; beer retains alcohol category. Date 2026-10-16, time 20:57.",
+    "Monetary fields represent gross amounts. Item total is after signed discount; tax_summary.sales and document total already include VAT. Do not add VAT again or invent unprinted net values."
+  ],
+  "uncertain_fields": [],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "reference_review": {
+    "method": "visual_check_against_original_source_images_before_new_predictions",
+    "verified_scope": "all_main_receipt_purchase_rows_financial_fields_date_and_deposits",
+    "source_images": [
+      "data/input/20261016_210327.jpg"
+    ],
+    "numerical_corrections": 0,
+    "other_transcription_corrections": 0
+  }
+}

@@ -2,7 +2,7 @@
 
 from decimal import Decimal, ROUND_HALF_UP
 
-from ..contracts import ExtractionWarning, ReceiptData, StepResult
+from ..contracts import AnalyzedReceipt, ExtractionWarning, ReceiptData, StepResult
 
 
 def validate_receipt(data: ReceiptData) -> list[ExtractionWarning]:
@@ -128,3 +128,15 @@ class ValidateReceiptStep:
 
     def run(self, input):
         return StepResult(input, tuple(validate_receipt(input)))
+
+
+class ValidateAnalyzedReceiptStep:
+    """Same arithmetic validator, preserving categories and image provenance."""
+
+    input_type = AnalyzedReceipt
+    output_type = AnalyzedReceipt
+    version = ValidateReceiptStep.version
+    config = dict(ValidateReceiptStep.config)
+
+    def run(self, input):
+        return StepResult(input, tuple(validate_receipt(input.receipt)))

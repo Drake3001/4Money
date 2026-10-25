@@ -1,0 +1,58 @@
+{
+  "source": "20261011_130153.jpg",
+  "annotation_method": "assistant_visual_verification_of_existing_reference_against_source_images",
+  "review_status": "assistant_verified_not_human",
+  "store": "Żabka",
+  "receipt_number": "215412",
+  "date": "2026-10-07",
+  "time": "17:34",
+  "currency": "PLN",
+  "total": "16.80",
+  "amount_due": "18.80",
+  "items": [
+    {
+      "name": "PIWO TYSKIE GRONIE-A",
+      "quantity": "4",
+      "unit": "szt.",
+      "unit_price": "6.50",
+      "before_discount": "26.00",
+      "discount": "-9.20",
+      "total": "16.80",
+      "tax_code": "A",
+      "printed_marker": null,
+      "total_is_printed": false
+    }
+  ],
+  "deposits": [
+    {
+      "name": "KAUCJA ZA PUSZKĘ",
+      "quantity": "4",
+      "unit_price": "0.50",
+      "total": "2.00"
+    }
+  ],
+  "payment": {
+    "label": "INNA Karta kred.",
+    "amount": "18.80"
+  },
+  "tax_summary": [
+    {
+      "code": "A",
+      "rate_percent": "23",
+      "sales": "16.80",
+      "tax": "3.14"
+    }
+  ],
+  "tax_total": "3.14",
+  "notes": [
+    "Zachowano nazwy i skróty z wydruku; reklamy, identyfikatory techniczne i obce paragony w tle pominięto.",
+    "total pozycji 16.80 obliczono z wydrukowanych 26.00 i OPUST -9.20; wynik zgadza się ze sprzedażą opodatkowaną.",
+    "Independently visually verified for gemma-vision-v1 before inspecting vision predictions. Existing item names, counts, quantities, unit prices, pre-discount gross values, signed discounts, post-discount totals, deposits and document amounts were checked against source image(s). No numerical corrections required. Assistant verification is not human gold.",
+    "All item money fields are gross amounts in PLN. Item total is after the signed discount; before_discount is quantity times unit_price rounded to cents. tax_summary.sales is gross taxable turnover, not a net amount. No unprinted net amounts were invented.",
+    "Only the upper main receipt is annotated. A different receipt partly visible below is excluded. Four beer units cost 26.00 before discount, discount -9.20 gives derived post-discount item total 16.80. Four refundable can deposits add 2.00, giving amount_due 18.80. VAT 3.14 is included in the goods total."
+  ],
+  "uncertain_fields": [],
+  "reviewer": "assistant_visual_review",
+  "transcription_scope": "complete_main_receipt",
+  "deposit_returns": []
+}

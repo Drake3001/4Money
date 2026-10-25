@@ -1,0 +1,299 @@
+{
+  "source": "20261019_182028.jpg",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "transcription_scope": "partial",
+  "store": "Lidl",
+  "receipt_number": "363160",
+  "date": "2026-05-16",
+  "time": "07:35",
+  "currency": "PLN",
+  "total": "172.05",
+  "amount_due": "172.05",
+  "items": [
+    {
+      "name": "Filet z indyka XXL",
+      "quantity": "1.369",
+      "unit": null,
+      "unit_price": "33.99",
+      "before_discount": "46.53",
+      "discount": "-23.22",
+      "total": "23.31",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Lody wanil.migd.8x",
+      "quantity": "2",
+      "unit": null,
+      "unit_price": "19.99",
+      "before_discount": "39.98",
+      "discount": "-17.85",
+      "total": "22.13",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Filet z kurczaka 1kg",
+      "quantity": "0.975",
+      "unit": null,
+      "unit_price": "23.99",
+      "before_discount": "23.39",
+      "discount": "-3.47",
+      "total": "19.92",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Skarby Serowara Ser",
+      "quantity": "2",
+      "unit": null,
+      "unit_price": "9.99",
+      "before_discount": "19.98",
+      "discount": "-2.96",
+      "total": "17.02",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Yamasa Sos sojowy",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "10.99",
+      "before_discount": "10.99",
+      "discount": "-1.63",
+      "total": "9.36",
+      "tax_code": "B",
+      "printed_marker": "I",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Ser cheddar wiórki",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "10.99",
+      "before_discount": "10.99",
+      "discount": "-1.63",
+      "total": "9.36",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Ser Feta",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "10.79",
+      "before_discount": "10.79",
+      "discount": "-1.60",
+      "total": "9.19",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Snack d.psaSuperfood",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "9.99",
+      "before_discount": "9.99",
+      "discount": "-1.48",
+      "total": "8.51",
+      "tax_code": "B",
+      "printed_marker": "I",
+      "category": "zwierzęta"
+    },
+    {
+      "name": "Snack d.psaSuperfood",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "9.99",
+      "before_discount": "9.99",
+      "discount": "-1.48",
+      "total": "8.51",
+      "tax_code": "B",
+      "printed_marker": "I",
+      "category": "zwierzęta"
+    },
+    {
+      "name": "Ser gouda wiórki",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "9.59",
+      "before_discount": "9.59",
+      "discount": "-1.42",
+      "total": "8.17",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Ogórki grunt. PL luz",
+      "quantity": "1.19",
+      "unit": null,
+      "unit_price": "6.99",
+      "before_discount": "8.32",
+      "discount": "-1.24",
+      "total": "7.08",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Plastry gotowane",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "8.16",
+      "before_discount": "8.16",
+      "discount": "-1.21",
+      "total": "6.95",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Sał. masłowa korzeń",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "5.49",
+      "before_discount": "5.49",
+      "discount": "-0.82",
+      "total": "4.67",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Ziemniaki myte luz",
+      "quantity": "1.09",
+      "unit": null,
+      "unit_price": "3.99",
+      "before_discount": "4.35",
+      "discount": "-0.67",
+      "total": "3.68",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Pomidory mal. PL luz",
+      "quantity": "0.464",
+      "unit": null,
+      "unit_price": "7.99",
+      "before_discount": "3.71",
+      "discount": "-0.55",
+      "total": "3.16",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Rzodkiewki pęczek",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "2.99",
+      "before_discount": "2.99",
+      "discount": "-0.44",
+      "total": "2.55",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Koperek pęczek",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "2.99",
+      "before_discount": "2.99",
+      "discount": "-0.44",
+      "total": "2.55",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Ogórki zielo.PLszt.",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "2.99",
+      "before_discount": "2.99",
+      "discount": "-0.44",
+      "total": "2.55",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Przyprawa kurcz. XXL",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "1.99",
+      "before_discount": "1.99",
+      "discount": "-0.30",
+      "total": "1.69",
+      "tax_code": "B",
+      "printed_marker": "I",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Czosnek młody szt.",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "1.99",
+      "before_discount": "1.99",
+      "discount": "-0.30",
+      "total": "1.69",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    }
+  ],
+  "deposits": [],
+  "deposit_returns": [],
+  "tax_summary": [
+    {
+      "code": "B",
+      "rate_percent": "8",
+      "sales": "28.07",
+      "tax": "2.08"
+    },
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "143.98",
+      "tax": "6.86"
+    }
+  ],
+  "tax_total": "8.94",
+  "payment": {
+    "label": "KARTA Karta płatnicza",
+    "amount": "172.05"
+  },
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia i powiększeń, bez wyników OCR; oczekuje na sprawdzenie użytkownika.",
+    "Pominięto reklamy, identyfikatory techniczne, kody i obce paragony w tle.",
+    "gemma-hard-v1: original image and enlarged crops visually checked before model predictions or external API use. Reference fields were preserved, with no transcription corrections required. Current review_status records assistant verification; existing pending-user-review notes are historical provenance. These are silver labels, not human gold.",
+    "20 purchase rows; all 20 have explicit signed OPUST discounts. Back-side advertising shows through the receipt, type is faint, and the document is photographed at an angle. Each repeated product-name discount line belongs to the preceding purchase; it is not a separate item. The two Snack d.psaSuperfood purchases remain separate and are animal supplies, not human food. Preserve raw printed marker F versus I separately from tax codes C/B. Turkey quantity 1.369 at 33.99 = gross 46.53; discount -23.22 gives 23.31. Chicken quantity 0.975 at 23.99 = 23.39; discount -3.47 gives 19.92. Other fractional quantities 1.19, 1.09 and 0.464 are printed without an explicit unit token, so units stay null. Total 172.05 = gross before discounts 235.20 plus discounts -63.15. Printed date 2026-05-16, time 07:35 differs greatly from filename. Existing narrow I/i marker uncertainty is retained; no financial fields remain unresolved.",
+    "Money values are gross. total is after the signed negative discount, before_discount is gross before discount, and VAT is already included. No inferred kg/szt units were added where absent from print. No deposits or returns are shown. Existing uncertain_fields concern only typography and remain unchanged."
+  ],
+  "uncertain_fields": [
+    {
+      "field": "items[4,7,8,18].printed_marker",
+      "detail": "Wąski znak odczytano jako I; może wyglądać jak małe i."
+    }
+  ],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "reference_review": {
+    "method": "original_images_and_enlarged_crops_before_predictions",
+    "financial_corrections": 0,
+    "name_corrections": 0,
+    "date_corrections": 0,
+    "added_or_removed_items": 0,
+    "scope": "all_main_receipt_purchase_rows_quantities_prices_discounts_totals_date_taxes"
+  }
+}
