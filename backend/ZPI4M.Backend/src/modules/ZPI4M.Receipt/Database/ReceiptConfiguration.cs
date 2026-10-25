@@ -22,7 +22,12 @@ namespace ZPI4M.Receipt.Database
 				entity.Property(e => e.ExtractionResult)
 					.HasColumnType("jsonb")
 					.HasColumnName("extraction_result");
-				entity.Property(e => e.S3Link).HasColumnName("s3_link");
+				entity.Property(e => e.StorageKey)
+					.HasColumnName("storage_key");
+
+				entity.HasIndex(e => e.StorageKey)
+					.IsUnique()
+					.HasDatabaseName("ux_receipt_storage_key");
 			});
 		}
 	}

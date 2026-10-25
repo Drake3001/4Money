@@ -51,6 +51,20 @@
 3. zatwierdzenie migracji:
     `dotnet ef database update --project ZPI4M.Database --startup-project ZPI4M.Api --context AppDbContext`
 
+## Klucz pliku paragonu
+
+Migracja `RenameReceiptS3LinkToStorageKeyAndMakeUnique` zmienia nazwę
+kolumny `receipt.receipt.s3_link` na `storage_key` i dodaje unikalny
+indeks `ux_receipt_storage_key`. Kolumna pozostaje wymagana (`NOT NULL`).
+
+Pole przechowuje trwały klucz zdjęcia paragonu w magazynie plików,
+służący do generowania czasowego adresu dostępu.
+
+Skrypty `database-init` tworzą schemat początkowy z kolumną `s3_link`.
+Po utworzeniu bazy należy zastosować migracje EF, aby uzyskać aktualny
+schemat. Nie zmieniamy tej nazwy w skryptach inicjalizujących ani
+w historycznych migracjach.
+
 ## migracje - od zera jakby coś się zepsuło
 1. jak zrobicie połączenie z bazą to musicie zrobić pierwszą migrację
 2. z poziomu folderu `ZPI4M.Backend/src`:
