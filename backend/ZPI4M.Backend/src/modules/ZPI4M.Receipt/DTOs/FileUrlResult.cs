@@ -1,4 +1,4 @@
-namespace ZPI4M.Receipt.Services;
+namespace ZPI4M.Receipt.DTOs;
 
 public class FileUrlResult
 {

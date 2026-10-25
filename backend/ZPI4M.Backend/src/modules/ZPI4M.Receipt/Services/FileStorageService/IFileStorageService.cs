@@ -1,3 +1,5 @@
+using ZPI4M.Receipt.DTOs;
+
 namespace ZPI4M.Receipt.Services;
 
 public interface IFileStorageService
