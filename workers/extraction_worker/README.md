@@ -742,6 +742,27 @@ unknown and none in the current output contract; the control reports this limita
 rather than awarding a correct abstention. Missing numeric values and invalid review
 metadata remain distinguishable from genuine incorrect populated amounts in audits.
 
+## Performance experiments
+
+These optional tools live in `experiments/` and do not change API configuration:
+
+| Module | Purpose |
+|---|---|
+| `experiments.latency` | Compare routing and OCR prompt variants, measuring streaming latency and provider metadata |
+| `experiments.ocr_latency` | Profile local OCR with different CPU thread counts |
+| `experiments.image_latency` | Compare PNG, JPEG 95, resizing and compact output; optionally profile local OCR |
+| `experiments.model_comparison` | Compare original or budget model groups on frozen images, OCR and references |
+
+Run `python -m experiments.<module> --help` from this directory for options.
+The remote studies separate `--prepare`, paid `--execute`, and offline
+`--summarize` phases. Image/model comparisons reuse a previous latency snapshot
+via `--previous`; model comparisons also require an OpenRouter model catalog
+saved as `catalog.json` in their output directory before preparation.
+Keep snapshots, provider responses and budget ledgers under ignored
+`data/output/`. Existing attempts and unresolved cost reservations are retained;
+failed attempts are not automatically retried. These studies use three familiar
+development receipts and cannot establish general accuracy or p95 latency.
+
 ## Team guide
 
 See the [Polish team guide](../../notes/extraction-worker.md) for Windows/Linux
