@@ -15,6 +15,7 @@ from starlette.concurrency import run_in_threadpool
 
 from api_models import ExtractionResponse, application_response
 from extraction.analysis import ReceiptImageAnalyzer, ReceiptItemClassifier
+from extraction.analysis.receipt_images import GEMINI_MODEL
 from extraction.contracts import SourceFile, SourceFiles
 from extraction.providers import OpenRouterClient
 from extraction.reporting import to_dict
@@ -34,7 +35,9 @@ async def lifespan(app):
         raise ValueError(f"EXTRACTION_WORKFLOW must be one of {WORKFLOW_NAMES}")
     client = OpenRouterClient(os.environ.get("OPENROUTER_API_KEY", ""))
     classifier = ReceiptItemClassifier(client, allow_paid=True, cache_dir=None)
-    analyzer = ReceiptImageAnalyzer(client, allow_paid=True, cache_dir=None)
+    analyzer = ReceiptImageAnalyzer(client, allow_paid=True, cache_dir=None,
+                                    model=GEMINI_MODEL,
+                                    routing=os.environ.get("EXTRACTION_VISION_ROUTING", "throughput"))
     app.state.pipelines = service_pipelines(classifier, analyzer)
     app.state.workflow = workflow
     app.state.pipeline_lock = Lock()

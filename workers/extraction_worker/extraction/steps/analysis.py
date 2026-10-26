@@ -92,6 +92,7 @@ class AnalyzeReceiptImagesStep:
         self.analyzer = analyzer
         self.config = {"task": type(analyzer).__name__, "client": type(analyzer.client).__name__,
                        "provider": analyzer.client.provider, "model": analyzer.model,
+                       "routing": analyzer.routing,
                        **prompt_metadata(analyzer.prompt, analyzer.prompt_id),
                        "taxonomy_version": TAXONOMY_VERSION, "max_output_tokens": analyzer.max_output_tokens,
                        "allow_paid": analyzer.allow_paid,

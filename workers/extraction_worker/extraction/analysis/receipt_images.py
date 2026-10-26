@@ -22,6 +22,7 @@ from ..steps.parsing.common import RECEIPT_SCHEMA, decode_receipt_fields
 from ..steps.parsing.context import ocr_pages
 
 OUTPUT_TOKENS = 8192
+GEMINI_MODEL = "google/gemini-3.1-flash-lite"
 CONTEXT_TOKENS = 262144
 VISION_SCHEMA = copy.deepcopy(RECEIPT_SCHEMA)
 VISION_SCHEMA["properties"]["image_evidence"] = {"type": "array", "items": {
@@ -55,7 +56,20 @@ OCR_GUIDANCE = load_text("ocr_guidance")
 VISION_OCR_PROMPT = image_analysis_prompt(VISION_SCHEMA, with_ocr=True)
 
 
-def build_vision_request(sources, ocr=None, *, prompt=None, ocr_prompt=None, ocr_guidance=None):
+def vision_routing(model, routing):
+    if model not in (PAID_MODEL, GEMINI_MODEL):
+        raise ValueError("Only the configured image analysis models are permitted")
+    routing = routing or ("throughput" if model == GEMINI_MODEL else "deepinfra")
+    if routing not in ("deepinfra", "throughput", "latency"):
+        raise ValueError("Vision routing must be deepinfra, throughput or latency")
+    if model == GEMINI_MODEL and routing == "deepinfra":
+        raise ValueError("Gemini vision routing must be throughput or latency; DeepInfra does not serve this model")
+    return routing
+
+
+def build_vision_request(sources, ocr=None, *, prompt=None, ocr_prompt=None, ocr_guidance=None,
+                         model=PAID_MODEL, routing=None):
+    routing = vision_routing(model, routing)
     prompt = resolve_prompt(prompt, VISION_PROMPT)
     ocr_prompt = resolve_prompt(ocr_prompt, VISION_OCR_PROMPT)
     ocr_guidance = resolve_prompt(ocr_guidance, OCR_GUIDANCE)
@@ -68,10 +82,16 @@ def build_vision_request(sources, ocr=None, *, prompt=None, ocr_prompt=None, ocr
         if len(ocr.pages) != len(sources) or [p.page_number for p in ocr.pages] != list(range(1, len(sources) + 1)):
             raise ValueError("OCR pages must align with the supplied image order")
         content.append({"type": "text", "text": ocr_guidance + json.dumps(ocr_pages(ocr), ensure_ascii=False)})
-    return {"model": PAID_MODEL, "temperature": 0, "max_tokens": OUTPUT_TOKENS, "stream": False,
+    provider = {"allow_fallbacks": True,
+                "max_price": {"prompt": 0.30, "completion": 1.60 if model == GEMINI_MODEL else 0.60,
+                              "image": 0.01 if model == GEMINI_MODEL else 0, "request": 0}}
+    provider.update({"order": ["deepinfra"]} if routing == "deepinfra" else {"sort": routing})
+    payload = {"model": model, "temperature": 0, "max_tokens": OUTPUT_TOKENS, "stream": False,
             "messages": [{"role": "system", "content": prompt if ocr is None else ocr_prompt}, {"role": "user", "content": content}],
-            "provider": {"order": ["deepinfra"], "allow_fallbacks": True,
-                         "max_price": {"prompt": 0.30, "completion": 0.60, "image": 0, "request": 0}}}
+            "provider": provider}
+    if model == GEMINI_MODEL:
+        payload.update(reasoning={"effort": "minimal"}, service_tier="default")
+    return payload
 
 
 def request_summary(payload):
@@ -130,11 +150,10 @@ class ReceiptImageAnalyzer:
     """Extract and classify a receipt from images, with optional supporting OCR."""
 
     def __init__(self, client, cache_dir=None, *, allow_paid=False, model=PAID_MODEL, request_policy=None,
-                 prompt=None, ocr_prompt=None, ocr_guidance=None):
+                 prompt=None, ocr_prompt=None, ocr_guidance=None, routing=None):
         if client.provider != "openrouter" or allow_paid is not True:
             raise ValueError("Image analysis requires OpenRouter and explicit allow_paid=True")
-        if model != PAID_MODEL:
-            raise ValueError("Only the configured image analysis model is permitted")
+        self.routing = vision_routing(model, routing)
         self.client = client
         self.model = model
         self.max_output_tokens = OUTPUT_TOKENS
@@ -160,7 +179,8 @@ class ReceiptImageAnalyzer:
     def run(self, sources, ocr=None):
         self.response, self.cache_hit, self.enrichment, self.image_evidence = None, False, None, None
         payload = build_vision_request(sources, ocr, prompt=self.prompt,
-                                       ocr_prompt=self.ocr_prompt, ocr_guidance=self.ocr_guidance)
+                                       ocr_prompt=self.ocr_prompt, ocr_guidance=self.ocr_guidance,
+                                       model=self.model, routing=self.routing)
         body = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
         digest = hashlib.sha256(body).hexdigest()
         path = self.cache_dir / f"{digest}.json" if self.cache_dir else None

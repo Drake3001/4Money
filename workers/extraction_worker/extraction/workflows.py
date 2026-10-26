@@ -45,12 +45,12 @@ def service_pipelines(classifier, analyzer):
     ocr = [*images, ("ocr", RapidOCRStep())]
     return {
         "vision_ocr": Pipeline([
-            *ocr, ("images", OCRImagesStep()),
+            *ocr, ("images", OCRImagesStep(optimize_transport=True)),
             ("analyze", AnalyzeReceiptImagesWithOCRStep(analyzer)),
             ("validate", ValidateAnalyzedReceiptStep()),
         ]),
         "vision": Pipeline([
-            *images, ("images", PreparedImagesStep()),
+            *images, ("images", PreparedImagesStep(optimize_transport=True)),
             ("analyze", AnalyzeReceiptImagesStep(analyzer)),
             ("validate", ValidateAnalyzedReceiptStep()),
         ]),

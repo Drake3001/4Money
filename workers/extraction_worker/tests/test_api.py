@@ -59,6 +59,7 @@ def test_startup_requires_key(monkeypatch):
 
 def test_startup_uses_paid_classification_without_cache(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test_key")
+    monkeypatch.delenv("EXTRACTION_VISION_ROUTING", raising=False)
     classifiers = []
 
     def build(classifier, analyzer):
@@ -77,6 +78,31 @@ def test_startup_uses_paid_classification_without_cache(monkeypatch):
     assert classifiers[0].allow_paid is True
     assert classifiers[0].cache_dir is None
     assert classifiers[0].model == "google/gemma-4-31b-it"
+    assert classifiers[1].model == "google/gemini-3.1-flash-lite"
+    assert classifiers[1].routing == "throughput"
+
+
+@pytest.mark.parametrize("routing", ["throughput", "latency"])
+def test_startup_selects_vision_routing(monkeypatch, routing):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test_key")
+    monkeypatch.setenv("EXTRACTION_VISION_ROUTING", routing)
+    captured = []
+
+    def build(classifier, analyzer):
+        captured.append(analyzer.routing)
+        return {}
+
+    monkeypatch.setattr(api, "service_pipelines", build)
+    with TestClient(api.app):
+        assert captured == [routing]
+
+
+def test_startup_rejects_unknown_vision_routing(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test_key")
+    monkeypatch.setenv("EXTRACTION_VISION_ROUTING", "unknown")
+    with pytest.raises(ValueError, match="routing"):
+        with TestClient(api.app):
+            pass
 
 
 def test_startup_waits_for_warmup_once(client, monkeypatch):

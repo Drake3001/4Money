@@ -9,7 +9,7 @@ from PIL import Image
 from extraction.providers import OpenRouterClient
 from extraction.contracts import SourceFile
 from extraction.analysis.receipt_images import (
-    ReceiptImageAnalyzer, build_vision_request, decode_vision, request_summary, vision_bound,
+    GEMINI_MODEL, ReceiptImageAnalyzer, build_vision_request, decode_vision, request_summary, vision_bound,
 )
 
 
@@ -42,6 +42,52 @@ def test_request_preserves_original_bytes_and_redacts_reports():
     assert "base64," not in json.dumps(summary)
     assert "base64," in json.dumps(request)
     assert vision_bound() * 5 < 0.45
+
+
+@pytest.mark.parametrize("routing", ["throughput", "latency"])
+def test_routing_changes_only_provider_selection(routing):
+    image = source()
+    baseline = build_vision_request([image])
+    changed = build_vision_request([image], routing=routing)
+    assert changed.pop("provider") == {
+        "sort": routing, "allow_fallbacks": True,
+        "max_price": {"prompt": 0.30, "completion": 0.60, "image": 0, "request": 0}}
+    baseline.pop("provider")
+    assert changed == baseline
+
+
+def test_unknown_routing_rejected_before_request():
+    with pytest.raises(ValueError, match="routing"):
+        build_vision_request([source()], routing="unknown")
+
+
+def test_gemini_analyzer_sends_tested_model_settings_and_decodes_same_contract():
+    requests = []
+
+    def policy(body, send):
+        requests.append(json.loads(body))
+        return {"choices": [{"finish_reason": "stop", "message": {"content": json.dumps(response())}}]}
+
+    analyzer = ReceiptImageAnalyzer(OpenRouterClient("test-key"), allow_paid=True,
+                                    model=GEMINI_MODEL, request_policy=policy)
+    result = analyzer.run([source(), source()])
+    assert str(result.output.items[0].total) == "16.80"
+    assert analyzer.enrichment["items"][0]["category"] == "alkohol i tytoń"
+    assert len(requests) == 1
+    request = requests[0]
+    assert request["model"] == GEMINI_MODEL
+    assert request["reasoning"] == {"effort": "minimal"}
+    assert request["service_tier"] == "default"
+    assert request["provider"] == {
+        "sort": "throughput", "allow_fallbacks": True,
+        "max_price": {"prompt": 0.30, "completion": 1.60, "image": 0.01, "request": 0}}
+    assert request["max_tokens"] == 8192 and request["temperature"] == 0
+
+
+def test_gemini_rejects_stale_deepinfra_routing_before_transport():
+    with pytest.raises(ValueError, match="Gemini vision routing"):
+        ReceiptImageAnalyzer(OpenRouterClient("test-key"), allow_paid=True,
+                             model=GEMINI_MODEL, routing="deepinfra")
 
 
 def test_money_and_deposits_are_kept_without_fabricated_ocr_evidence():

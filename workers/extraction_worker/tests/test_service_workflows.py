@@ -1,10 +1,13 @@
 import base64
 from io import BytesIO
 import json
+import random
 
+import pytest
 from PIL import Image
 
 from extraction.analysis import ReceiptImageAnalyzer, ReceiptItemClassifier
+from extraction.analysis.receipt_images import GEMINI_MODEL
 from extraction.contracts import SourceFile, SourceFiles
 from extraction.providers import OpenRouterClient
 from extraction.reporting import to_dict
@@ -35,7 +38,7 @@ def workflows(requests):
         requests.append(json.loads(body))
         return {"choices": [{"finish_reason": "stop", "message": {"content": json.dumps(vision_answer())}}]}
     client = OpenRouterClient("test_key")
-    analyzer = ReceiptImageAnalyzer(client, allow_paid=True, request_policy=policy)
+    analyzer = ReceiptImageAnalyzer(client, allow_paid=True, model=GEMINI_MODEL, request_policy=policy)
     classifier = ReceiptItemClassifier(client, allow_paid=True, request_policy=policy)
     return service_pipelines(classifier, analyzer)
 
@@ -125,3 +128,43 @@ def test_vision_uses_prepared_rotated_pages_without_ocr(monkeypatch):
     sent = [base64.b64decode(p["image_url"]["url"].split(",", 1)[1])
             for p in content if p["type"] == "image_url"]
     assert sent == [p.content for p in result.captured_steps["orient"].pages]
+
+
+@pytest.mark.parametrize("workflow", ["vision_ocr", "vision"])
+def test_service_optimizes_photo_transport_without_resizing_or_changing_ocr(monkeypatch, workflow):
+    buffer = BytesIO()
+    size = (256, 192)
+    Image.frombytes("RGB", size, random.Random(42).randbytes(size[0] * size[1] * 3)).save(buffer, format="PNG")
+    original = buffer.getvalue()
+    requests = []
+    pipeline = workflows(requests)[workflow]
+    steps = dict(pipeline.steps)
+    monkeypatch.setattr(steps["orient"], "_predict", lambda image: (90, 0.99))
+    ocr_inputs = []
+    if workflow == "vision_ocr":
+        monkeypatch.setattr(steps["ocr"], "initialize", lambda: None)
+        monkeypatch.setattr(steps["ocr"], "recognize", lambda content: ocr_inputs.append(content) or [])
+    result = pipeline.run(SourceFiles((SourceFile(original, "image/png", "photo.png"),)),
+                          capture_steps=("orient", "ocr", "images"))
+    assert result.ok and len(requests) == 1
+    assert requests[0]["model"] == GEMINI_MODEL
+    document = result.captured_steps["orient"]
+    combined = result.captured_steps["images"]
+    if workflow == "vision_ocr":
+        assert ocr_inputs == [document.pages[0].content]
+        assert combined.ocr is result.captured_steps["ocr"]
+        assert combined.ocr.document is document
+        transported = combined.sources.files[0]
+    else:
+        transported = combined.files[0]
+    assert transported.mime_type == "image/jpeg" and transported.name == "page-1.jpg"
+    assert len(transported.content) < len(document.pages[0].content)
+    with Image.open(BytesIO(transported.content)) as image:
+        assert image.format == "JPEG" and image.size == (192, 256)
+    assert document.pages[0].mime_type == "image/png"
+    assert document.sources[0].content == original
+    parts = requests[0]["messages"][1]["content"]
+    url = next(p["image_url"]["url"] for p in parts if p["type"] == "image_url")
+    assert url.startswith("data:image/jpeg;base64,")
+    assert base64.b64decode(url.split(",", 1)[1]) == transported.content
+    assert steps["images"].config["resize"] is False

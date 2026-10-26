@@ -37,11 +37,12 @@ class FrozenParser:
         return StepResult(self.receipt, (ExtractionWarning("parser_warning", "Keep this warning"),))
 
 
-def test_text_pipeline_chunks_duplicates_preserves_money_and_provenance(tmp_path):
+@pytest.mark.parametrize("item_count, expected_batches", [(9, [8, 1]), (20, [8, 8, 4])])
+def test_text_pipeline_chunks_duplicates_preserves_money_and_provenance(tmp_path, item_count, expected_batches):
     receipt = ReceiptData(store="Sklep", total=Decimal("99.00"), items=[
         ReceiptItem(name="M1eko", quantity=Decimal("1"), unit_price=Decimal("3.00"),
                     before_discount=Decimal("3.00"), discount=Decimal("0.00"), total=Decimal("3.00"))
-        for _ in range(9)], evidence={"items[8].name": FieldEvidence(((1, 0),))})
+        for _ in range(item_count)], evidence={"items[8].name": FieldEvidence(((1, 0),))})
     before = copy.deepcopy(receipt)
     requests = []
     def policy(body, send):
@@ -55,8 +56,8 @@ def test_text_pipeline_chunks_duplicates_preserves_money_and_provenance(tmp_path
     ocr = OCRResult(PreparedDocument((), ()), (), "test", "1", {})
     result = workflow.run(ocr, capture_steps=True)
     assert result.ok and isinstance(result.output, AnalyzedReceipt)
-    assert [len(r["items"]) for r in requests] == [8, 1]
-    assert [a.id for a in result.output.annotations] == list(range(9))
+    assert [len(r["items"]) for r in requests] == expected_batches
+    assert [a.id for a in result.output.annotations] == list(range(item_count))
     assert all(a.name_raw == "M1eko" and a.name_corrected == "Mleko" for a in result.output.annotations)
     assert receipt == before == result.output.receipt
     assert "items[8].name" in result.output.receipt.evidence
@@ -67,6 +68,25 @@ def test_text_pipeline_chunks_duplicates_preserves_money_and_provenance(tmp_path
     write_result(tmp_path / "result", result, save_images=False)
     serialized = (tmp_path / "result/result.json").read_text(encoding="utf-8")
     assert '"annotations"' in serialized and "secret-test-key" not in serialized
+
+
+@pytest.mark.parametrize("item_count", [1, 8, 9, 25])
+def test_vision_uses_one_request_even_with_more_than_eight_products(item_count):
+    raw = vision_answer()
+    raw["items"] = [copy.deepcopy(raw["items"][0]) for _ in range(item_count)]
+    requests = []
+
+    def policy(body, send):
+        requests.append(json.loads(body))
+        return envelope(raw)
+
+    analyzer = ReceiptImageAnalyzer(OpenRouterClient("test-key"), allow_paid=True, request_policy=policy)
+    result = vision_analysis_pipeline(analyzer).run(SourceFiles((source(), source())))
+    assert result.ok
+    assert len(result.output.receipt.items) == item_count
+    assert len(requests) == 1
+    image_parts = [p for p in requests[0]["messages"][1]["content"] if p["type"] == "image_url"]
+    assert len(image_parts) == 2
 
 
 def test_vision_pipeline_has_same_contract_and_validator_without_ocr():

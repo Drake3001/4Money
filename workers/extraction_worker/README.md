@@ -3,9 +3,15 @@
 ## HTTP service on Linux (Docker)
 
 The default workflow is **prepare -> orient -> RapidOCR -> images + raw OCR ->
-Gemma extraction/classification -> validate** (`vision_ocr`). Gemma receives the
-prepared, rotated PNG pages and matching OCR text, confidence and geometry.
-Paid OpenRouter Gemma (`google/gemma-4-31b-it`) handles extraction and categories.
+Gemini extraction/classification -> validate** (`vision_ocr`). Gemini receives the
+prepared, rotated pages and matching OCR text, confidence and geometry.
+Paid OpenRouter Gemini 3.1 Flash-Lite (`google/gemini-3.1-flash-lite`) handles
+extraction and categories in one call per receipt (including all its images/products).
+OCR reads the full-resolution PNG pages. Only the copies sent to the image model
+are encoded as JPEG quality 95, with 4:4:4 chroma sampling, when smaller than PNG;
+otherwise the original PNG bytes are sent. Resolution and OCR geometry are preserved.
+JPEG is lossy; retaining full resolution and high quality does not guarantee
+identical model recognition on every receipt.
 No rule parser is used in this default path. There is no Docscan, UVDoc, database,
 queue, rate limiter, response cache or automatic retry.
 
@@ -13,8 +19,8 @@ queue, rate limiter, response cache or automatic retry.
 
 | Value | Steps |
 |---|---|
-| `vision_ocr` (default) | prepare -> orient -> RapidOCR -> images + raw OCR -> Gemma -> validate |
-| `vision` | prepare -> orient -> images -> Gemma -> validate (no OCR) |
+| `vision_ocr` (default) | prepare -> orient -> RapidOCR -> images + raw OCR -> Gemini -> validate |
+| `vision` | prepare -> orient -> images -> Gemini -> validate (no OCR) |
 | `text` | prepare -> orient -> RapidOCR -> rule parser -> Gemma classification -> validate |
 
 Unknown values prevent startup. Change ENV and restart/recreate the service to
@@ -23,6 +29,18 @@ change the default. Full composition lives in
 HTTP handlers. Existing local/saved-OCR workflows are unchanged. A future images
 + parser-result variant needs its own input/prompt adapter and is not implemented.
 All three variants share lazy preparation/orientation/OCR objects and one lock.
+
+`EXTRACTION_VISION_ROUTING=throughput|latency` selects image-model
+provider routing. The default is `throughput`, with provider fallbacks enabled.
+Remove any previous `deepinfra` override before restarting: it is incompatible
+with Gemini and now prevents startup with a configuration error.
+`throughput` sorts eligible endpoints by output speed; `latency` prioritizes
+time to first token. Both keep the same model, prompts, price ceilings and
+fallback permission. Set the variable in the process environment (or Compose
+`.env`) and restart. Gemini uses minimal reasoning, the default service tier,
+8192 output tokens, and price ceilings of $0.30/M input and $1.60/M output tokens
+(plus at most $0.01/image and no flat request fee). Prompts and strict validation
+are unchanged. The optional `text` workflow retains its Gemma classifier.
 
 Target: Linux x86_64 with Docker Engine and Docker Compose v2. ARM is not verified.
 Run from `workers/extraction_worker`:
@@ -107,7 +125,7 @@ details go to server logs. Missing/invalid `OPENROUTER_API_KEY` prevents startup
 
 At startup, the service loads orientation/RapidOCR models and runs a synthetic
 receipt through preparation, orientation and OCR using the shared engines. This
-warmup never calls Gemma. Requests are accepted only after warmup completes;
+warmup never calls a remote model. Requests are accepted only after warmup completes;
 model errors prevent startup. Startup can take tens of seconds and may download
 missing models; subsequent requests reuse the loaded engines. Logs report warmup
 duration. Compose allows a 180-second healthcheck startup grace period.
