@@ -1,7 +1,6 @@
 """Composable text/vision analysis steps with one typed output contract."""
 
 import copy
-import hashlib
 import re
 
 from ..categories import TAXONOMY_VERSION
@@ -9,9 +8,9 @@ from ..contracts import (
     AnalyzedReceipt, ImageEvidence, ImageOCRInput, ItemAnnotation, OCRResult, ParsedReceipt,
     ReceiptData, SourceFiles, StepResult,
 )
-from .enrich import PROMPT
+from ..prompts import prompt_metadata
 from .parsing import ParseReceiptStep
-from .parsing.vision import OUTPUT_TOKENS, PAID_MODEL, VISION_PROMPT, VISION_OCR_PROMPT
+from .parsing.vision import OUTPUT_TOKENS, PAID_MODEL
 
 
 def receipt_chunk(receipt, start, stop):
@@ -55,7 +54,9 @@ class ParseReceiptContextStep:
         return StepResult(ParsedReceipt(result.output, input), result.warnings)
 
 
-class EnrichReceiptStep:
+class ClassifyReceiptItemsStep:
+    """Classify items and propose corrected names without changing receipt fields."""
+
     input_type = ParsedReceipt
     output_type = AnalyzedReceipt
     version = "1"
@@ -64,9 +65,8 @@ class EnrichReceiptStep:
         if type(chunk_size) is not int or not 1 <= chunk_size <= 8:
             raise ValueError("Enrichment chunk size must be 1–8")
         self.client, self.chunk_size = client, chunk_size
-        prompt = getattr(client, "prompt", None) or PROMPT
         self.config = {"client": type(client).__name__, "model": client.model,
-                       "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
+                       **prompt_metadata(client.prompt, client.prompt_id),
                        "taxonomy_version": TAXONOMY_VERSION, "chunk_size": chunk_size,
                        "max_output_tokens": getattr(client, "max_output_tokens", None),
                        "resilient": getattr(client, "resilient", False)}
@@ -80,7 +80,9 @@ class EnrichReceiptStep:
         return StepResult(analyzed_receipt(input.receipt, {"items": items}))
 
 
-class GemmaVisionStep:
+class AnalyzeReceiptImagesStep:
+    """Extract receipt fields and classify products from original images."""
+
     input_type = SourceFiles
     output_type = AnalyzedReceipt
     version = "1"
@@ -88,7 +90,7 @@ class GemmaVisionStep:
     def __init__(self, client):
         self.client = client
         self.config = {"client": type(client).__name__, "model": PAID_MODEL,
-                       "prompt_sha256": hashlib.sha256(VISION_PROMPT.encode()).hexdigest(),
+                       **prompt_metadata(client.prompt, client.prompt_id),
                        "taxonomy_version": TAXONOMY_VERSION, "max_output_tokens": OUTPUT_TOKENS,
                        "input": "original_images"}
 
@@ -98,12 +100,18 @@ class GemmaVisionStep:
                                            self.client.image_evidence), result.warnings)
 
 
-class GemmaVisionOCRStep(GemmaVisionStep):
+class AnalyzeReceiptImagesWithOCRStep(AnalyzeReceiptImagesStep):
+    """Analyze images with fallible OCR as supporting document data."""
+
     input_type = ImageOCRInput
 
     def __init__(self, client):
         super().__init__(client)
-        self.config.update(input="images_and_ocr", prompt_sha256=hashlib.sha256(VISION_OCR_PROMPT.encode()).hexdigest())
+        self.config.update(input="images_and_ocr",
+                           **prompt_metadata(client.ocr_prompt, client.ocr_prompt_id))
+        guidance = prompt_metadata(client.ocr_guidance, client.ocr_guidance_id)
+        self.config.update(ocr_guidance_id=guidance["prompt_id"],
+                           ocr_guidance_sha256=guidance["prompt_sha256"])
 
     def run(self, input):
         result = self.client.run(input.sources.files, ocr=input.ocr)

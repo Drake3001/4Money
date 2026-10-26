@@ -9,11 +9,11 @@ dalszych kroków. Eksperymenty i etykiety oceny pozostają w `experiments/`.
 
 ```text
 OCRResult → ParseReceiptContextStep → ParsedReceipt
-          → EnrichReceiptStep → AnalyzedReceipt → ValidateAnalyzedReceiptStep
+          → ClassifyReceiptItemsStep → AnalyzedReceipt → ValidateAnalyzedReceiptStep
 
-SourceFiles → GemmaVisionStep → AnalyzedReceipt → ValidateAnalyzedReceiptStep
+SourceFiles → AnalyzeReceiptImagesStep → AnalyzedReceipt → ValidateAnalyzedReceiptStep
 
-ImageOCRInput → GemmaVisionOCRStep → AnalyzedReceipt → ValidateAnalyzedReceiptStep
+ImageOCRInput → AnalyzeReceiptImagesWithOCRStep → AnalyzedReceipt → ValidateAnalyzedReceiptStep
 ```
 
 `ParsedReceipt` zachowuje paragon i jego OCR dla następnego kroku. Nie korzystamy
@@ -31,7 +31,7 @@ parser regułowy lub inny krok `OCRResult → ReceiptData`, np. parser Gemini.
 - `image_evidence: tuple[ImageEvidence, ...]` — deklarowane przez model ścieżki pól
   i numery zdjęć. Nie udają odwołań do fragmentów OCR i nie dowodzą poprawności.
 
-`EnrichReceiptStep` wysyła maksymalnie 8 pozycji w jednym żądaniu, zachowuje
+`ClassifyReceiptItemsStep` wysyła maksymalnie 8 pozycji w jednym żądaniu, zachowuje
 powtarzające się produkty i przelicza lokalne identyfikatory na globalne.
 Przy podziale przenosi odwołania do właściwych fragmentów OCR. Pusty paragon nie
 powoduje wywołania API. Niewłaściwa liczba lub kolejność odpowiedzi kończy krok
@@ -44,6 +44,20 @@ automatycznie. Ostrzeżenia to część `PipelineResult.warnings`; poprawne wyko
 kroków (`ok`) nie oznacza, że paragon nie wymaga sprawdzenia.
 
 ## Składanie pipeline'u
+
+Nazwy kroków opisują zadania, a dostawcę i model wybiera klient:
+
+| Ścieżka | Kroki | Klasa wykonująca analizę |
+|---|---|---|
+| Pełna tekstowa | `prepare → orient → ocr → parse → classify → validate` | `ClassifyReceiptItemsStep` |
+| Zdjęcia | `analyze → validate` | `AnalyzeReceiptImagesStep` |
+| Zdjęcia + zapisany OCR | `analyze → validate` | `AnalyzeReceiptImagesWithOCRStep` |
+
+Klasyfikacja obejmuje również propozycje korekt nazw. Analiza obrazów odczytuje
+strukturę paragonu i klasyfikuje produkty w jednym wywołaniu modelu. Fabryki
+pipeline'ów i nazwy klientów dostawców pozostają bez zmian. Nowe raporty i
+`capture_steps` używają `classify` oraz `analyze`; stare raporty zachowują dawne
+nazwy. Nie ma aliasów dawnych nazw klas kroków.
 
 Przykłady zakładają, że aplikacja dostarczyła `api_key`. Samo zbudowanie klienta
 i pipeline'u nie wysyła żądania.
@@ -91,6 +105,61 @@ Domyślne `build_pipeline()` nadal buduje lokalną ścieżkę prepare → orient
 parse → validate z wynikiem `ReceiptData`. Nie zmieniamy domyślnego kontraktu
 istniejących odbiorców. Wybranie klienta jawnie przełącza wynik na `AnalyzedReceipt`.
 Próba jednoczesnego przekazania obu klientów jest błędem konfiguracji.
+
+## Prompty: lokalizacja i zmiany
+
+Względem `workers/extraction_worker/` instrukcje znajdują się w pakiecie
+`extraction/prompts/`:
+
+| Plik | Zastosowanie |
+|---|---|
+| `classify_items.md` | Kategorie produktów i propozycje korekt nazw, dla wszystkich dostawców Gemma |
+| `analyze_receipt_images.md` | Odczyt i klasyfikacja ze zdjęć |
+| `analyze_receipt_images_with_ocr.md` | Odczyt i klasyfikacja ze zdjęć z pomocniczym OCR |
+| `ocr_guidance.md` | Instrukcja towarzysząca tekstowi i geometrii pomocniczego OCR |
+| `parse_receipt_ocr.md` | Parser Gemini: struktura paragonu z OCR |
+
+Pliki zawierają instrukcje, a nie kopie dynamicznych kategorii i schematów.
+`extraction.prompts` dołącza kategorie z `categories.py` oraz schemat vision
+z kodu parsera w dotychczasowej kolejności. Gemini nadal przekazuje swój schemat
+osobno, w konfiguracji żądania. Loader korzysta z `importlib.resources` i działa
+również po instalacji pakietu, niezależnie od bieżącego katalogu.
+
+Nie usuwamy odstępów ani końcowych znaków nowej linii: wpływają na treść żądania
+i jego klucz cache. Po edycji domyślnych plików uruchom proces ponownie.
+Eksperymentalny dodatek do korekty nazw jest w
+`experiments/prompts/name_policy.md`; benchmark nadal składa warianty `baseline`
+i `candidate` jawnie, bez zmiany domyślnej instrukcji.
+
+Własny prompt można przekazać przy tworzeniu klienta:
+
+```python
+from pathlib import Path
+
+custom = Path("my_classification_prompt.md").read_text(encoding="utf-8")
+client = PaidOpenRouterEnricher(api_key, prompt=custom)
+workflow = text_analysis_pipeline(client)
+
+# Oddzielne pełne instrukcje systemowe dla obu wariantów vision:
+vision_client = GemmaVisionParser(
+    api_key, prompt=custom_image_prompt, ocr_prompt=custom_image_ocr_prompt,
+    ocr_guidance=custom_ocr_guidance,
+)
+```
+
+`prompt=None` wybiera domyślną instrukcję. Własny tekst zastępuje całą gotową
+instrukcję, również dołączone kategorie i schemat vision; nie wyłącza walidacji
+odpowiedzi. Klienci Google/NVIDIA Gemma i `GeminiParseStep` również przyjmują
+`prompt=`. Funkcje `build_request` przyjmują `prompt=`, a `build_vision_request`
+także `ocr_prompt=` i `ocr_guidance=`. Pusty tekst lub same białe znaki są błędem.
+
+Klienta skonfiguruj przed zbudowaniem pipeline'u; do kolejnego wariantu utwórz
+nowego klienta i pipeline. Metadane kroku zawierają `prompt_id` i
+`prompt_sha256` rzeczywistej instrukcji systemowej, już po renderowaniu.
+Wariant z OCR zapisuje również `ocr_guidance_id` i `ocr_guidance_sha256`.
+Domyślne identyfikatory odpowiadają nazwom plików bez `.md`, własne mają `custom`.
+Hashe nie zawierają danych dokumentu. Zmiana promptu zmienia istniejący klucz
+cache przez zmianę treści żądania; format kluczy nie został zmieniony.
 
 Runner zapisuje wspólny wynik do JSON bez kluczy i bajtów obrazów. Ocena parsera
 przyjmuje zarówno dotychczasowe paragony, jak i wspólny wynik — w pamięci i po

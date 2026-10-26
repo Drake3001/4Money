@@ -46,6 +46,10 @@ explicit = true
 include = ["extraction*", "experiments*"]
 namespaces = false
 
+[tool.setuptools.package-data]
+"extraction.prompts" = ["*.md"]
+"experiments.prompts" = ["*.md"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

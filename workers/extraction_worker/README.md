@@ -413,7 +413,7 @@ The original failure report remains intact. See
 The output has `comparison.json`, `comparison.md`, per-document responses and
 field-level evaluations. Reported API costs exclude local OCR computation;
 historical pipeline timings cover text enrichment only. The comparison now uses
-the standard `GemmaVisionStep` and validator workflow; API modes remain opt-in.
+the standard `AnalyzeReceiptImagesStep` and validator workflow; API modes remain opt-in.
 
 ## Composable analysis workflows
 
@@ -429,6 +429,29 @@ Text enrichment splits long receipts into up to eight items per request.
 analysis; `main.build_pipeline(vision_client=client)` selects original-image
 analysis. Calling `build_pipeline()` retains the existing local OCR/rules workflow.
 Clients are supplied explicitly; these factories do not load credentials.
+
+Step names describe their tasks: full text processing runs
+`prepare → orient → ocr → parse → classify → validate`; both image workflows run
+`analyze → validate`. `ClassifyReceiptItemsStep` proposes categories and corrected
+names; `AnalyzeReceiptImagesStep` and `AnalyzeReceiptImagesWithOCRStep` extract
+receipt fields and classify products together. New reports and `capture_steps`
+use these names; historical reports are unchanged and old step classes have no aliases.
+
+Edit default instructions in `extraction/prompts/*.md`: `classify_items`,
+`analyze_receipt_images`, `analyze_receipt_images_with_ocr`, `ocr_guidance`, and
+`parse_receipt_ocr`. Categories and response schemas remain defined in Python.
+Resources are included in the installed package; restart the process after edits.
+The benchmark-only name policy lives in `experiments/prompts/name_policy.md`.
+
+All model clients accept a keyword `prompt=` override; vision additionally accepts
+`ocr_prompt=` and `ocr_guidance=`. Overrides replace the complete rendered text,
+including any appended categories/schema, while response validation stays active.
+For example, `PaidOpenRouterEnricher(api_key, prompt=custom_text)` can be passed
+to `text_analysis_pipeline` as usual. `None` selects defaults; blank text is invalid.
+Configure clients before building a pipeline. Step configs record `prompt_id` and
+`prompt_sha256`; hybrid analysis also records the OCR guidance ID and hash.
+Defaults use the resource name, overrides use `custom`. Whitespace is preserved
+and unchanged defaults retain their existing request bodies and cache keys.
 
 Clients accept a public `request_policy(body, send)` callback for cache misses.
 `BudgetedRequests` reserves before transport, `cache_only` forbids transport, and

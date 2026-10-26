@@ -60,7 +60,9 @@ def test_text_pipeline_chunks_duplicates_preserves_money_and_provenance(tmp_path
     assert receipt == before == result.output.receipt
     assert "items[8].name" in result.output.receipt.evidence
     assert {w.code for w in result.warnings} >= {"parser_warning", "total_mismatch"}
-    assert [s.name for s in result.steps] == ["parse", "enrich", "validate"]
+    assert [s.name for s in result.steps] == ["parse", "classify", "validate"]
+    assert result.captured_steps["classify"] == result.output
+    assert result.steps[1].implementation == "ClassifyReceiptItemsStep"
     write_result(tmp_path / "result", result, save_images=False)
     serialized = (tmp_path / "result/result.json").read_text(encoding="utf-8")
     assert '"annotations"' in serialized and "secret-test-key" not in serialized
@@ -84,8 +86,8 @@ def test_enrichment_failure_stops_before_validator_without_partial_analysis():
     client = PaidOpenRouterEnricher("test-key", request_policy=lambda body, send: envelope({"items": []}))
     ocr = OCRResult(PreparedDocument((), ()), (), "test", "1", {})
     result = text_analysis_pipeline(client, parser=FrozenParser(receipt)).run(ocr)
-    assert not result.ok and result.error.step == "enrich"
-    assert [step.name for step in result.steps] == ["parse", "enrich"]
+    assert not result.ok and result.error.step == "classify"
+    assert [step.name for step in result.steps] == ["parse", "classify"]
     assert not isinstance(result.output, AnalyzedReceipt)
 
 
@@ -124,6 +126,8 @@ def test_budget_is_applied_only_on_cache_miss_and_cache_only_never_sends(tmp_pat
     uncached = GemmaVisionParser("test-key", request_policy=cache_only)
     result = vision_analysis_pipeline(uncached).run(SourceFiles((source(),)))
     assert not result.ok and "network is forbidden" in result.error.message
+    assert result.error.step == "analyze"
+    assert [step.name for step in result.steps] == ["analyze"]
 
 
 def test_budget_counts_failed_transport_and_blocks_next_send(tmp_path):
@@ -170,6 +174,6 @@ def test_canonical_result_can_be_evaluated_in_memory_and_from_json():
 def test_main_explicit_vision_client_builds_no_ocr_steps():
     import main
     client = GemmaVisionParser("test-key", request_policy=cache_only)
-    assert [name for name, step in main.build_pipeline(vision_client=client).steps] == ["parse", "validate"]
+    assert [name for name, step in main.build_pipeline(vision_client=client).steps] == ["analyze", "validate"]
     with pytest.raises(ValueError):
         main.build_pipeline(enricher=object(), vision_client=client)

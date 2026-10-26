@@ -46,7 +46,7 @@ def test_explicit_custom_baseline_replays_through_pipeline_without_credentials(s
     report = json.loads(next(output.glob("*/comparison.json")).read_text(encoding="utf-8"))
     assert report["api_calls"] == 0 and report["cases"][0]["cache_hit"]
     assert report["cases"][0]["analysis"]["annotations"][0]["category"] == "żywność i napoje"
-    assert [s["name"] for s in report["cases"][0]["steps"]] == ["parse", "validate"]
+    assert [s["name"] for s in report["cases"][0]["steps"]] == ["analyze", "validate"]
 
 
 def test_missing_offline_cache_fails_without_transport(saved_study, tmp_path):

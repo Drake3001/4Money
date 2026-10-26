@@ -157,7 +157,7 @@ wykonywania w pomiarze.
 ## Artefakty i następny krok
 
 Kod: `workers/extraction_worker/experiments/gemma_multimodal.py`, właściwe kroki
-pipeline'u `GemmaVisionStep` / `GemmaVisionOCRStep` i ten sam walidator.
+pipeline'u `AnalyzeReceiptImagesStep` / `AnalyzeReceiptImagesWithOCRStep` i ten sam walidator.
 Referencje: `workers/extraction_worker/experiments/fixtures/gemma-vision-v2/`.
 Cały przebieg: `workers/extraction_worker/data/output/2026-10-25_134950_833tf2kp/`:
 
