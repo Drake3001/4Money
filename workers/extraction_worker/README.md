@@ -1,5 +1,95 @@
 # Extraction worker
 
+## HTTP service on Linux (Docker)
+
+The HTTP service always runs the existing **prepare → orient → RapidOCR → parse
+→ classify → validate** workflow. Classification uses paid OpenRouter Gemma
+(`google/gemma-4-31b-it`) with the classifier's existing defaults. It proposes
+corrected names without overwriting the extracted names. There is no queue,
+database, rate limiter, response cache, or automatic retry.
+
+Target: Linux x86_64 with Docker Engine and Docker Compose v2. ARM is not yet
+verified. Run these commands from `workers/extraction_worker`:
+
+```sh
+cp .env.example .env
+# Edit .env and set OPENROUTER_API_KEY locally; never commit it.
+docker compose up --build -d
+docker compose ps
+docker compose logs -f extraction-worker
+```
+
+The container runs as UID 10001 and listens on port 8000. Compose publishes it
+on **127.0.0.1:8000** by default. A backend on the same machine can use
+`http://127.0.0.1:8000`. If the backend is another Compose service on the same
+Docker network, use `http://extraction-worker:8000` (its own localhost points to
+itself). For a backend on another private machine, set
+`EXTRACTION_BIND_ADDRESS=<server-private-IP>` in `.env` and permit access only
+from that backend through the host firewall. This service has no authentication
+or TLS and must remain on a trusted private network.
+
+```sh
+curl http://127.0.0.1:8000/health
+curl --fail-with-body http://127.0.0.1:8000/api/v1/extract \
+  -F 'files=@receipt-01.jpg;type=image/jpeg' \
+  -F 'files=@receipt-02.png;type=image/png'
+```
+
+Each request contains **one receipt**, with JPEG/PNG files in fragment order.
+Use the repeated multipart field `files`, including for a single image. PDF is
+not supported by this HTTP endpoint. Swagger is at
+`http://127.0.0.1:8000/docs`. MIME must match the actual image format.
+
+Success returns HTTP 200 with the existing `to_dict(PipelineResult)` contract:
+`output.receipt`, `output.annotations`, `output.image_evidence`, `steps`,
+`warnings`, and `error: null`. Decimal amounts are strings. Annotations match
+receipt item order and include category, proposed corrected name and review
+flags. Warnings or `needs_review` do not make an otherwise successful run fail.
+
+Missing/empty files and image preparation errors return 422; unsupported MIME
+returns 415. Other pipeline failures return 500 with
+`{"error":{"step":"classify","exception_type":"...","message":"..."}}`.
+No partial result is returned on failure. Unexpected API failures return a
+generic 500; details go to server logs. Missing or invalid
+`OPENROUTER_API_KEY` prevents startup. Other experiment settings in `.env`,
+including `OPENROUTER_MODEL`, do not select the HTTP service's model.
+
+The pipeline is created once. OCR models are loaded lazily on the first
+analysis, which can be slower and requires internet access for model downloads.
+The named `model-cache` volume preserves `/app/.cache` across container
+recreation; `docker compose down -v` removes it. `/health` checks API liveness,
+not model/provider availability. Compose restarts an exited container but does
+not automatically restart a merely unhealthy container.
+
+Uploaded files are read into memory; the API writes no input, output, debug or
+provider-response files. FastAPI may spool multipart uploads to temporary files;
+Compose mounts `/tmp` as RAM-backed `tmpfs`. Only model cache is persistent.
+
+Keep **one Uvicorn process** (`--workers 1`). A lock serializes pipeline runs in
+worker threads while health requests remain responsive. Waiting requests and
+their files consume memory. This minimal version has no upload limit, overall
+execution timeout or durable jobs; deploy for small trusted workloads. Set an
+explicit backend HTTP timeout allowing for waiting and analysis, including up
+to 60 seconds per provider call and multiple classification batches. Client
+timeout/disconnection does not guarantee stopping processing; a retry can incur
+another API charge. Container restart interrupts in-flight requests.
+
+Local development (set `OPENROUTER_API_KEY` in the process environment first):
+
+```sh
+uv sync
+uv run uvicorn api:app --host 127.0.0.1 --port 8000 --workers 1
+uv run --extra test pytest -q --basetemp .cache/test-temp/pytest
+```
+
+Automated API tests substitute the pipeline and never call paid APIs. A Linux
+deployment smoke check should build/start the image, verify `/health` and
+non-root cache access, then submit a corrupt PNG to check 422. To verify actual
+OCR, model downloads and classification, explicitly submit a real receipt using
+the configured paid key and inspect `output.annotations`. Preserve the cache,
+recreate the container and verify it remains writable. No successful Linux image
+build or real-provider smoke check is implied by passing unit tests.
+
 ## Purpose
 
 A composable receipt processing pipeline for images and PDF documents.

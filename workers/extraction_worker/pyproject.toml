@@ -8,6 +8,9 @@ version = "0.1.0"
 description = "Receipt processing pipeline with OCR, rule-based parsing and validation"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.30,<1",
+    "python-multipart>=0.0.20,<1",
     "Pillow>=10",
     "pypdfium2>=4.30",
     "rapidocr==3.10.0",
@@ -17,7 +20,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8", "pypdf>=5"]
+test = ["pytest>=8", "pypdf>=5", "httpx>=0.27,<1"]
 dataset = ["gdown==6.4.2"]
 # Kept for existing install commands; RapidOCR is now included by default.
 ocr = []
