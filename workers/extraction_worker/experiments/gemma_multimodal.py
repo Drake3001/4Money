@@ -9,13 +9,14 @@ from decimal import Decimal
 from pathlib import Path
 from time import perf_counter
 
+from extraction.providers import OpenRouterClient
 from extraction.contracts import ImageOCRInput
 from extraction.reporting import to_dict, write_json
 from extraction.requests import BudgetedRequests, cache_only
 from extraction.runner import new_run, read_sources
 from extraction.steps.analysis import analyzed_receipt
 from extraction.steps.parsing import ParseReceiptStep
-from extraction.steps.parsing.vision import GemmaVisionParser, build_vision_request, request_summary, vision_bound
+from extraction.analysis.receipt_images import ReceiptImageAnalyzer, build_vision_request, request_summary, vision_bound
 from extraction.steps.validate import validate_receipt
 from extraction.workflows import vision_analysis_pipeline, vision_ocr_analysis_pipeline
 from .budget import SettledBudget
@@ -237,16 +238,21 @@ def main(argv=None):
             record = {"status": "skipped_after_error", "score": receipt_score(ref)}
             if not halted:
                 policy = cache_only if args.replay_cache else BudgetedRequests(budget, lambda body: vision_bound())
-                client = GemmaVisionParser(key, cache_dir=WORKER_DIR / ".cache/gemma-vision", request_policy=policy)
-                workflow = vision_ocr_analysis_pipeline(client) if method == "vision_ocr" else vision_analysis_pipeline(client)
+                analyzer = ReceiptImageAnalyzer(
+                    OpenRouterClient(key),
+                    allow_paid=True,
+                    cache_dir=WORKER_DIR / ".cache/gemma-vision",
+                    request_policy=policy,
+                )
+                workflow = vision_ocr_analysis_pipeline(analyzer) if method == "vision_ocr" else vision_analysis_pipeline(analyzer)
                 value = ImageOCRInput(images, ocr) if method == "vision_ocr" else images
                 started = perf_counter()
                 result = workflow.run(value)
-                record.update(seconds=round(perf_counter()-started, 3), cache_hit=client.cache_hit,
+                record.update(seconds=round(perf_counter()-started, 3), cache_hit=analyzer.cache_hit,
                               steps=to_dict(result.steps), warnings=to_dict(result.warnings))
-                if client.response is not None:
-                    write_json(folder / f"{method}-response.json", client.response)
-                    record.update(provider=client.response.get("provider"), usage=client.response.get("usage"))
+                if analyzer.response is not None:
+                    write_json(folder / f"{method}-response.json", analyzer.response)
+                    record.update(provider=analyzer.response.get("provider"), usage=analyzer.response.get("usage"))
                 if result.ok:
                     failures = 0
                     record.update(status="completed", analysis=to_dict(result.output), score=receipt_score(ref, result.output),

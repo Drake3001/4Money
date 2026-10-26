@@ -9,12 +9,13 @@ from decimal import Decimal
 from pathlib import Path
 from time import perf_counter
 
+from extraction.providers import OpenRouterClient, ProviderHTTPError
 from extraction.prompts import load_text
 from extraction.categories import CATEGORIES, TAXONOMY_VERSION
 from extraction.contracts import FieldEvidence, OCRResult, PreparedDocument, ReceiptData, ReceiptItem
 from extraction.reporting import to_dict, write_json
 from extraction.runner import new_run
-from extraction.steps.enrich import PROMPT, PaidOpenRouterEnricher, ProviderHTTPError
+from extraction.analysis.item_classifier import PROMPT, ReceiptItemClassifier
 from extraction.steps.parsing import ParseReceiptStep
 from extraction.steps.analysis import receipt_chunk as chunk_receipt
 from .gemma import WORKER_DIR, load_config
@@ -120,21 +121,26 @@ def run_stage(root, stage, cases, review, prompt_name, budget, config, *, force_
         started = perf_counter()
         for start in range(0, len(receipt.items), 8):
             part = chunk_receipt(receipt, start, min(start + 8, len(receipt.items)))
-            client = PaidOpenRouterEnricher(**config, prompt=prompt, max_output_tokens=2048,
-                                          cache_dir=None if force_network else WORKER_DIR / ".cache/gemma-benchmark", resilient=False,
-                                          request_policy=BudgetedRequests(budget, lambda body:
-                                              PaidOpenRouterEnricher.request_bound(json.loads(body))))
-            payload = client.build_request(part, ocr)
+            classifier = ReceiptItemClassifier(
+                OpenRouterClient(config["api_key"], base_url=config["base_url"]),
+                allow_paid=True, prompt=prompt, max_output_tokens=2048,
+                cache_dir=None if force_network else WORKER_DIR / ".cache/gemma-benchmark",
+                resilient=False,
+                request_policy=BudgetedRequests(
+                    budget, lambda body: ReceiptItemClassifier.request_bound(json.loads(body)),
+                ),
+            )
+            payload = classifier.build_request(part, ocr)
             chunk_dir = case_dir / f"{start:03d}"
             chunk_dir.mkdir()
             write_json(chunk_dir / "request.json", payload)
             chunk = {"start": start, "count": len(part.items)}
             try:
-                result = client.run(part, ocr)
+                result = classifier.run(part, ocr)
                 for item in result["items"]:
                     enriched.append({**item, "id": item["id"] + start})
-                chunk.update(status="completed", cache_hit=client.cache_hit,
-                             provider=(client.response or {}).get("provider"), usage=(client.response or {}).get("usage"))
+                chunk.update(status="completed", cache_hit=classifier.cache_hit,
+                             provider=(classifier.response or {}).get("provider"), usage=(classifier.response or {}).get("usage"))
             except (RuntimeError, ValueError, OSError) as exc:
                 case.update(status="failed", error=str(exc))
                 chunk.update(status="failed", error=str(exc))
@@ -144,8 +150,8 @@ def run_stage(root, stage, cases, review, prompt_name, budget, config, *, force_
                 if "budget/call cap" in str(exc) or isinstance(exc, ProviderHTTPError) and exc.status in (400, 401, 402, 403, 429):
                     write_json(chunk_dir / "status.json", chunk)
                     raise RuntimeError(f"Benchmark stopped safely: {exc}") from None
-            if client.response is not None:
-                write_json(chunk_dir / "response.json", client.response)
+            if classifier.response is not None:
+                write_json(chunk_dir / "response.json", classifier.response)
             write_json(chunk_dir / "status.json", chunk)
             case["chunks"].append(chunk)
             if case["status"] == "failed":
@@ -270,7 +276,12 @@ def main():
     estimate, estimated_calls = Decimal(0), 0
     synthetic, synthetic_labels = make_challenges()
     for variant, dataset in [(v, ds) for v in PROMPTS for ds in (dev, holdout)] + [("candidate", synthetic)]:
-        estimator = PaidOpenRouterEnricher("preflight", prompt=PROMPTS[variant], max_output_tokens=2048)
+        estimator = ReceiptItemClassifier(
+            OpenRouterClient("preflight"),
+            allow_paid=True,
+            prompt=PROMPTS[variant],
+            max_output_tokens=2048,
+        )
         for case in dataset:
             for start in range(0, len(case["receipt"].items), 8):
                 payload = estimator.build_request(chunk_receipt(case["receipt"], start, start+8), case["ocr"])

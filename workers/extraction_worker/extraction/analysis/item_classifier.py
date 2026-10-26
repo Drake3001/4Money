@@ -1,39 +1,20 @@
-"""Optional name correction/classification; parser amounts and items stay intact."""
+"""Receipt item classification, response validation and task-owned cache."""
 
 import hashlib
 import json
 import re
 from decimal import Decimal
 from pathlib import Path
-from urllib.error import HTTPError, URLError
-from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from ..categories import CATEGORIES, REVIEW_REASONS
+from ..contracts import ReceiptData
 from ..prompts import classification_prompt, resolve_prompt
+from ..providers import ProviderHTTPError
 from ..reporting import write_json
 from ..requests import dispatch_request
-from ..contracts import ReceiptData
-from ..categories import CATEGORIES, REVIEW_REASONS, TAXONOMY_VERSION
+from .models import FREE_MODEL, PAID_MODEL, GOOGLE_MODEL, NVIDIA_MODEL
 
-FREE_MODEL = "google/gemma-4-31b-it:free"
-PAID_MODEL = "google/gemma-4-31b-it"
-GOOGLE_MODEL = "gemma-4-31b-it"
-NVIDIA_MODEL = "google/gemma-4-31b-it"
-NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
-BASE_URL = "https://openrouter.ai/api/v1"
 PROMPT = classification_prompt()
-
-
-class _NoRedirect(HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
-
-
-class ProviderHTTPError(RuntimeError):
-    """Safe, structured HTTP failure without a provider body or credentials."""
-
-    def __init__(self, provider, status, hint):
-        self.status = status
-        super().__init__(f"{provider} HTTP {status}; {hint}; transport made no automatic retry")
 
 
 def build_request(receipt, ocr, model=FREE_MODEL, *, prompt=None):
@@ -139,43 +120,89 @@ def decode_with_review_fallback(raw, receipt):
     return {"items": results}
 
 
-class OpenRouterEnricher:
-    base_url = BASE_URL
-    provider_name = "OpenRouter"
+class ReceiptItemClassifier:
+    """Correct product names and classify items through a configured API client.
 
-    def __init__(self, api_key, *, model=FREE_MODEL, base_url=BASE_URL, cache_dir=None, request_policy=None, prompt=None):
-        if model != FREE_MODEL or base_url.rstrip("/") != BASE_URL:
-            raise ValueError("Only the official OpenRouter URL and free Gemma model are permitted")
-        if not re.fullmatch(r"[A-Za-z0-9_-]+", api_key):
-            raise ValueError("Missing or invalid OPENROUTER_API_KEY")
-        self._api_key = api_key
-        self.model = model
+    Only the existing experiment models are enabled. Paid OpenRouter requests
+    require allow_paid=True; no model, routing or price defaults are broadened.
+    """
+
+    def __init__(self, client, *, model=None, allow_paid=False, cache_dir=None,
+                 prompt=None, max_output_tokens=None, resilient=None, request_policy=None):
+        if type(allow_paid) is not bool:
+            raise ValueError("allow_paid must be a boolean")
+        self.client = client
+        self.provider = client.provider
+        if self.provider not in ("openrouter", "google", "nvidia"):
+            raise ValueError("Unsupported classification provider")
+        if allow_paid and self.provider != "openrouter":
+            raise ValueError("Paid classification is supported only through OpenRouter")
+        if self.provider == "openrouter":
+            expected = PAID_MODEL if allow_paid else FREE_MODEL
+        elif self.provider == "google":
+            expected = GOOGLE_MODEL
+        else:
+            expected = NVIDIA_MODEL
+        if model is not None and model != expected:
+            raise ValueError("Only the explicitly selected classification model is permitted")
+        if allow_paid:
+            max_output_tokens = 1024 if max_output_tokens is None else max_output_tokens
+            if type(max_output_tokens) is not int or not 256 <= max_output_tokens <= 8192:
+                raise ValueError("Output token cap must be between 256 and 8192")
+        elif max_output_tokens is not None:
+            raise ValueError("Custom output token caps require explicit paid mode")
+        self.model = expected
+        self.allow_paid = allow_paid
+        self.max_output_tokens = max_output_tokens if allow_paid else (1024 if self.provider == "nvidia" else 4096)
+        self.resilient = allow_paid if resilient is None else bool(resilient)
         self.prompt = resolve_prompt(prompt, PROMPT)
         self.prompt_id = "classify_items" if prompt is None else "custom"
         self.cache_dir = Path(cache_dir) if cache_dir is not None else None
-        self.response = None
-        self.cache_hit = False
+        self.response, self.cache_hit = None, False
         self.request_policy = request_policy
 
     def build_request(self, receipt, ocr):
-        return build_request(receipt, ocr, self.model, prompt=self.prompt)
+        payload = build_request(receipt, ocr, prompt=self.prompt)
+        if self.provider == "google":
+            return {
+                "systemInstruction": {"parts": [{"text": self.prompt}]},
+                "contents": [{"role": "user", "parts": [{"text": payload["messages"][1]["content"]}]}],
+                "generationConfig": {"temperature": 0, "maxOutputTokens": 4096,
+                                     "thinkingConfig": {"thinkingLevel": "minimal"}},
+            }
+        payload["model"] = self.model
+        if self.provider == "nvidia":
+            del payload["provider"]
+            payload["chat_template_kwargs"] = {"enable_thinking": False}
+            payload["max_tokens"] = 1024
+        elif self.allow_paid:
+            payload["max_tokens"] = self.max_output_tokens
+            payload["provider"] = {
+                "order": ["coreweave", "deepinfra"], "allow_fallbacks": True,
+                "max_price": {"prompt": 0.30, "completion": 0.60},
+            }
+        return payload
 
     def _generate(self, body):
-        request = Request(self.base_url + "/chat/completions", data=body, method="POST",
-                          headers={"Authorization": "Bearer " + self._api_key,
-                                   "Content-Type": "application/json"})
-        try:
-            with build_opener(_NoRedirect()).open(request, timeout=60) as response:
-                raw = json.load(response)
-                raw.setdefault("provider", self.provider_name)
-                return raw
-        except HTTPError as exc:
-            # Do not expose provider bodies, which may echo credentials or documents.
-            raise ProviderHTTPError(self.provider_name, exc.code, "check key, model availability and quota") from None
-        except TimeoutError:
-            raise RuntimeError(f"{self.provider_name} response timed out after 60 seconds; no automatic retry was made") from None
-        except URLError:
-            raise RuntimeError(f"{self.provider_name} network request failed; no automatic retry was made") from None
+        if self.provider == "google":
+            try:
+                raw = self.client.send(body, model=self.model)
+            except ProviderHTTPError as exc:
+                raise ProviderHTTPError("Google Gemma", exc.status, "check key, model access and quota") from None
+            except RuntimeError:
+                raise RuntimeError("Google Gemma network request failed; no automatic retry was made") from None
+            # The task consumes the same envelope for every provider. Transport
+            # itself returns Google's original response, also usable by Gemini.
+            return {"provider": "Google AI Studio (direct)", "model": raw.get("modelVersion"),
+                    "usage": raw.get("usageMetadata"), "choices": [
+                        {"finish_reason": "stop" if candidate.get("finishReason") == "STOP" else "incomplete",
+                         "message": {"content": "".join(
+                             part.get("text", "") for part in candidate.get("content", {}).get("parts", [])
+                             if not part.get("thought"))}}
+                        for candidate in raw.get("candidates", [])]}
+        raw = self.client.send(body)
+        raw.setdefault("provider", self.client.provider_name)
+        return raw
 
     def run(self, receipt, ocr):
         self.response, self.cache_hit = None, False
@@ -198,35 +225,13 @@ class OpenRouterEnricher:
             raise ValueError("Gemma returned no text")
         # Some providers wrap JSON in a code fence even when explicitly asked not to.
         match = re.fullmatch(r"\s*```(?:json)?\s*\n(.*?)\n```\s*", content, re.DOTALL)
-        decoder = decode_with_review_fallback if getattr(self, "resilient", False) else decode_enrichment
+        decoder = decode_with_review_fallback if self.resilient else decode_enrichment
         result = decoder(json.loads(match[1] if match else content), receipt)
         if path is not None and not self.cache_hit:
             path.parent.mkdir(parents=True, exist_ok=True)
             if not path.exists():
                 write_json(path, self.response)
         return result
-
-
-class PaidOpenRouterEnricher(OpenRouterEnricher):
-    """Explicitly opted-in paid Gemma, with bounded token count and routing prices."""
-
-    def __init__(self, api_key, *, base_url=BASE_URL, cache_dir=None, prompt=None, max_output_tokens=1024, resilient=True, request_policy=None):
-        super().__init__(api_key, base_url=base_url, cache_dir=cache_dir, request_policy=request_policy, prompt=prompt)
-        if type(max_output_tokens) is not int or not 256 <= max_output_tokens <= 8192:
-            raise ValueError("Output token cap must be between 256 and 8192")
-        self.model = PAID_MODEL
-        self.max_output_tokens = max_output_tokens
-        self.resilient = bool(resilient)
-
-    def build_request(self, receipt, ocr):
-        payload = build_request(receipt, ocr, prompt=self.prompt)
-        payload["model"] = self.model
-        payload["max_tokens"] = self.max_output_tokens
-        payload["provider"] = {
-            "order": ["coreweave", "deepinfra"], "allow_fallbacks": True,
-            "max_price": {"prompt": 0.30, "completion": 0.60},
-        }
-        return payload
 
     @staticmethod
     def request_bound(payload):
@@ -235,85 +240,3 @@ class PaidOpenRouterEnricher(OpenRouterEnricher):
         size = len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) + 4096
         return (Decimal(size) * Decimal("0.30")
                 + Decimal(payload["max_tokens"]) * Decimal("0.60")) / 1_000_000
-
-
-class NvidiaGemmaEnricher(OpenRouterEnricher):
-    """NVIDIA's hosted prototype endpoint, with a fixed Gemma model and URL."""
-
-    base_url = NVIDIA_BASE_URL
-    provider_name = "NVIDIA NIM"
-
-    def __init__(self, api_key, *, model=NVIDIA_MODEL, cache_dir=None, request_policy=None, prompt=None):
-        if model != NVIDIA_MODEL:
-            raise ValueError("Only NVIDIA's Gemma 4 31B prototype model is permitted")
-        if not re.fullmatch(r"[A-Za-z0-9_-]+", api_key):
-            raise ValueError("Missing or invalid NVIDIA_API_KEY")
-        self._api_key = api_key
-        self.model = model
-        self.prompt = resolve_prompt(prompt, PROMPT)
-        self.prompt_id = "classify_items" if prompt is None else "custom"
-        self.cache_dir = Path(cache_dir) if cache_dir is not None else None
-        self.response = None
-        self.cache_hit = False
-        self.request_policy = request_policy
-
-    def build_request(self, receipt, ocr):
-        payload = build_request(receipt, ocr, prompt=self.prompt)
-        payload["model"] = self.model
-        del payload["provider"]  # OpenRouter routing options do not apply to NVIDIA.
-        payload["chat_template_kwargs"] = {"enable_thinking": False}
-        payload["max_tokens"] = 1024
-        return payload
-
-
-class GoogleGemmaEnricher(OpenRouterEnricher):
-    """Same enrichment contract through Google's free Gemma generateContent API."""
-
-    def __init__(self, api_key, *, model=GOOGLE_MODEL, cache_dir=None, request_policy=None, prompt=None):
-        if model != GOOGLE_MODEL:
-            raise ValueError("Only Google's free Gemma 4 31B model is permitted")
-        if not re.fullmatch(r"[A-Za-z0-9_-]+", api_key):
-            raise ValueError("Missing or invalid GEMINI_API_KEY")
-        self._api_key = api_key
-        self.model = model
-        self.prompt = resolve_prompt(prompt, PROMPT)
-        self.prompt_id = "classify_items" if prompt is None else "custom"
-        self.cache_dir = Path(cache_dir) if cache_dir is not None else None
-        self.response = None
-        self.cache_hit = False
-        self.request_policy = request_policy
-
-    def build_request(self, receipt, ocr):
-        shared = build_request(receipt, ocr, prompt=self.prompt)
-        return {
-            "systemInstruction": {"parts": [{"text": self.prompt}]},
-            "contents": [{"role": "user", "parts": [{"text": shared["messages"][1]["content"]}]}],
-            "generationConfig": {"temperature": 0, "maxOutputTokens": 4096,
-                                 "thinkingConfig": {"thinkingLevel": "minimal"}},
-        }
-
-    def _generate(self, body):
-        request = Request(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent",
-            data=body, method="POST",
-            headers={"Content-Type": "application/json", "x-goog-api-key": self._api_key})
-        try:
-            with build_opener(_NoRedirect()).open(request, timeout=60) as response:
-                raw = json.load(response)
-        except HTTPError as exc:
-            hint = ("provider server error" if exc.code >= 500 else
-                    "rate limit or project quota" if exc.code == 429 else
-                    "check key and model access" if exc.code in (401, 403, 404) else
-                    "check request parameters")
-            raise ProviderHTTPError("Google Gemma", exc.code, hint) from None
-        except (URLError, TimeoutError):
-            raise RuntimeError("Google Gemma network request failed; no automatic retry was made") from None
-        candidates = raw.get("candidates", [])
-        # Normalize only the response envelope; retain Google's usage and model version.
-        return {"provider": "Google AI Studio (direct)", "model": raw.get("modelVersion"),
-                "usage": raw.get("usageMetadata"), "choices": [
-                    {"finish_reason": "stop" if candidate.get("finishReason") == "STOP" else "incomplete",
-                     "message": {"content": "".join(
-                         part.get("text", "") for part in candidate.get("content", {}).get("parts", [])
-                         if not part.get("thought"))}}
-                    for candidate in candidates]}

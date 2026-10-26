@@ -5,7 +5,7 @@ import pytest
 
 from experiments.gemma_benchmark import Budget, chunk_receipt, make_challenges, score, validate_labels
 from extraction.contracts import FieldEvidence, ReceiptData, ReceiptItem
-from extraction.steps.enrich import decode_enrichment, decode_with_review_fallback, numeric_name_facts
+from extraction.analysis.item_classifier import decode_enrichment, decode_with_review_fallback, numeric_name_facts
 
 
 def test_chunk_preserves_duplicate_items_and_remaps_name_evidence():

@@ -345,7 +345,7 @@ failures. The paid adapter's default mode now quarantines malformed *individual*
 item fields: raw name, null category and `needs_review=true` with reason
 `invalid_model_output`. Missing/reordered IDs or changed item counts still reject
 the entire response. This fallback never turns an invalid item into a correct
-classification. Set `resilient=False` on `PaidOpenRouterEnricher` to reproduce
+classification. Set `resilient=False` on `ReceiptItemClassifier` with `allow_paid=True` to reproduce
 strict decoding. `uncertain_name` restores the raw name. Numeric guards now
 protect units and embedded size/code suffixes such as `400g`, `PB95`, `X2`, while
 allowing letter OCR repair such as `D0RITO` and unit repair `500m1` → `500ml`.
@@ -359,7 +359,7 @@ trained or fine-tuned.
 
 ## Image-only Gemma comparison
 
-The separate experimental adapter `extraction.steps.parsing.vision` sends original
+The separate experimental adapter `extraction.analysis.receipt_images` sends original
 JPEG/PNG bytes directly to paid Gemma 4 31B through OpenRouter. It receives no OCR,
 parser output, filenames or reference labels. One request can contain overlapping
 photos of the same receipt; no local image resizing, cropping or rotation occurs.
@@ -417,18 +417,51 @@ the standard `AnalyzeReceiptImagesStep` and validator workflow; API modes remain
 
 ## Composable analysis workflows
 
-`extraction.workflows.text_analysis_pipeline(client)` maps saved `OCRResult` through
+Receipt tasks and API transports have separate responsibilities:
+
+```text
+steps/analysis.py → analysis/item_classifier.py → providers/openrouter.py, google.py or nvidia.py
+steps/analysis.py → analysis/receipt_images.py → providers/openrouter.py
+steps/parsing/gemini.py → providers/google.py
+```
+
+`ReceiptItemClassifier` and `ReceiptImageAnalyzer` own prompts, task-specific
+request/response handling, cache and request policies. `OpenRouterClient`,
+`GoogleClient` and `NvidiaClient` own HTTP, credentials and sanitized transport
+errors, with no automatic retries or redirects. Providers do not inherit from
+one another. One transport can be shared by several tasks:
+
+```python
+from extraction.analysis import ReceiptItemClassifier, ReceiptImageAnalyzer
+from extraction.providers import OpenRouterClient, GoogleClient
+from extraction.steps.parsing import GeminiParseStep
+
+api = OpenRouterClient(api_key)
+classifier = ReceiptItemClassifier(api)  # Existing free-only Gemma preset.
+paid_classifier = ReceiptItemClassifier(api, allow_paid=True, max_output_tokens=2048)
+analyzer = ReceiptImageAnalyzer(api, allow_paid=True)
+gemini_parser = GeminiParseStep(GoogleClient(google_api_key))
+```
+
+Paid classification and image analysis require explicit `allow_paid=True`.
+Models, routing, token limits and price ceilings retain their previous defaults.
+There are no separate classes for free/paid classification. Former adapter
+modules have been removed; imports now use `extraction.analysis` and
+`extraction.providers`. `GeminiParseStep` now receives a `GoogleClient` instead
+of a raw key. Step configs identify `task`, `client` and `provider` separately.
+
+`extraction.workflows.text_analysis_pipeline(classifier)` maps saved `OCRResult` through
 context-preserving parsing, enrichment and validation.
-`extraction.workflows.vision_analysis_pipeline(client)` maps original `SourceFiles`
+`extraction.workflows.vision_analysis_pipeline(analyzer)` maps original `SourceFiles`
 through image extraction and the same arithmetic validator. Both return
 `AnalyzedReceipt(receipt, annotations, image_evidence)`: original extracted financial
 fields, aligned name/category proposals, and image references separate from OCR.
 Text enrichment splits long receipts into up to eight items per request.
 
-`main.build_pipeline(enricher=client)` includes prepare/orient/OCR before text
-analysis; `main.build_pipeline(vision_client=client)` selects original-image
+`main.build_pipeline(classifier=classifier)` includes prepare/orient/OCR before text
+analysis; `main.build_pipeline(image_analyzer=analyzer)` selects original-image
 analysis. Calling `build_pipeline()` retains the existing local OCR/rules workflow.
-Clients are supplied explicitly; these factories do not load credentials.
+Receipt tasks and API clients are supplied explicitly; these factories do not load credentials.
 
 Step names describe their tasks: full text processing runs
 `prepare → orient → ocr → parse → classify → validate`; both image workflows run
@@ -443,17 +476,17 @@ Edit default instructions in `extraction/prompts/*.md`: `classify_items`,
 Resources are included in the installed package; restart the process after edits.
 The benchmark-only name policy lives in `experiments/prompts/name_policy.md`.
 
-All model clients accept a keyword `prompt=` override; vision additionally accepts
+Receipt tasks accept a keyword `prompt=` override; vision additionally accepts
 `ocr_prompt=` and `ocr_guidance=`. Overrides replace the complete rendered text,
 including any appended categories/schema, while response validation stays active.
-For example, `PaidOpenRouterEnricher(api_key, prompt=custom_text)` can be passed
+For example, `ReceiptItemClassifier(OpenRouterClient(api_key), allow_paid=True, prompt=custom_text)` can be passed
 to `text_analysis_pipeline` as usual. `None` selects defaults; blank text is invalid.
-Configure clients before building a pipeline. Step configs record `prompt_id` and
+Configure receipt tasks before building a pipeline. Step configs record `prompt_id` and
 `prompt_sha256`; hybrid analysis also records the OCR guidance ID and hash.
 Defaults use the resource name, overrides use `custom`. Whitespace is preserved
 and unchanged defaults retain their existing request bodies and cache keys.
 
-Clients accept a public `request_policy(body, send)` callback for cache misses.
+Classification and image-analysis tasks accept a public `request_policy(body, send)` callback for cache misses.
 `BudgetedRequests` reserves before transport, `cache_only` forbids transport, and
 the shared experiment ledger lives in `experiments.budget`. Experiment scripts no
 longer replace private transport methods. Core receipt decoding lives in

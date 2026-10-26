@@ -3,8 +3,9 @@ import json
 import pytest
 
 from experiments import gemma_vision
+from extraction.providers import OpenRouterClient
 from extraction.reporting import to_dict
-from extraction.steps.parsing.vision import GemmaVisionParser
+from extraction.analysis.receipt_images import ReceiptImageAnalyzer
 from test_analysis_workflows import envelope
 from test_gemma_vision import response, source
 
@@ -17,7 +18,12 @@ def saved_study(tmp_path, monkeypatch):
     # Use a food category to match the fixed study's default case category.
     raw["items"][0]["category"] = "żywność i napoje"
     cache = tmp_path / "cache"
-    client = GemmaVisionParser("test-key", cache_dir=cache, request_policy=lambda body, send: envelope(raw))
+    client = ReceiptImageAnalyzer(
+        OpenRouterClient("test-key"),
+        allow_paid=True,
+        cache_dir=cache,
+        request_policy=lambda body, send: envelope(raw),
+    )
     parsed = client.run([source()]).output
     baseline = tmp_path / "custom-baseline"
     for split in ("development", "holdout"):
@@ -34,7 +40,7 @@ def saved_study(tmp_path, monkeypatch):
     monkeypatch.setattr(gemma_vision, "WORKER_DIR", tmp_path)
     monkeypatch.setattr(gemma_vision, "SOURCES", ("case.jpg",))
     monkeypatch.setattr(gemma_vision, "load_config", lambda: pytest.fail("Offline mode must not load credentials"))
-    monkeypatch.setattr(GemmaVisionParser, "_generate", lambda *args: pytest.fail("Network must not be called"))
+    monkeypatch.setattr(ReceiptImageAnalyzer, "_generate", lambda *args: pytest.fail("Network must not be called"))
     return ["--baseline-run", str(baseline), "--manifest", str(manifest), "--references", str(refs),
             "--cache-dir", str(cache), "--output-dir", str(tmp_path / "out"), "--limit", "1"]
 

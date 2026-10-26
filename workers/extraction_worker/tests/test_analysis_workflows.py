@@ -5,6 +5,7 @@ from decimal import Decimal
 import pytest
 
 from experiments.budget import Budget
+from extraction.providers import OpenRouterClient
 from extraction.contracts import (
     AnalyzedReceipt, ExtractionWarning, FieldEvidence, OCRResult, PreparedDocument,
     ReceiptData, ReceiptItem, SourceFiles, StepResult,
@@ -12,8 +13,8 @@ from extraction.contracts import (
 from extraction.reporting import to_dict, write_result
 from extraction.requests import BudgetedRequests, cache_only
 from extraction.steps.analysis import analyzed_receipt
-from extraction.steps.enrich import PaidOpenRouterEnricher
-from extraction.steps.parsing.vision import GemmaVisionParser
+from extraction.analysis.item_classifier import ReceiptItemClassifier
+from extraction.analysis.receipt_images import ReceiptImageAnalyzer
 from extraction.workflows import text_analysis_pipeline, vision_analysis_pipeline
 from test_gemma_vision import response as vision_answer, source
 
@@ -49,7 +50,7 @@ def test_text_pipeline_chunks_duplicates_preserves_money_and_provenance(tmp_path
         return envelope({"items": [{"id": item["id"], "name_corrected": "Mleko",
                          "category": "żywność i napoje", "needs_review": False, "review_reason": None}
                         for item in data["items"]]})
-    client = PaidOpenRouterEnricher("secret-test-key", request_policy=policy)
+    client = ReceiptItemClassifier(OpenRouterClient("secret-test-key"), allow_paid=True, request_policy=policy)
     workflow = text_analysis_pipeline(client, parser=FrozenParser(receipt))
     ocr = OCRResult(PreparedDocument((), ()), (), "test", "1", {})
     result = workflow.run(ocr, capture_steps=True)
@@ -71,7 +72,11 @@ def test_text_pipeline_chunks_duplicates_preserves_money_and_provenance(tmp_path
 def test_vision_pipeline_has_same_contract_and_validator_without_ocr():
     raw = vision_answer()
     raw["items"][0]["total"] = "17.80"
-    client = GemmaVisionParser("test-key", request_policy=lambda body, send: envelope(raw))
+    client = ReceiptImageAnalyzer(
+        OpenRouterClient("test-key"),
+        allow_paid=True,
+        request_policy=lambda body, send: envelope(raw),
+    )
     result = vision_analysis_pipeline(client).run(SourceFiles((source(),)))
     assert result.ok and isinstance(result.output, AnalyzedReceipt)
     assert result.output.receipt.items[0].total == Decimal("17.80")
@@ -83,7 +88,11 @@ def test_vision_pipeline_has_same_contract_and_validator_without_ocr():
 
 def test_enrichment_failure_stops_before_validator_without_partial_analysis():
     receipt = ReceiptData(items=[ReceiptItem(name="Mleko")])
-    client = PaidOpenRouterEnricher("test-key", request_policy=lambda body, send: envelope({"items": []}))
+    client = ReceiptItemClassifier(
+        OpenRouterClient("test-key"),
+        allow_paid=True,
+        request_policy=lambda body, send: envelope({"items": []}),
+    )
     ocr = OCRResult(PreparedDocument((), ()), (), "test", "1", {})
     result = text_analysis_pipeline(client, parser=FrozenParser(receipt)).run(ocr)
     assert not result.ok and result.error.step == "classify"
@@ -92,7 +101,7 @@ def test_enrichment_failure_stops_before_validator_without_partial_analysis():
 
 
 def test_empty_parsed_receipt_makes_no_model_requests():
-    client = PaidOpenRouterEnricher("test-key", request_policy=cache_only)
+    client = ReceiptItemClassifier(OpenRouterClient("test-key"), allow_paid=True, request_policy=cache_only)
     ocr = OCRResult(PreparedDocument((), ()), (), "test", "1", {})
     result = text_analysis_pipeline(client, parser=FrozenParser(ReceiptData())).run(ocr)
     assert result.ok and result.output.annotations == ()
@@ -116,14 +125,18 @@ def test_budget_is_applied_only_on_cache_miss_and_cache_only_never_sends(tmp_pat
         sent.append(body)
         return envelope(vision_answer())
     # Inject a fake transport underneath the real reservation policy.
-    client = GemmaVisionParser("test-key", cache_dir=tmp_path / "cache",
-                               request_policy=lambda body, network: policy(body, send))
+    client = ReceiptImageAnalyzer(
+        OpenRouterClient("test-key"),
+        allow_paid=True,
+        cache_dir=tmp_path / "cache",
+        request_policy=lambda body, network: policy(body, send),
+    )
     assert vision_analysis_pipeline(client).run(SourceFiles((source(),))).ok
     assert budget.calls == len(sent) == 1 and budget.cost == Decimal("0.0001")
     client.request_policy = cache_only
     assert vision_analysis_pipeline(client).run(SourceFiles((source(),))).ok
     assert client.cache_hit and budget.calls == 1
-    uncached = GemmaVisionParser("test-key", request_policy=cache_only)
+    uncached = ReceiptImageAnalyzer(OpenRouterClient("test-key"), allow_paid=True, request_policy=cache_only)
     result = vision_analysis_pipeline(uncached).run(SourceFiles((source(),)))
     assert not result.ok and "network is forbidden" in result.error.message
     assert result.error.step == "analyze"
@@ -173,7 +186,7 @@ def test_canonical_result_can_be_evaluated_in_memory_and_from_json():
 
 def test_main_explicit_vision_client_builds_no_ocr_steps():
     import main
-    client = GemmaVisionParser("test-key", request_policy=cache_only)
-    assert [name for name, step in main.build_pipeline(vision_client=client).steps] == ["analyze", "validate"]
+    client = ReceiptImageAnalyzer(OpenRouterClient("test-key"), allow_paid=True, request_policy=cache_only)
+    assert [name for name, step in main.build_pipeline(image_analyzer=client).steps] == ["analyze", "validate"]
     with pytest.raises(ValueError):
-        main.build_pipeline(enricher=object(), vision_client=client)
+        main.build_pipeline(classifier=object(), image_analyzer=client)

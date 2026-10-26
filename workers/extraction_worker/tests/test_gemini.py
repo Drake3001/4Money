@@ -6,6 +6,7 @@ from urllib.error import HTTPError
 import pytest
 
 from experiments import gemini as experiment
+from extraction.providers import GoogleClient
 from extraction.steps.parsing import gemini
 from extraction.steps.parsing import GeminiParseStep
 from extraction.pipeline import Pipeline
@@ -106,7 +107,7 @@ def test_unknown_evidence_and_invalid_date_are_rejected():
 
 
 def test_response_cache_avoids_second_api_call_and_does_not_save_key(tmp_path, monkeypatch):
-    step = gemini.GeminiParseStep("test-secret-key", "gemini-3.1-flash-lite", tmp_path)
+    step = gemini.GeminiParseStep(GoogleClient("test-secret-key"), "gemini-3.1-flash-lite", tmp_path)
     calls = []
     monkeypatch.setattr(step, "_generate", lambda body: calls.append(body) or response())
     value = ocr(document(at("Napój 1 x3,95 3,95A", 0, 45)))
@@ -119,7 +120,7 @@ def test_response_cache_avoids_second_api_call_and_does_not_save_key(tmp_path, m
 
 
 def test_truncated_response_is_preserved_but_not_scored_as_success(tmp_path, monkeypatch):
-    step = gemini.GeminiParseStep("test-key", "gemini-3.1-flash-lite", tmp_path)
+    step = gemini.GeminiParseStep(GoogleClient("test-key"), "gemini-3.1-flash-lite", tmp_path)
     monkeypatch.setattr(step, "_generate", lambda body: response(finish="MAX_TOKENS"))
     with pytest.raises(ValueError, match="truncated"):
         step.run(ocr([]))
@@ -132,8 +133,8 @@ def test_http_error_does_not_expose_provider_body_or_key(tmp_path, monkeypatch):
         assert "test-secret-key" not in request.full_url
         raise HTTPError(request.full_url, 403, "test-secret-key", {}, BytesIO(b"test-secret-key"))
 
-    monkeypatch.setattr(gemini, "build_opener", lambda *args: SimpleNamespace(open=fail))
-    step = gemini.GeminiParseStep("test-secret-key", "gemini-3.1-flash-lite", tmp_path)
+    monkeypatch.setattr("extraction.providers.http.build_opener", lambda *args: SimpleNamespace(open=fail))
+    step = gemini.GeminiParseStep(GoogleClient("test-secret-key"), "gemini-3.1-flash-lite", tmp_path)
     with pytest.raises(RuntimeError, match="HTTP 403") as error:
         step._generate(b"{}")
     assert "test-secret-key" not in str(error.value) and step.api_failed
@@ -222,7 +223,7 @@ def test_http_failure_stops_remaining_requests(tmp_path, monkeypatch):
         calls.append(request)
         raise HTTPError(request.full_url, 429, "quota", {}, BytesIO())
 
-    monkeypatch.setattr(gemini, "build_opener", lambda *args: SimpleNamespace(open=fail))
+    monkeypatch.setattr("extraction.providers.http.build_opener", lambda *args: SimpleNamespace(open=fail))
     root = experiment.run_gemini(source, refs, tmp_path / "output", execute=True)
     metadata = json.loads((root / "gemini-run.json").read_text(encoding="utf-8"))
     assert len(calls) == 1 and metadata["unattempted_sources"] == ["second.png"]
@@ -248,7 +249,7 @@ def test_main_selects_saved_holdout_and_defaults_to_dry_run(tmp_path, monkeypatc
 
 
 def test_gemini_step_runs_in_regular_pipeline_without_experiment_or_cache(monkeypatch):
-    step = GeminiParseStep("test-key")
+    step = GeminiParseStep(GoogleClient("test-key"))
     calls = []
     monkeypatch.setattr(step, "_generate", lambda body: calls.append(body) or response())
     pipeline = Pipeline([("parse", step), ("validate", ValidateReceiptStep())])

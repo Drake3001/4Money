@@ -31,22 +31,22 @@ TESSERACT_COMMAND = str(LOCAL_TESSERACT) if LOCAL_TESSERACT.is_file() else "tess
 TESSDATA_DIR = WORKER_DIR / ".cache" / "models" / "tesseract"
 
 
-def build_pipeline(*, enricher=None, vision_client=None):
-    """Default local workflow; API clients must be supplied explicitly by the caller."""
-    if enricher is not None and vision_client is not None:
-        raise ValueError("Choose either text enrichment or image-only analysis")
-    if vision_client is not None:
+def build_pipeline(*, classifier=None, image_analyzer=None):
+    """Default local workflow; receipt tasks must be supplied explicitly."""
+    if classifier is not None and image_analyzer is not None:
+        raise ValueError("Choose either item classification or image analysis")
+    if image_analyzer is not None:
         from extraction.workflows import vision_analysis_pipeline
-        return vision_analysis_pipeline(vision_client)
+        return vision_analysis_pipeline(image_analyzer)
     prefix = [
         ("prepare", PrepareDocumentStep(pdf_dpi=PDF_DPI)),
         # ("docscan", DocscanStep()),
         ("orient", OrientationStep()),
         ("ocr", RapidOCRStep()),
     ]
-    if enricher is not None:
+    if classifier is not None:
         from extraction.workflows import text_analysis_pipeline
-        return text_analysis_pipeline(enricher, prefix=prefix)
+        return text_analysis_pipeline(classifier, prefix=prefix)
     return Pipeline([*prefix, ("parse", ParseReceiptStep()), ("validate", ValidateReceiptStep())])
 
 

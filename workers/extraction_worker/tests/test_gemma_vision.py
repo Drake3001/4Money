@@ -6,9 +6,10 @@ from io import BytesIO
 import pytest
 from PIL import Image
 
+from extraction.providers import OpenRouterClient
 from extraction.contracts import SourceFile
-from extraction.steps.parsing.vision import (
-    GemmaVisionParser, build_vision_request, decode_vision, request_summary, vision_bound,
+from extraction.analysis.receipt_images import (
+    ReceiptImageAnalyzer, build_vision_request, decode_vision, request_summary, vision_bound,
 )
 
 
@@ -83,7 +84,7 @@ def test_group_image_reference_is_valid_without_changing_receipt():
 
 
 def test_truncated_response_is_cached_but_never_accepted_or_retried(tmp_path):
-    client = GemmaVisionParser("test-key", tmp_path)
+    client = ReceiptImageAnalyzer(OpenRouterClient("test-key"), tmp_path, allow_paid=True)
     attempts = []
     def generate(body):
         attempts.append(body)

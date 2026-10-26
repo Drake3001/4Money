@@ -10,7 +10,6 @@ from ..contracts import (
 )
 from ..prompts import prompt_metadata
 from .parsing import ParseReceiptStep
-from .parsing.vision import OUTPUT_TOKENS, PAID_MODEL
 
 
 def receipt_chunk(receipt, start, stop):
@@ -61,21 +60,23 @@ class ClassifyReceiptItemsStep:
     output_type = AnalyzedReceipt
     version = "1"
 
-    def __init__(self, client, *, chunk_size=8):
+    def __init__(self, classifier, *, chunk_size=8):
         if type(chunk_size) is not int or not 1 <= chunk_size <= 8:
-            raise ValueError("Enrichment chunk size must be 1–8")
-        self.client, self.chunk_size = client, chunk_size
-        self.config = {"client": type(client).__name__, "model": client.model,
-                       **prompt_metadata(client.prompt, client.prompt_id),
+            raise ValueError("Classification chunk size must be 1–8")
+        self.classifier, self.chunk_size = classifier, chunk_size
+        self.config = {"task": type(classifier).__name__, "client": type(classifier.client).__name__,
+                       "provider": classifier.client.provider, "model": classifier.model,
+                       **prompt_metadata(classifier.prompt, classifier.prompt_id),
                        "taxonomy_version": TAXONOMY_VERSION, "chunk_size": chunk_size,
-                       "max_output_tokens": getattr(client, "max_output_tokens", None),
-                       "resilient": getattr(client, "resilient", False)}
+                       "allow_paid": classifier.allow_paid,
+                       "max_output_tokens": classifier.max_output_tokens,
+                       "resilient": classifier.resilient}
 
     def run(self, input):
         items = []
         for start in range(0, len(input.receipt.items), self.chunk_size):
             part = receipt_chunk(input.receipt, start, start + self.chunk_size)
-            result = self.client.run(part, input.ocr)
+            result = self.classifier.run(part, input.ocr)
             items.extend({**item, "id": item["id"] + start} for item in result["items"])
         return StepResult(analyzed_receipt(input.receipt, {"items": items}))
 
@@ -87,17 +88,19 @@ class AnalyzeReceiptImagesStep:
     output_type = AnalyzedReceipt
     version = "1"
 
-    def __init__(self, client):
-        self.client = client
-        self.config = {"client": type(client).__name__, "model": PAID_MODEL,
-                       **prompt_metadata(client.prompt, client.prompt_id),
-                       "taxonomy_version": TAXONOMY_VERSION, "max_output_tokens": OUTPUT_TOKENS,
+    def __init__(self, analyzer):
+        self.analyzer = analyzer
+        self.config = {"task": type(analyzer).__name__, "client": type(analyzer.client).__name__,
+                       "provider": analyzer.client.provider, "model": analyzer.model,
+                       **prompt_metadata(analyzer.prompt, analyzer.prompt_id),
+                       "taxonomy_version": TAXONOMY_VERSION, "max_output_tokens": analyzer.max_output_tokens,
+                       "allow_paid": analyzer.allow_paid,
                        "input": "original_images"}
 
     def run(self, input):
-        result = self.client.run(input.files)
-        return StepResult(analyzed_receipt(result.output, self.client.enrichment,
-                                           self.client.image_evidence), result.warnings)
+        result = self.analyzer.run(input.files)
+        return StepResult(analyzed_receipt(result.output, self.analyzer.enrichment,
+                                           self.analyzer.image_evidence), result.warnings)
 
 
 class AnalyzeReceiptImagesWithOCRStep(AnalyzeReceiptImagesStep):
@@ -105,15 +108,15 @@ class AnalyzeReceiptImagesWithOCRStep(AnalyzeReceiptImagesStep):
 
     input_type = ImageOCRInput
 
-    def __init__(self, client):
-        super().__init__(client)
+    def __init__(self, analyzer):
+        super().__init__(analyzer)
         self.config.update(input="images_and_ocr",
-                           **prompt_metadata(client.ocr_prompt, client.ocr_prompt_id))
-        guidance = prompt_metadata(client.ocr_guidance, client.ocr_guidance_id)
+                           **prompt_metadata(analyzer.ocr_prompt, analyzer.ocr_prompt_id))
+        guidance = prompt_metadata(analyzer.ocr_guidance, analyzer.ocr_guidance_id)
         self.config.update(ocr_guidance_id=guidance["prompt_id"],
                            ocr_guidance_sha256=guidance["prompt_sha256"])
 
     def run(self, input):
-        result = self.client.run(input.sources.files, ocr=input.ocr)
-        return StepResult(analyzed_receipt(result.output, self.client.enrichment,
-                                           self.client.image_evidence), result.warnings)
+        result = self.analyzer.run(input.sources.files, ocr=input.ocr)
+        return StepResult(analyzed_receipt(result.output, self.analyzer.enrichment,
+                                           self.analyzer.image_evidence), result.warnings)

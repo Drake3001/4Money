@@ -45,7 +45,7 @@ kroków (`ok`) nie oznacza, że paragon nie wymaga sprawdzenia.
 
 ## Składanie pipeline'u
 
-Nazwy kroków opisują zadania, a dostawcę i model wybiera klient:
+Nazwy kroków opisują zadania; obiekt zadaniowy wybiera model i korzysta z klienta API:
 
 | Ścieżka | Kroki | Klasa wykonująca analizę |
 |---|---|---|
@@ -55,24 +55,25 @@ Nazwy kroków opisują zadania, a dostawcę i model wybiera klient:
 
 Klasyfikacja obejmuje również propozycje korekt nazw. Analiza obrazów odczytuje
 strukturę paragonu i klasyfikuje produkty w jednym wywołaniu modelu. Fabryki
-pipeline'ów i nazwy klientów dostawców pozostają bez zmian. Nowe raporty i
+pipeline'ów zachowują nazwy, a integracje mają osobne klienty API. Nowe raporty i
 `capture_steps` używają `classify` oraz `analyze`; stare raporty zachowują dawne
 nazwy. Nie ma aliasów dawnych nazw klas kroków.
 
-Przykłady zakładają, że aplikacja dostarczyła `api_key`. Samo zbudowanie klienta
+Przykłady zakładają, że aplikacja dostarczyła `api_key`. Samo zbudowanie klienta API, zadania
 i pipeline'u nie wysyła żądania.
 
 ```python
-from extraction.steps.enrich import PaidOpenRouterEnricher
-from extraction.steps.parsing.vision import GemmaVisionParser
+from extraction.analysis import ReceiptItemClassifier, ReceiptImageAnalyzer
+from extraction.providers import OpenRouterClient, GoogleClient, NvidiaClient
 from extraction.workflows import text_analysis_pipeline, vision_analysis_pipeline
 
-text_client = PaidOpenRouterEnricher(api_key, max_output_tokens=2048)
-text = text_analysis_pipeline(text_client)
+api = OpenRouterClient(api_key)
+classifier = ReceiptItemClassifier(api, allow_paid=True, max_output_tokens=2048)
+text = text_analysis_pipeline(classifier)
 # result = text.run(saved_ocr_result)
 
-vision_client = GemmaVisionParser(api_key)
-vision = vision_analysis_pipeline(vision_client)
+analyzer = ReceiptImageAnalyzer(api, allow_paid=True)
+vision = vision_analysis_pipeline(analyzer)
 # result = vision.run(source_files)
 ```
 
@@ -82,7 +83,7 @@ Wariant obrazy + OCR ma osobny, jawny kontrakt wejścia i fabrykę:
 from extraction.contracts import ImageOCRInput
 from extraction.workflows import vision_ocr_analysis_pipeline
 
-hybrid = vision_ocr_analysis_pipeline(vision_client)
+hybrid = vision_ocr_analysis_pipeline(analyzer)
 # result = hybrid.run(ImageOCRInput(source_files, saved_ocr_result))
 ```
 
@@ -97,14 +98,53 @@ Gdy potrzebny jest pełny przebieg od plików do OCR i analizy:
 ```python
 from main import build_pipeline
 
-full_text = build_pipeline(enricher=text_client)
-full_vision = build_pipeline(vision_client=vision_client)
+full_text = build_pipeline(classifier=classifier)
+full_vision = build_pipeline(image_analyzer=analyzer)
 ```
 
 Domyślne `build_pipeline()` nadal buduje lokalną ścieżkę prepare → orient → OCR →
 parse → validate z wynikiem `ReceiptData`. Nie zmieniamy domyślnego kontraktu
-istniejących odbiorców. Wybranie klienta jawnie przełącza wynik na `AnalyzedReceipt`.
-Próba jednoczesnego przekazania obu klientów jest błędem konfiguracji.
+istniejących odbiorców. Wybranie zadania analizy jawnie przełącza wynik na `AnalyzedReceipt`.
+Próba jednoczesnego przekazania obu zadań jest błędem konfiguracji.
+
+## Podział odpowiedzialności
+
+```text
+ClassifyReceiptItemsStep → ReceiptItemClassifier → OpenRouterClient / GoogleClient / NvidiaClient
+AnalyzeReceiptImagesStep → ReceiptImageAnalyzer → OpenRouterClient
+AnalyzeReceiptImagesWithOCRStep → ReceiptImageAnalyzer → OpenRouterClient
+GeminiParseStep → GoogleClient
+```
+
+`extraction/steps/analysis.py` składa wynik kroku i dzieli produkty na paczki.
+`extraction/analysis/item_classifier.py` oraz `receipt_images.py` przygotowują
+żądania z promptami, sprawdzają odpowiedzi i zarządzają cache danego zadania.
+`extraction/providers/` zawiera wyłącznie komunikację z dostawcami API: adresy,
+uwierzytelnianie, timeouty i bezpieczne błędy. Klienci nie przechowują promptów,
+cache ani danych ostatniego paragonu. Google i NVIDIA nie dziedziczą po OpenRouter.
+
+Ten sam klient API może obsłużyć wiele zadań. Model, instrukcje, limity i wybór
+płatnego trybu należą do konfiguracji zadania. Klasyfikacja OpenRouter domyślnie
+wybiera dotychczasowy model `:free`; płatna klasyfikacja i analiza zdjęć wymagają
+`allow_paid=True`. Dozwolone modele, routing i limity cenowe pozostały takie same.
+Google i NVIDIA nadal mają osobne endpointy, klucze i cache, bez przełączania
+żądania na innego dostawcę.
+
+```python
+google = GoogleClient(google_api_key)
+google_classifier = ReceiptItemClassifier(google)
+from extraction.steps.parsing import GeminiParseStep
+gemini_parser = GeminiParseStep(google, model="gemini-3.1-flash-lite")
+
+nvidia_classifier = ReceiptItemClassifier(NvidiaClient(nvidia_api_key))
+```
+
+Składanie pełnego przebiegu używa teraz `build_pipeline(classifier=...)` lub
+`build_pipeline(image_analyzer=...)`. Konstruktor `GeminiParseStep` otrzymuje
+`GoogleClient` zamiast surowego klucza. Importy klientów i zadań zostały
+zmigrowane bez aliasów dawnych klas. Konfiguracja kroku zapisuje osobno `task`,
+`client` i `provider`, obok modelu i metadanych promptu. Historycznych raportów
+nie przepisujemy.
 
 ## Prompty: lokalizacja i zmiany
 
@@ -131,30 +171,30 @@ Eksperymentalny dodatek do korekty nazw jest w
 `experiments/prompts/name_policy.md`; benchmark nadal składa warianty `baseline`
 i `candidate` jawnie, bez zmiany domyślnej instrukcji.
 
-Własny prompt można przekazać przy tworzeniu klienta:
+Własny prompt można przekazać przy tworzeniu obiektu zadaniowego:
 
 ```python
 from pathlib import Path
 
 custom = Path("my_classification_prompt.md").read_text(encoding="utf-8")
-client = PaidOpenRouterEnricher(api_key, prompt=custom)
-workflow = text_analysis_pipeline(client)
+classifier = ReceiptItemClassifier(OpenRouterClient(api_key), allow_paid=True, prompt=custom)
+workflow = text_analysis_pipeline(classifier)
 
 # Oddzielne pełne instrukcje systemowe dla obu wariantów vision:
-vision_client = GemmaVisionParser(
-    api_key, prompt=custom_image_prompt, ocr_prompt=custom_image_ocr_prompt,
+analyzer = ReceiptImageAnalyzer(
+    OpenRouterClient(api_key), allow_paid=True, prompt=custom_image_prompt, ocr_prompt=custom_image_ocr_prompt,
     ocr_guidance=custom_ocr_guidance,
 )
 ```
 
 `prompt=None` wybiera domyślną instrukcję. Własny tekst zastępuje całą gotową
 instrukcję, również dołączone kategorie i schemat vision; nie wyłącza walidacji
-odpowiedzi. Klienci Google/NVIDIA Gemma i `GeminiParseStep` również przyjmują
+odpowiedzi. `ReceiptItemClassifier` dla Google/NVIDIA i `GeminiParseStep` również przyjmują
 `prompt=`. Funkcje `build_request` przyjmują `prompt=`, a `build_vision_request`
 także `ocr_prompt=` i `ocr_guidance=`. Pusty tekst lub same białe znaki są błędem.
 
-Klienta skonfiguruj przed zbudowaniem pipeline'u; do kolejnego wariantu utwórz
-nowego klienta i pipeline. Metadane kroku zawierają `prompt_id` i
+Zadanie skonfiguruj przed zbudowaniem pipeline'u; do kolejnego wariantu utwórz
+nowy obiekt zadaniowy i pipeline. Klient API może być współdzielony. Metadane kroku zawierają `prompt_id` i
 `prompt_sha256` rzeczywistej instrukcji systemowej, już po renderowaniu.
 Wariant z OCR zapisuje również `ocr_guidance_id` i `ocr_guidance_sha256`.
 Domyślne identyfikatory odpowiadają nazwom plików bez `.md`, własne mają `custom`.
@@ -168,7 +208,7 @@ pozostaje osobnym zadaniem benchmarków klasyfikacji.
 
 ## Budżet i cache przez jawny interfejs
 
-Klienci przyjmują `request_policy(body, send)`. Polityka jest uruchamiana tylko
+Klasyfikator i analizator obrazów przyjmują `request_policy(body, send)`. Polityka jest uruchamiana tylko
 przy braku odpowiedzi w cache; `send(body)` wykonuje pojedyncze żądanie.
 Nie podmieniamy `_generate` w kodzie eksperymentów.
 
@@ -180,13 +220,15 @@ from experiments.budget import Budget
 budget = Budget(new_run_directory, limit="0.45", max_calls=5)
 policy = BudgetedRequests(
     budget,
-    lambda body: PaidOpenRouterEnricher.request_bound(json.loads(body)),
+    lambda body: ReceiptItemClassifier.request_bound(json.loads(body)),
 )
-text_client = PaidOpenRouterEnricher(api_key, request_policy=policy)
+classifier = ReceiptItemClassifier(
+    OpenRouterClient(api_key), allow_paid=True, request_policy=policy,
+)
 
 # Odtwarzanie już zapisanych wyników bez możliwości wysłania żądania:
-offline_client = GemmaVisionParser(
-    "offline-cache-only", cache_dir=vision_cache_directory, request_policy=cache_only,
+offline_analyzer = ReceiptImageAnalyzer(
+    OpenRouterClient("offline-cache-only"), allow_paid=True, cache_dir=vision_cache_directory, request_policy=cache_only,
 )
 ```
 

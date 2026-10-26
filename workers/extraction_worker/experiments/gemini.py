@@ -9,6 +9,7 @@ from decimal import Decimal
 from pathlib import Path
 from time import perf_counter
 
+from extraction.providers import GoogleClient
 from extraction.contracts import ReceiptData
 from extraction.pipeline import Pipeline
 from extraction.reporting import to_dict, write_json, write_result, write_summary
@@ -103,7 +104,7 @@ def run_gemini(ocr_dir, references_dir, output_dir, *, model="gemini-3.1-flash-l
                 "prompt_sha256": hashlib.sha256(PROMPT.encode()).hexdigest(),
                 "prices_usd_per_million_tokens": [str(rate) for rate in PRICES[model]],
                 "prices_checked": "2026-10-19", "calls": []}
-    step = GeminiParseStep(key, model, WORKER_DIR / ".cache" / "gemini") if execute else None
+    step = GeminiParseStep(GoogleClient(key), model, WORKER_DIR / ".cache" / "gemini") if execute else None
     pipeline = Pipeline([("gemini", step), ("validate", ValidateReceiptStep())]) if execute else None
     baseline_pipeline = Pipeline([("parse", ParseReceiptStep()), ("validate", ValidateReceiptStep())])
     results, ai_cases, baseline_cases = {}, [], []

@@ -8,12 +8,13 @@ from decimal import Decimal
 from pathlib import Path
 from time import perf_counter
 
+from extraction.providers import OpenRouterClient
 from extraction.contracts import SourceFile, SourceFiles
 from extraction.requests import BudgetedRequests, cache_only
 from extraction.workflows import vision_analysis_pipeline
 from extraction.reporting import to_dict, write_json
 from extraction.runner import new_run
-from extraction.steps.parsing.vision import GemmaVisionParser, build_vision_request, request_summary, vision_bound
+from extraction.analysis.receipt_images import ReceiptImageAnalyzer, build_vision_request, request_summary, vision_bound
 from extraction.steps.validate import validate_receipt
 from .gemma import WORKER_DIR, load_config
 from .budget import Budget
@@ -160,8 +161,13 @@ def main(argv=None):
         case["pipeline_category_score"] = category_score(case["pipeline_evaluation"], base["enrichment"]["items"], categories)
         if not halted:
             policy = cache_only if args.replay_cache else BudgetedRequests(budget, lambda body: vision_bound())
-            client = GemmaVisionParser(config["api_key"], cache_dir=args.cache_dir, request_policy=policy)
-            workflow = vision_analysis_pipeline(client)
+            analyzer = ReceiptImageAnalyzer(
+                OpenRouterClient(config["api_key"]),
+                allow_paid=True,
+                cache_dir=args.cache_dir,
+                request_policy=policy,
+            )
+            workflow = vision_analysis_pipeline(analyzer)
             started = perf_counter()
             try:
                 result = workflow.run(SourceFiles(tuple(images)))
@@ -178,10 +184,10 @@ def main(argv=None):
             except (ValueError, RuntimeError, OSError) as exc:
                 case.update(status="failed", error=str(exc))
                 halted = True  # No retries and no spending remaining calls on a broken route/schema.
-            if client.response is not None:
-                write_json(folder / "response.json", client.response)
-                case.update(provider=client.response.get("provider"), usage=client.response.get("usage"))
-            case.update(seconds=round(perf_counter()-started, 3), cache_hit=client.cache_hit)
+            if analyzer.response is not None:
+                write_json(folder / "response.json", analyzer.response)
+                case.update(provider=analyzer.response.get("provider"), usage=analyzer.response.get("usage"))
+            case.update(seconds=round(perf_counter()-started, 3), cache_hit=analyzer.cache_hit)
         write_json(folder / "result.json", case)
         report["cases"].append(case)
         print(f"{source}: {case['status']}; provider={case.get('provider')}; calls={budget.calls}", flush=True)

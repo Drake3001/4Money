@@ -6,7 +6,7 @@ import pytest
 from experiments.gemma_hard import partial_checks, single_page_ocr
 from extraction.contracts import DocumentPage, PreparedDocument, SourceFiles
 from extraction.steps.analysis import analyzed_receipt
-from extraction.steps.parsing.vision import decode_vision
+from extraction.analysis.receipt_images import decode_vision
 from test_gemma_vision import response, source
 from test_parsing import at, document, ocr
 

@@ -6,10 +6,11 @@ from decimal import Decimal
 from pathlib import Path
 from time import perf_counter, sleep
 
+from extraction.providers import GoogleClient, NvidiaClient, OpenRouterClient, ProviderHTTPError
 from extraction.reporting import to_dict, write_json
 from extraction.categories import TAXONOMY_VERSION
 from extraction.runner import new_run
-from extraction.steps.enrich import CATEGORIES, GoogleGemmaEnricher, NvidiaGemmaEnricher, OpenRouterEnricher, PaidOpenRouterEnricher, ProviderHTTPError, build_request
+from extraction.analysis.item_classifier import CATEGORIES, ReceiptItemClassifier, build_request
 from extraction.requests import dispatch_request
 from extraction.steps.parsing import ParseReceiptStep
 from .gemma import WORKER_DIR, load_config
@@ -160,7 +161,7 @@ def render_report(report):
     return "\n".join(lines)
 
 
-def run_batch(*, limit=3, execute=False, output_dir=None, cases=None, client=None, provider="openrouter",
+def run_batch(*, limit=3, execute=False, output_dir=None, cases=None, classifier=None, provider="openrouter",
               max_calls=None, retry_server_error=False, min_interval=0, paid=False, max_cost_usd="0.10"):
     if type(limit) is not int or not 2 <= limit <= 5:
         raise ValueError("Choose 2–5 receipts")
@@ -171,8 +172,8 @@ def run_batch(*, limit=3, execute=False, output_dir=None, cases=None, client=Non
         raise ValueError("Experiment budget must be positive and no more than USD 0.10")
     if paid and provider != "openrouter":
         raise ValueError("Paid mode is supported only through OpenRouter")
-    if isinstance(client, PaidOpenRouterEnricher) and not paid:
-        raise ValueError("Paid client requires explicit paid mode")
+    if (isinstance(classifier, ReceiptItemClassifier) and classifier.allow_paid and classifier.provider == "openrouter") and not paid:
+        raise ValueError("Paid classifier requires explicit paid mode")
     max_calls = limit if max_calls is None else max_calls
     if type(max_calls) is not int or not 1 <= max_calls <= 5:
         raise ValueError("Choose an API attempt cap of 1–5")
@@ -194,22 +195,32 @@ def run_batch(*, limit=3, execute=False, output_dir=None, cases=None, client=Non
         selected = cases
     config = load_config() if provider == "openrouter" else None
     if paid:
-        if client is not None and not isinstance(client, PaidOpenRouterEnricher):
+        if classifier is not None and not (isinstance(classifier, ReceiptItemClassifier) and classifier.allow_paid and classifier.provider == "openrouter"):
             raise ValueError("Paid mode requires the bounded paid OpenRouter adapter")
-        if client is None:
+        if classifier is None:
             settings = {"api_key": config["api_key"] if execute else "dry-run",
                         "base_url": config["base_url"]}
-            client = PaidOpenRouterEnricher(**settings, cache_dir=WORKER_DIR / ".cache/gemma-openrouter-paid")
-    elif client is None and provider == "nvidia":
+            classifier = ReceiptItemClassifier(
+                OpenRouterClient(settings["api_key"], base_url=settings["base_url"]),
+                allow_paid=True,
+                cache_dir=WORKER_DIR / ".cache/gemma-openrouter-paid",
+            )
+    elif classifier is None and provider == "nvidia":
         settings = load_config(provider="nvidia") if execute else {"api_key": "dry-run"}
-        client = NvidiaGemmaEnricher(**settings, cache_dir=WORKER_DIR / ".cache/gemma-nvidia")
-    elif client is None and provider == "google":
+        classifier = ReceiptItemClassifier(NvidiaClient(settings["api_key"]), cache_dir=WORKER_DIR / ".cache/gemma-nvidia")
+    elif classifier is None and provider == "google":
         from .gemini import load_api_key
         # A dry run needs no key; it only builds the public request payload.
-        client = GoogleGemmaEnricher(load_api_key() if execute else "dry-run",
-                                    cache_dir=WORKER_DIR / ".cache/gemma-google")
-    elif execute and client is None:
-        client = OpenRouterEnricher(**config, cache_dir=WORKER_DIR / ".cache/gemma")
+        classifier = ReceiptItemClassifier(
+            GoogleClient(load_api_key() if execute else "dry-run"),
+            cache_dir=WORKER_DIR / ".cache/gemma-google",
+        )
+    elif execute and classifier is None:
+        classifier = ReceiptItemClassifier(
+            OpenRouterClient(config["api_key"], base_url=config["base_url"]),
+            cache_dir=WORKER_DIR / ".cache/gemma",
+            model=config.get("model", FREE_MODEL),
+        )
     root = new_run(output_dir or WORKER_DIR / "data/output")
     report = {"limit": limit, "max_calls": max_calls, "retry_server_error": retry_server_error,
               "min_interval": min_interval, "execute": execute, "provider": provider,
@@ -223,12 +234,12 @@ def run_batch(*, limit=3, execute=False, output_dir=None, cases=None, client=Non
         receipt = parsed.output
         folder = root / source
         folder.mkdir()
-        payload = client.build_request(receipt, ocr) if client else build_request(receipt, ocr, config["model"])
+        payload = classifier.build_request(receipt, ocr) if classifier else build_request(receipt, ocr, config["model"])
         write_json(folder / "request.json", payload)
         case = {"source": source, "ocr_path": origin, "status": "prepared",
                 "parser": to_dict(receipt), "parser_warnings": to_dict(parsed.warnings)}
         if paid:
-            case["request_bound_usd"] = str(client.request_bound(payload))
+            case["request_bound_usd"] = str(classifier.request_bound(payload))
         ref_path = WORKER_DIR / "data/input" / (Path(source).stem + ".expected.json")
         if ref_path.is_file():
             reference = json.loads(ref_path.read_text(encoding="utf-8"))
@@ -256,7 +267,7 @@ def run_batch(*, limit=3, execute=False, output_dir=None, cases=None, client=Non
             continue
         start = perf_counter()
         # Count attempts, including failed ones, at the transport boundary.
-        previous_policy = client.request_policy
+        previous_policy = classifier.request_policy
         case["attempts"] = []
         def counted(body, send):
             nonlocal next_request_at
@@ -285,30 +296,30 @@ def run_batch(*, limit=3, execute=False, output_dir=None, cases=None, client=Non
                         raise
                 finally:
                     next_request_at = perf_counter() + min_interval
-        client.request_policy = counted
+        classifier.request_policy = counted
         try:
-            enrichment = client.run(receipt, ocr)
+            enrichment = classifier.run(receipt, ocr)
             if not receipt.items:
                 case["status"] = "empty_parser_output"
             else:
-                case.update(status="completed", enrichment=enrichment, cache_hit=client.cache_hit,
-                            usage=(client.response or {}).get("usage"),
-                            provider=(client.response or {}).get("provider"))
+                case.update(status="completed", enrichment=enrichment, cache_hit=classifier.cache_hit,
+                            usage=(classifier.response or {}).get("usage"),
+                            provider=(classifier.response or {}).get("provider"))
                 write_json(folder / "enrichment.json", enrichment)
         except (RuntimeError, ValueError, OSError) as exc:
             case.update(status="failed", error=str(exc))
             halted = True
         finally:
-            client.request_policy = previous_policy
+            classifier.request_policy = previous_policy
         # Preserve a completed provider response even if local JSON validation failed.
         # Failed HTTP response bodies are never retained by the adapter.
-        if client.response is not None:
-            write_json(folder / "response.json", client.response)
-            case.setdefault("cache_hit", client.cache_hit)
-            case.setdefault("usage", client.response.get("usage"))
-            case.setdefault("provider", client.response.get("provider"))
-            cost = (client.response.get("usage") or {}).get("cost")
-            if cost is not None and not client.cache_hit:
+        if classifier.response is not None:
+            write_json(folder / "response.json", classifier.response)
+            case.setdefault("cache_hit", classifier.cache_hit)
+            case.setdefault("usage", classifier.response.get("usage"))
+            case.setdefault("provider", classifier.response.get("provider"))
+            cost = (classifier.response.get("usage") or {}).get("cost")
+            if cost is not None and not classifier.cache_hit:
                 numeric_cost = Decimal(str(cost))
                 if numeric_cost.is_finite() and numeric_cost >= 0:
                     report["reported_cost_usd"] = str(Decimal(report["reported_cost_usd"]) + numeric_cost)

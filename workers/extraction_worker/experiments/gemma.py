@@ -6,11 +6,13 @@ import os
 from pathlib import Path
 from time import perf_counter
 
+from extraction.providers import GoogleClient, NvidiaClient, OpenRouterClient
 from extraction.contracts import OCRResult, PreparedDocument, ReceiptData, ReceiptItem
 from extraction.categories import TAXONOMY_VERSION
 from extraction.reporting import to_dict, write_json
 from extraction.runner import new_run
-from extraction.steps.enrich import BASE_URL, FREE_MODEL, GoogleGemmaEnricher, NvidiaGemmaEnricher, OpenRouterEnricher
+from extraction.providers.openrouter import BASE_URL
+from extraction.analysis.item_classifier import FREE_MODEL, ReceiptItemClassifier
 from extraction.steps.parsing import ParseReceiptStep
 from extraction.steps.validate import validate_receipt
 from .parsing import _restore_ocr
@@ -61,36 +63,42 @@ def main():
     root = new_run(WORKER_DIR / "data" / "output")
     if args.provider == "nvidia":
         config = load_config(provider="nvidia") if args.execute else {"api_key": "dry-run"}
-        client = NvidiaGemmaEnricher(**config, cache_dir=WORKER_DIR / ".cache/gemma-nvidia")
+        classifier = ReceiptItemClassifier(NvidiaClient(config["api_key"]), cache_dir=WORKER_DIR / ".cache/gemma-nvidia")
     elif args.provider == "google":
         from .gemini import load_api_key
-        client = GoogleGemmaEnricher(load_api_key() if args.execute else "dry-run",
-                                    cache_dir=WORKER_DIR / ".cache/gemma-google")
+        classifier = ReceiptItemClassifier(
+            GoogleClient(load_api_key() if args.execute else "dry-run"),
+            cache_dir=WORKER_DIR / ".cache/gemma-google",
+        )
     else:
         config = load_config()
-        client = OpenRouterEnricher(**config, cache_dir=WORKER_DIR / ".cache/gemma")
-    write_json(root / "request.json", client.build_request(receipt, ocr))
+        classifier = ReceiptItemClassifier(
+            OpenRouterClient(config["api_key"], base_url=config["base_url"]),
+            cache_dir=WORKER_DIR / ".cache/gemma",
+            model=config.get("model", FREE_MODEL),
+        )
+    write_json(root / "request.json", classifier.build_request(receipt, ocr))
     write_json(root / "parser.json", {"receipt": to_dict(receipt), "warnings": to_dict(warnings),
                                        "validation": to_dict(validate_receipt(receipt))})
-    print(f"Model: {client.model}; key configured: yes; execute: {args.execute}")
+    print(f"Model: {classifier.model}; key configured: yes; execute: {args.execute}")
     if args.execute:
         start = perf_counter()
         try:
-            enrichment = client.run(receipt, ocr)
+            enrichment = classifier.run(receipt, ocr)
         except (RuntimeError, ValueError, OSError):
-            write_json(root / "status.json", {"status": "failed", "model": client.model})
+            write_json(root / "status.json", {"status": "failed", "model": classifier.model})
             print(f"Results: {root}")
             raise
         write_json(root / "enrichment.json", enrichment)
-        response = client.response or {}
-        write_json(root / "status.json", {"status": "completed", "model": client.model, "taxonomy_version": TAXONOMY_VERSION,
+        response = classifier.response or {}
+        write_json(root / "status.json", {"status": "completed", "model": classifier.model, "taxonomy_version": TAXONOMY_VERSION,
                                            "provider": response.get("provider"),
                                            "usage": response.get("usage"),
-                                           "cache_hit": client.cache_hit,
+                                           "cache_hit": classifier.cache_hit,
                                            "seconds": round(perf_counter() - start, 3),
                                            "items": len(enrichment["items"])})
         print(json.dumps(enrichment, ensure_ascii=False, indent=2))
-        print(f"Cache hit: {client.cache_hit}; usage: {json.dumps(response.get('usage'))}")
+        print(f"Cache hit: {classifier.cache_hit}; usage: {json.dumps(response.get('usage'))}")
     print(f"Results: {root}")
     return 0
 

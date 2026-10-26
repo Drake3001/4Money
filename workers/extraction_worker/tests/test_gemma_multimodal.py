@@ -6,9 +6,10 @@ import pytest
 
 from experiments.budget import SettledBudget
 from experiments.gemma_multimodal import audit_study, receipt_score
+from extraction.providers import OpenRouterClient
 from extraction.contracts import ImageOCRInput, SourceFiles
 from extraction.steps.analysis import analyzed_receipt
-from extraction.steps.parsing.vision import GemmaVisionParser, build_vision_request, decode_vision
+from extraction.analysis.receipt_images import ReceiptImageAnalyzer, build_vision_request, decode_vision
 from extraction.workflows import vision_ocr_analysis_pipeline
 from test_analysis_workflows import envelope
 from test_gemma_vision import response, source
@@ -67,7 +68,11 @@ def test_image_plus_ocr_keeps_original_bytes_no_filenames_and_normalized_geometr
 
 
 def test_hybrid_uses_same_pipeline_output_and_preserves_image_provenance():
-    client = GemmaVisionParser("test-key", request_policy=lambda body, send: envelope(response()))
+    client = ReceiptImageAnalyzer(
+        OpenRouterClient("test-key"),
+        allow_paid=True,
+        request_policy=lambda body, send: envelope(response()),
+    )
     context = ocr(document(at("Piwo 4 x6,50", 0, 50)))
     result = vision_ocr_analysis_pipeline(client).run(ImageOCRInput(SourceFiles((source(),)), context))
     assert result.ok and result.output.annotations[0].category == "alkohol i tytoń"

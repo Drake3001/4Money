@@ -1,4 +1,4 @@
-"""Image-only Gemma extraction; no OCR/parser predictions or filenames enter requests."""
+"""Receipt extraction and classification from images, optionally supported by OCR."""
 
 import base64
 import copy
@@ -8,18 +8,18 @@ import re
 from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, build_opener
 
 from PIL import Image
 
-from ...categories import CATEGORIES
-from ...prompts import image_analysis_prompt, load_text, resolve_prompt
-from ...reporting import write_json
-from ...requests import dispatch_request
-from ..enrich import BASE_URL, PAID_MODEL, ProviderHTTPError, _NoRedirect, decode_enrichment
-from .common import RECEIPT_SCHEMA, decode_receipt_fields
-from .context import ocr_pages
+from ..categories import CATEGORIES
+from ..prompts import image_analysis_prompt, load_text, resolve_prompt
+from ..reporting import write_json
+from ..requests import dispatch_request
+from ..providers import ProviderHTTPError
+from .models import PAID_MODEL
+from .item_classifier import decode_enrichment
+from ..steps.parsing.common import RECEIPT_SCHEMA, decode_receipt_fields
+from ..steps.parsing.context import ocr_pages
 
 OUTPUT_TOKENS = 8192
 CONTEXT_TOKENS = 262144
@@ -126,30 +126,35 @@ def decode_vision(raw, image_count):
     return decoded, enrichment, evidence
 
 
-class GemmaVisionParser:
-    def __init__(self, api_key, cache_dir=None, *, request_policy=None, prompt=None, ocr_prompt=None, ocr_guidance=None):
-        if not re.fullmatch(r"[A-Za-z0-9_-]+", api_key):
-            raise ValueError("Invalid OpenRouter API key")
+class ReceiptImageAnalyzer:
+    """Extract and classify a receipt from images, with optional supporting OCR."""
+
+    def __init__(self, client, cache_dir=None, *, allow_paid=False, model=PAID_MODEL, request_policy=None,
+                 prompt=None, ocr_prompt=None, ocr_guidance=None):
+        if client.provider != "openrouter" or allow_paid is not True:
+            raise ValueError("Image analysis requires OpenRouter and explicit allow_paid=True")
+        if model != PAID_MODEL:
+            raise ValueError("Only the configured image analysis model is permitted")
+        self.client = client
+        self.model = model
+        self.max_output_tokens = OUTPUT_TOKENS
+        self.allow_paid = True
         self.prompt = resolve_prompt(prompt, VISION_PROMPT)
         self.ocr_prompt = resolve_prompt(ocr_prompt, VISION_OCR_PROMPT)
         self.ocr_guidance = resolve_prompt(ocr_guidance, OCR_GUIDANCE)
         self.prompt_id = "analyze_receipt_images" if prompt is None else "custom"
         self.ocr_prompt_id = "analyze_receipt_images_with_ocr" if ocr_prompt is None else "custom"
         self.ocr_guidance_id = "ocr_guidance" if ocr_guidance is None else "custom"
-        self._api_key = api_key
         self.cache_dir = Path(cache_dir) if cache_dir else None
         self.request_policy = request_policy
         self.response, self.cache_hit, self.enrichment, self.image_evidence = None, False, None, None
 
     def _generate(self, body):
-        request = Request(BASE_URL + "/chat/completions", data=body, method="POST",
-                          headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._api_key})
         try:
-            with build_opener(_NoRedirect()).open(request, timeout=180) as response:
-                return json.load(response)
-        except HTTPError as exc:
-            raise ProviderHTTPError("OpenRouter vision", exc.code, "check image-capable endpoint and quota") from None
-        except (URLError, TimeoutError):
+            return self.client.send(body, timeout=180)
+        except ProviderHTTPError as exc:
+            raise ProviderHTTPError("OpenRouter vision", exc.status, "check image-capable endpoint and quota") from None
+        except RuntimeError:
             raise RuntimeError("Vision network/timeout failure; no automatic retry") from None
 
     def run(self, sources, ocr=None):

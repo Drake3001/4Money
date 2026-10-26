@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from time import perf_counter, sleep
 
+from extraction.providers import GoogleClient
 from extraction.pipeline import Pipeline
 from extraction.steps.parsing import GeminiParseStep
 from .gemini import PRICES, load_api_key, request_bound
@@ -37,7 +38,7 @@ def main(root, exclude_tail=False):
     def execute(entry):
         name, ocr = entry
         for attempt in range(4):
-            step = GeminiParseStep(key, model, Path(__file__).resolve().parents[1] / ".cache" / "gemini")
+            step = GeminiParseStep(GoogleClient(key), model, Path(__file__).resolve().parents[1] / ".cache" / "gemini")
             body = json.dumps(build_request(ocr), ensure_ascii=False, sort_keys=True).encode("utf-8")
             digest = hashlib.sha256(model.encode() + b"\0" + body).hexdigest()
             if not (step.cache_dir / f"{digest}.json").is_file():

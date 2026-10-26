@@ -5,9 +5,8 @@ import json
 import re
 from decimal import Decimal
 from pathlib import Path
-from urllib.error import HTTPError, URLError
-from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from ...providers import ProviderHTTPError
 from ...prompts import load_text, prompt_metadata, resolve_prompt
 from ...contracts import (
     ExtractionWarning, FieldEvidence, OCRResult, ReceiptData,
@@ -88,42 +87,35 @@ def decode_receipt(raw, ocr):
     return StepResult(receipt, tuple(warnings))
 
 
-class _NoRedirect(HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
-
-
 class GeminiParseStep:
     input_type = OCRResult
     output_type = ReceiptData
     version = "1"
 
-    def __init__(self, api_key, model="gemini-3.1-flash-lite", cache_dir=None, *, prompt=None):
+    def __init__(self, client, model="gemini-3.1-flash-lite", cache_dir=None, *, prompt=None):
         if not re.fullmatch(r"gemini-[A-Za-z0-9._-]+", model):
             raise ValueError("Invalid Gemini model name")
-        self._api_key = api_key
+        if client.provider != "google":
+            raise ValueError("Gemini parsing requires a GoogleClient")
+        self.client = client
         self.model = model
         self.prompt = resolve_prompt(prompt, PROMPT)
         self.prompt_id = "parse_receipt_ocr" if prompt is None else "custom"
         self.cache_dir = Path(cache_dir) if cache_dir is not None else None
-        self.config = {"model": model, **prompt_metadata(self.prompt, self.prompt_id),
+        self.config = {"client": type(client).__name__, "provider": client.provider, "model": model,
+                       **prompt_metadata(self.prompt, self.prompt_id),
                        "max_output_tokens": MAX_OUTPUT_TOKENS}
         self.response = None
         self.cache_hit = False
         self.api_failed = False
 
     def _generate(self, body):
-        request = Request(f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent",
-                          data=body, headers={"Content-Type": "application/json", "x-goog-api-key": self._api_key},
-                          method="POST")
         try:
-            with build_opener(_NoRedirect()).open(request, timeout=90) as response:
-                return json.load(response)
-        except HTTPError as exc:
+            return self.client.send(body, model=self.model, timeout=90)
+        except ProviderHTTPError as exc:
             self.api_failed = True
-            # Provider bodies can echo credentials; keep them out of results and logs.
-            raise RuntimeError(f"Gemini HTTP {exc.code}; check key, model access, quota and request schema") from None
-        except (URLError, TimeoutError):
+            raise RuntimeError(f"Gemini HTTP {exc.status}; check key, model access, quota and request schema") from None
+        except RuntimeError:
             self.api_failed = True
             raise RuntimeError("Gemini network request failed; no automatic retry was made") from None
 

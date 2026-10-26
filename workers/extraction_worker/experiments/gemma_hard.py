@@ -8,13 +8,14 @@ from dataclasses import replace
 from pathlib import Path
 from time import perf_counter
 
+from extraction.providers import OpenRouterClient
 from extraction.contracts import ImageOCRInput, PreparedDocument
 from extraction.reporting import to_dict, write_json
 from extraction.requests import BudgetedRequests, cache_only
 from extraction.runner import new_run, read_sources
-from extraction.steps.enrich import PaidOpenRouterEnricher
+from extraction.analysis.item_classifier import ReceiptItemClassifier
 from extraction.steps.parsing import ParseReceiptStep
-from extraction.steps.parsing.vision import GemmaVisionParser, build_vision_request, request_summary, vision_bound
+from extraction.analysis.receipt_images import ReceiptImageAnalyzer, build_vision_request, request_summary, vision_bound
 from extraction.steps.validate import validate_receipt
 from extraction.workflows import text_analysis_pipeline, vision_ocr_analysis_pipeline
 from .budget import SettledBudget
@@ -119,28 +120,38 @@ def main(argv=None):
             record = {"status": "skipped_after_error", "score": receipt_score(reference)}
             if not halted:
                 if method == "pipeline":
-                    bound = lambda body: PaidOpenRouterEnricher.request_bound(json.loads(body))
+                    bound = lambda body: ReceiptItemClassifier.request_bound(json.loads(body))
                     policy = cache_only if args.replay_cache else BudgetedRequests(budget, bound)
                     def capture(body, send):
                         response = policy(body, send)
                         write_json(folder / f"text-response-attempt-{budget.calls}.json", response)
                         return response
-                    client = PaidOpenRouterEnricher(key, max_output_tokens=2048,
-                        cache_dir=WORKER_DIR / ".cache/gemma-hard-text", request_policy=capture)
-                    workflow, value = text_analysis_pipeline(client), ocr
+                    task = ReceiptItemClassifier(
+                        OpenRouterClient(key),
+                        allow_paid=True,
+                        max_output_tokens=2048,
+                        cache_dir=WORKER_DIR / ".cache/gemma-hard-text",
+                        request_policy=capture,
+                    )
+                    workflow, value = text_analysis_pipeline(task), ocr
                 else:
                     policy = cache_only if args.replay_cache else BudgetedRequests(budget, lambda body: vision_bound())
-                    client = GemmaVisionParser(key, cache_dir=WORKER_DIR / ".cache/gemma-vision", request_policy=policy)
-                    workflow, value = vision_ocr_analysis_pipeline(client), ImageOCRInput(sources, ocr)
+                    task = ReceiptImageAnalyzer(
+                        OpenRouterClient(key),
+                        allow_paid=True,
+                        cache_dir=WORKER_DIR / ".cache/gemma-vision",
+                        request_policy=policy,
+                    )
+                    workflow, value = vision_ocr_analysis_pipeline(task), ImageOCRInput(sources, ocr)
                 start_cost, start_calls = budget.cost, budget.calls
                 started = perf_counter()
                 outcome = workflow.run(value)
                 record.update(seconds=round(perf_counter()-started, 3), steps=to_dict(outcome.steps),
                               warnings=to_dict(outcome.warnings), new_calls=budget.calls-start_calls,
                               new_cost_usd=str(budget.cost-start_cost), cache_hit=budget.calls == start_calls)
-                if method == "vision_ocr" and client.response is not None:
-                    write_json(folder / "vision-response.json", client.response)
-                    record.update(provider=client.response.get("provider"), usage=client.response.get("usage"))
+                if method == "vision_ocr" and task.response is not None:
+                    write_json(folder / "vision-response.json", task.response)
+                    record.update(provider=task.response.get("provider"), usage=task.response.get("usage"))
                 if outcome.ok:
                     failures = 0
                     record.update(status="completed", analysis=to_dict(outcome.output), score=receipt_score(reference, outcome.output),

@@ -6,8 +6,9 @@ from urllib.error import HTTPError
 import pytest
 
 from experiments.gemma import load_config
+from extraction.providers import GoogleClient, NvidiaClient, OpenRouterClient
 from extraction.contracts import OCRResult, PreparedDocument, ReceiptData, ReceiptItem
-from extraction.steps.enrich import FREE_MODEL, GoogleGemmaEnricher, NvidiaGemmaEnricher, OpenRouterEnricher, build_request, decode_enrichment
+from extraction.analysis.item_classifier import FREE_MODEL, ReceiptItemClassifier, build_request, decode_enrichment
 
 
 def inputs():
@@ -24,7 +25,7 @@ def answer():
 @pytest.mark.parametrize("model", ["google/gemma-4-31b-it", "openrouter/free", "other:free"])
 def test_only_explicit_free_gemma_is_allowed(model):
     with pytest.raises(ValueError):
-        OpenRouterEnricher("test-key", model=model)
+        ReceiptItemClassifier(OpenRouterClient("test-key"), model=model)
 
 
 def test_request_has_zero_price_ceiling_and_no_model_fallback():
@@ -34,7 +35,7 @@ def test_request_has_zero_price_ceiling_and_no_model_fallback():
     assert "models" not in payload
     assert "4.00" not in json.dumps(payload)
     with pytest.raises(ValueError):
-        OpenRouterEnricher("test-key", base_url="https://example.com")
+        ReceiptItemClassifier(OpenRouterClient("test-key", base_url="https://example.com"))
 
 
 @pytest.mark.parametrize("damage", ["drop", "reorder", "price", "category", "bool_id"])
@@ -57,7 +58,7 @@ def test_reject_changes_to_item_identity_and_unexpected_fields(damage):
 def test_cached_response_preserves_repeated_items_and_parser_numbers(tmp_path, monkeypatch):
     receipt, ocr = inputs()
     before = copy.deepcopy(receipt)
-    client = OpenRouterEnricher("test-key", cache_dir=tmp_path)
+    client = ReceiptItemClassifier(OpenRouterClient("test-key"), cache_dir=tmp_path)
     response = {"choices": [{"finish_reason": "stop", "message": {
         "content": "```json\n" + json.dumps(answer()) + "\n```"}}]}
     calls = []
@@ -77,8 +78,8 @@ def test_http_failure_does_not_expose_provider_body_or_key(monkeypatch):
     class Opener:
         def open(self, request, timeout):
             raise HTTPError(request.full_url, 429, "secret-provider-body", {}, None)
-    monkeypatch.setattr("extraction.steps.enrich.build_opener", lambda *args: Opener())
-    client = OpenRouterEnricher("test-key")
+    monkeypatch.setattr("extraction.providers.http.build_opener", lambda *args: Opener())
+    client = ReceiptItemClassifier(OpenRouterClient("test-key"))
     with pytest.raises(RuntimeError, match="HTTP 429") as exc:
         client.run(*inputs())
     assert "secret" not in str(exc.value) and "test-key" not in str(exc.value)
@@ -95,7 +96,7 @@ def test_config_loads_only_named_values_and_environment_overrides_file(tmp_path,
 
 
 def test_truncated_answer_is_rejected_and_not_cached(tmp_path, monkeypatch):
-    client = OpenRouterEnricher("test-key", cache_dir=tmp_path)
+    client = ReceiptItemClassifier(OpenRouterClient("test-key"), cache_dir=tmp_path)
     monkeypatch.setattr(client, "_generate", lambda body: {"choices": [{"finish_reason": "length"}]})
     with pytest.raises(ValueError, match="incomplete"):
         client.run(*inputs())
@@ -104,13 +105,13 @@ def test_truncated_answer_is_rejected_and_not_cached(tmp_path, monkeypatch):
 
 def test_google_uses_same_product_input_and_only_gemma_model():
     receipt, ocr = inputs()
-    client = GoogleGemmaEnricher("test-key")
+    client = ReceiptItemClassifier(GoogleClient("test-key"))
     payload = client.build_request(receipt, ocr)
     assert payload["contents"][0]["parts"][0]["text"] == build_request(receipt, ocr)["messages"][1]["content"]
     assert payload["generationConfig"]["thinkingConfig"] == {"thinkingLevel": "minimal"}
     assert "test-key" not in json.dumps(payload)
     with pytest.raises(ValueError):
-        GoogleGemmaEnricher("test-key", model="gemini-3.1-flash-lite")
+        ReceiptItemClassifier(GoogleClient("test-key"), model="gemini-3.1-flash-lite")
 
 
 def test_google_response_envelope_ignores_thoughts_and_keeps_usage(monkeypatch):
@@ -124,8 +125,8 @@ def test_google_response_envelope_ignores_thoughts_and_keeps_usage(monkeypatch):
             assert request.full_url.endswith("/models/gemma-4-31b-it:generateContent")
             assert "test-key" not in request.full_url
             return io.BytesIO(json.dumps(raw).encode())
-    monkeypatch.setattr("extraction.steps.enrich.build_opener", lambda *args: Opener())
-    client = GoogleGemmaEnricher("test-key")
+    monkeypatch.setattr("extraction.providers.http.build_opener", lambda *args: Opener())
+    client = ReceiptItemClassifier(GoogleClient("test-key"))
     assert len(client.run(*inputs())["items"]) == 2
     assert client.response["usage"] == {"totalTokenCount": 123}
 
@@ -134,9 +135,9 @@ def test_google_http_errors_do_not_leak_key(monkeypatch):
     class Opener:
         def open(self, request, timeout):
             raise HTTPError(request.full_url, 403, "test-key", {}, None)
-    monkeypatch.setattr("extraction.steps.enrich.build_opener", lambda *args: Opener())
+    monkeypatch.setattr("extraction.providers.http.build_opener", lambda *args: Opener())
     with pytest.raises(RuntimeError, match="Google Gemma HTTP 403") as exc:
-        GoogleGemmaEnricher("test-key").run(*inputs())
+        ReceiptItemClassifier(GoogleClient("test-key")).run(*inputs())
     assert "test-key" not in str(exc.value)
 
 
@@ -155,12 +156,12 @@ def test_nvidia_uses_fixed_endpoint_shared_validation_and_no_router_parameters(m
             assert "provider" not in payload and "models" not in payload
             assert "nvapi-test-key" not in request.data.decode()
             return io.BytesIO(json.dumps(response).encode())
-    monkeypatch.setattr("extraction.steps.enrich.build_opener", lambda *args: Opener())
-    client = NvidiaGemmaEnricher("nvapi-test-key")
+    monkeypatch.setattr("extraction.providers.http.build_opener", lambda *args: Opener())
+    client = ReceiptItemClassifier(NvidiaClient("nvapi-test-key"))
     assert len(client.run(*inputs())["items"]) == 2
     assert client.response["provider"] == "NVIDIA NIM"
     with pytest.raises(ValueError):
-        NvidiaGemmaEnricher("test-key", model="other-model")
+        ReceiptItemClassifier(NvidiaClient("test-key"), model="other-model")
 
 
 def test_nvidia_config_never_uses_another_providers_key(tmp_path, monkeypatch):
