@@ -15,7 +15,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY extraction/ ./extraction/
 COPY experiments/ ./experiments/
-COPY main.py api.py ./
+COPY main.py api.py api_models.py ./
 RUN uv sync --frozen --no-dev \
     && mkdir -p /app/.cache \
     && chown worker:worker /app/.cache
