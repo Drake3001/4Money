@@ -14,13 +14,14 @@ using ZPI4M.Limits.Database;
 using ZPI4M.Limits.Repositories.CategoryGroupLimitRepository;
 using ZPI4M.Receipt.Database;
 using ZPI4M.Receipt.Repositories.ReceiptRepository;
+using ZPI4M.Receipt.Services;
 using ZPI4M.User.Database;
 using ZPI4M.User.Repositories;
 
-var builder = WebApplication.CreateBuilder(args);
-
 // Load environment variables from .env file
 Env.Load();
+
+var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
@@ -57,6 +58,9 @@ builder.Services.AddScoped<ICategoryGroupLimitRepository, CategoryGroupLimitRepo
 // Receipt module
 builder.Services.AddDbContext<ReceiptDbContext>(options => options.UseNpgsql(dbConnectionString));
 builder.Services.AddScoped<IReceiptRepository, ReceiptRepository>();
+builder.Services.AddScoped<IReceiptService, ReceiptService>();
+builder.Services.AddReceiptAnalysis(builder.Configuration);
+builder.Services.AddReceiptFileStorage(builder.Configuration);
 
 // User module
 builder.Services.AddDbContext<UserDbContext>(options => options.UseNpgsql(dbConnectionString));
