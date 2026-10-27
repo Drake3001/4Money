@@ -352,19 +352,21 @@ storage oznacza błąd testu; kontener może działać lokalnie albo na serwerze
 ### Stan weryfikacji
 
 Ostatnia wykonana weryfikacja kodu, **2026-10-28**, dotyczy wersji bez
-kontrolera i endpoint?w HTTP Receipt:
+kontrolera i endpointów HTTP Receipt:
 
-- Kompilacja solucji w konfiguracji Debug przesz?a bez ostrze?e? i b??d?w
-  po przywr?ceniu osobnych pakiet?w `Microsoft.Extensions` zamiast zale?no?ci
+- Kompilacja solucji w konfiguracji Debug przeszła bez ostrzeżeń i błędów
+  po przywróceniu osobnych pakietów `Microsoft.Extensions` zamiast zależności
   od `Microsoft.AspNetCore.App` w projekcie Receipt.
-- Z 132 test?w jednostkowych przesz?o 131. Test
-  `Public_endpoint_is_signed_without_changing_upload_endpoint` nie przeszed?:
-  oczekuje `X-Amz-Expires=900`, a AWS SDK wygenerowa? `X-Amz-Expires=899`.
-  Ten problem wyst?powa? ju? przed zmian? zale?no?ci; wymaga osobnej poprawki.
-- Przesz?y wszystkie 4 testy pomocnika sprz?tania (`TestCleanupTests`).
-- `git diff --check` przeszed?.
+- Po poprawce testu podpisywania URL przeszły wszystkie 132 testy jednostkowe.
+  `Public_endpoint_is_signed_without_changing_upload_endpoint` sprawdza termin
+  wynikający z `X-Amz-Date` i `X-Amz-Expires` względem zwróconego `ExpiresAt`,
+  z tolerancją jednej sekundy wynikającą z dokładności AWS SDK. Nie zakłada
+  stałego `X-Amz-Expires=900`; kod produkcyjny storage pozostał bez zmian.
+- Przeszły wszystkie 4 testy pomocnika sprzątania (`TestCleanupTests`)
+  podczas wcześniejszej weryfikacji tego samego dnia.
+- `git diff --check` przeszedł.
 
-W tej weryfikacji nie uruchamiano rzeczywistego testu SeaweedFS, p?atnego OCR,
-operacji na PostgreSQL ani przebudowy kontener?w. Wyniki nie potwierdzaj? pe?nego
-przep?ywu OCR ? storage ? PostgreSQL ani ogranicze? i migracji bazy.
-Modu? jest udost?pniany pozosta?ym modu?om przez `IReceiptService`.
+W tej weryfikacji nie uruchamiano rzeczywistego testu SeaweedFS, płatnego OCR,
+operacji na PostgreSQL ani przebudowy kontenerów. Wyniki nie potwierdzają pełnego
+przepływu OCR → storage → PostgreSQL ani ograniczeń i migracji bazy.
+Moduł jest udostępniany pozostałym modułom przez `IReceiptService`.

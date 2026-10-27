@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -26,7 +27,16 @@ public sealed class S3FileStorageServiceTests
 		Assert.Equal("public-storage.example.test", url.Host);
 		Assert.Equal("/receipts/receipts/synthetic", url.AbsolutePath);
 		Assert.Contains("X-Amz-Signature=", url.Query);
-		Assert.Contains("X-Amz-Expires=900", url.Query);
+		var query = url.Query.TrimStart('?').Split('&')
+			.Select(part => part.Split('=', 2))
+			.ToDictionary(part => part[0], part => Uri.UnescapeDataString(part[1]));
+		var signedAt = DateTimeOffset.ParseExact(query["X-Amz-Date"], "yyyyMMdd'T'HHmmss'Z'",
+			CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal);
+		var validitySeconds = int.Parse(query["X-Amz-Expires"], CultureInfo.InvariantCulture);
+		Assert.InRange(validitySeconds, 1, options.UrlExpirationMinutes * 60);
+		// SDK timestamps and validity use whole seconds, so signing may round down.
+		Assert.InRange(result.ExpiresAt - signedAt.AddSeconds(validitySeconds),
+			TimeSpan.Zero, TimeSpan.FromSeconds(1));
 		Assert.Equal("internal-storage.example.test", new Uri(client.Config.ServiceURL).Host);
 	}
 
