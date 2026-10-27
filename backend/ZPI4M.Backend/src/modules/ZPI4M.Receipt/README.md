@@ -6,9 +6,9 @@ Paragon jest źródłem danych i załącznikiem; nie jest wydatkiem ani pozycją
 
 ## Granice i odpowiedzialności
 
-Receipt nie udostępnia kontrolerów MVC ani endpointów API. Docelowo dodawanie
-i wyświetlanie paragonu będzie dostępne przez Expense. Ten przepływ nie jest
-jeszcze zaimplementowany.
+Receipt nie udostępnia własnych endpointów HTTP. Pozostałe moduły korzystają
+z niego przez `IReceiptService`. Docelowo dodawanie i wyświetlanie paragonu
+będzie dostępne przez Expense. Ten przepływ nie jest jeszcze zaimplementowany.
 
 Przed wywołaniem Receipt warstwa aplikacyjna Expense ma sprawdzić aktualny dostęp
 użytkownika do wydatku i ustalić przypisany do niego `receiptId`. Serwisy Receipt
@@ -87,13 +87,18 @@ SDK podpisuje URL lokalnie, z kontrolą anulowania przed i po podpisaniu.
 Brak własnych ponowień ponad mechanizm SDK i brak wspólnej transakcji z bazą.
 
 Konfiguracja jest walidowana przy starcie API. Ustawienia i uruchomienie storage
-opisano poniżej. Host rejestruje rzeczywiste klienty OCR i storage, bez endpointów
-HTTP modułu Receipt.
+opisano poniżej. Host rejestruje rzeczywiste klienty OCR i storage.
 
 Otrzymany podpisany URL pozwala pobrać zdjęcie bezpośrednio ze storage do czasu
 wygaśnięcia. Nie należy go logować ani udostępniać osobom bez uprawnień.
 
 ## Konfiguracja i uruchomienie
+
+Backend można też uruchomić w kontenerze przez osobny
+[Compose backendu](../../../../../containers/backend/README.md). Zarówno Compose,
+jak i lokalne `dotnet run` korzystają z konfiguracji aplikacji w
+`backend/ZPI4M.Backend/src/ZPI4M.Api/.env`. Osobny `containers/backend/.env`
+zawiera tylko ustawienia uruchomienia Compose (port, adres publikacji i środowisko).
 
 ### Który plik .env uzupełnić?
 
@@ -346,11 +351,20 @@ storage oznacza błąd testu; kontener może działać lokalnie albo na serwerze
 
 ### Stan weryfikacji
 
-Ostatnia wykonana weryfikacja kodu, **2026-10-27**: 125 testów jednostkowych
-i 4 testy pomocnika sprzątania przeszły. Rzeczywisty test SeaweedFS był jawnie
-pominięty. Kompilacja Release solucji przeszła bez ostrzeżeń i błędów; kontrole
-stylu i whitespace w trybie bez zmian również zakończyły się powodzeniem.
+Ostatnia wykonana weryfikacja kodu, **2026-10-28**, dotyczy wersji bez
+kontrolera i endpoint?w HTTP Receipt:
 
-Nie jest to potwierdzenie działania rzeczywistego OCR, ograniczeń PostgreSQL
-ani pełnego przepływu OCR → storage → PostgreSQL. Te integracje wymagają osobnej
-weryfikacji. Przy zmianie samej dokumentacji nie uruchamiano ponownie testów kodu.
+- Kompilacja solucji w konfiguracji Debug przesz?a bez ostrze?e? i b??d?w
+  po przywr?ceniu osobnych pakiet?w `Microsoft.Extensions` zamiast zale?no?ci
+  od `Microsoft.AspNetCore.App` w projekcie Receipt.
+- Z 132 test?w jednostkowych przesz?o 131. Test
+  `Public_endpoint_is_signed_without_changing_upload_endpoint` nie przeszed?:
+  oczekuje `X-Amz-Expires=900`, a AWS SDK wygenerowa? `X-Amz-Expires=899`.
+  Ten problem wyst?powa? ju? przed zmian? zale?no?ci; wymaga osobnej poprawki.
+- Przesz?y wszystkie 4 testy pomocnika sprz?tania (`TestCleanupTests`).
+- `git diff --check` przeszed?.
+
+W tej weryfikacji nie uruchamiano rzeczywistego testu SeaweedFS, p?atnego OCR,
+operacji na PostgreSQL ani przebudowy kontener?w. Wyniki nie potwierdzaj? pe?nego
+przep?ywu OCR ? storage ? PostgreSQL ani ogranicze? i migracji bazy.
+Modu? jest udost?pniany pozosta?ym modu?om przez `IReceiptService`.
