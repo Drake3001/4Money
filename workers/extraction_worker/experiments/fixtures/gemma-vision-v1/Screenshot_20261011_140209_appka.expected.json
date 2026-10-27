@@ -1,0 +1,71 @@
+{
+  "source": "Screenshot_20261011_140209_appka.jpg",
+  "annotation_method": "assistant_visual_verification_of_existing_reference_against_source_images",
+  "review_status": "assistant_verified_not_human",
+  "store": "Żabka",
+  "receipt_number": "38996",
+  "date": "2026-10-07",
+  "time": "19:56",
+  "currency": "PLN",
+  "total": "29.58",
+  "amount_due": "29.58",
+  "items": [
+    {
+      "name": "KRAKERSY TUC BACON 100g-C",
+      "quantity": "2",
+      "unit": "szt.",
+      "unit_price": "4.99",
+      "before_discount": "9.98",
+      "discount": "0.00",
+      "total": "9.98",
+      "tax_code": "C",
+      "printed_marker": null
+    },
+    {
+      "name": "LAYS KRAKERSY 80g-C",
+      "quantity": "1",
+      "unit": "szt.",
+      "unit_price": "6.80",
+      "before_discount": "6.80",
+      "discount": "0.00",
+      "total": "6.80",
+      "tax_code": "C",
+      "printed_marker": null
+    },
+    {
+      "name": "CHIPSY DORITO 180g-C",
+      "quantity": "1",
+      "unit": "szt.",
+      "unit_price": "12.80",
+      "before_discount": "12.80",
+      "discount": "0.00",
+      "total": "12.80",
+      "tax_code": "C",
+      "printed_marker": null
+    }
+  ],
+  "deposits": [],
+  "payment": {
+    "label": "INNA Karta kred.",
+    "amount": "29.58"
+  },
+  "tax_summary": [
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "29.58",
+      "tax": "1.41"
+    }
+  ],
+  "tax_total": "1.41",
+  "notes": [
+    "Zachowano nazwy i skróty z wydruku; reklamy, identyfikatory techniczne i obce paragony w tle pominięto.",
+    "Independently visually verified for gemma-vision-v1 before inspecting vision predictions. Existing item names, counts, quantities, unit prices, pre-discount gross values, signed discounts, post-discount totals, deposits and document amounts were checked against source image(s). No numerical corrections required. Assistant verification is not human gold.",
+    "All item money fields are gross amounts in PLN. Item total is after the signed discount; before_discount is quantity times unit_price rounded to cents. tax_summary.sales is gross taxable turnover, not a net amount. No unprinted net amounts were invented."
+  ],
+  "uncertain_fields": [],
+  "document_type": "e_receipt_screenshot",
+  "reviewer": "assistant_visual_review",
+  "transcription_scope": "complete_main_receipt",
+  "deposit_returns": []
+}

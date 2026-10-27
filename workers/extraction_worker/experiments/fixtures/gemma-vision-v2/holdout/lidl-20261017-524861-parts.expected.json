@@ -1,0 +1,293 @@
+{
+  "source": "lidl-20261017-524861-parts",
+  "annotation_method": "assistant_visual_verification_of_existing_reference_against_source_images",
+  "review_status": "assistant_verified_not_human",
+  "transcription_scope": "complete_main_receipt",
+  "store": "Lidl",
+  "receipt_number": "524861",
+  "date": "2026-10-17",
+  "time": "07:21",
+  "currency": "PLN",
+  "total": "221.45",
+  "amount_due": "221.45",
+  "items": [
+    {
+      "name": "Orzechy nerkowca",
+      "quantity": "4",
+      "unit": null,
+      "unit_price": "9.49",
+      "before_discount": "37.96",
+      "discount": "-20.75",
+      "total": "17.21",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Filet z indyka XXL",
+      "quantity": "1.371",
+      "unit": null,
+      "unit_price": "33.99",
+      "before_discount": "46.60",
+      "discount": "-21.46",
+      "total": "25.14",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Brytfanna0524260",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "69.99",
+      "before_discount": "69.99",
+      "discount": "-5.80",
+      "total": "64.19",
+      "tax_code": "A",
+      "printed_marker": "X",
+      "category": "dom i ogród"
+    },
+    {
+      "name": "Marlenka Miod. kulki",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "21.99",
+      "before_discount": "21.99",
+      "discount": "-1.82",
+      "total": "20.17",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Ser cheddar kawałek",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "14.35",
+      "before_discount": "14.35",
+      "discount": "-3.85",
+      "total": "10.50",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Forma0547160",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "11.49",
+      "before_discount": "11.49",
+      "discount": "-0.95",
+      "total": "10.54",
+      "tax_code": "A",
+      "printed_marker": "X",
+      "category": "dom i ogród"
+    },
+    {
+      "name": "Boczek w plast.130g",
+      "quantity": "2",
+      "unit": null,
+      "unit_price": "7.59",
+      "before_discount": "15.18",
+      "discount": "-6.02",
+      "total": "9.16",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Ziemniaki mącz.2.5kg",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "8.99",
+      "before_discount": "8.99",
+      "discount": "-0.74",
+      "total": "8.25",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Pyzy z mięsem mroż.",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "8.49",
+      "before_discount": "8.49",
+      "discount": "-0.70",
+      "total": "7.79",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Bułka z dł. ferment.",
+      "quantity": "6",
+      "unit": null,
+      "unit_price": "1.39",
+      "before_discount": "8.34",
+      "discount": "-0.69",
+      "total": "7.65",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Cukinia luz",
+      "quantity": "1.64",
+      "unit": null,
+      "unit_price": "7.99",
+      "before_discount": "13.10",
+      "discount": "-5.60",
+      "total": "7.50",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Szynka Szwarcwaldzka",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "7.29",
+      "before_discount": "7.29",
+      "discount": "-0.60",
+      "total": "6.69",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Śliwki węgierki 1kg",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "6.99",
+      "before_discount": "6.99",
+      "discount": "-0.58",
+      "total": "6.41",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Dynia Piżmowa luz",
+      "quantity": "1.602",
+      "unit": null,
+      "unit_price": "3.99",
+      "before_discount": "6.39",
+      "discount": "-0.53",
+      "total": "5.86",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Bułka z oliwą",
+      "quantity": "4",
+      "unit": null,
+      "unit_price": "1.65",
+      "before_discount": "6.60",
+      "discount": "-1.19",
+      "total": "5.41",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Curry XXL",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "3.49",
+      "before_discount": "3.49",
+      "discount": "-0.29",
+      "total": "3.20",
+      "tax_code": "B",
+      "printed_marker": "I",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Natka pietruszki",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "2.99",
+      "before_discount": "2.99",
+      "discount": "-0.25",
+      "total": "2.74",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Jabłka Gala luz",
+      "quantity": "0.516",
+      "unit": null,
+      "unit_price": "4.99",
+      "before_discount": "2.57",
+      "discount": "-0.21",
+      "total": "2.36",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Cebula czerwona luz",
+      "quantity": "0.148",
+      "unit": null,
+      "unit_price": "4.99",
+      "before_discount": "0.74",
+      "discount": "-0.06",
+      "total": "0.68",
+      "tax_code": "C",
+      "printed_marker": "F",
+      "category": "żywność i napoje"
+    }
+  ],
+  "deposits": [],
+  "deposit_returns": [],
+  "tax_summary": [
+    {
+      "code": "A",
+      "rate_percent": "23",
+      "sales": "74.73",
+      "tax": "13.97"
+    },
+    {
+      "code": "B",
+      "rate_percent": "8",
+      "sales": "3.20",
+      "tax": "0.24"
+    },
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "143.52",
+      "tax": "6.83"
+    }
+  ],
+  "tax_total": "21.04",
+  "payment": {
+    "label": "KARTA Karta płatnicza",
+    "amount": "221.45"
+  },
+  "notes": [
+    "Pominięto reklamy, identyfikatory techniczne, kody i obce paragony w tle.",
+    "Dwa nakładające się zbliżenia tego samego paragonu odczytano łącznie; treść obszaru nakładania uwzględniono jeden raz.",
+    "Ten sam zakup jest także na osobnym zdjęciu 20261019_181716.jpg; same_receipt_id łączy przypadki i zapobiega traktowaniu ich jako niezależnych zakupów.",
+    "Independently visually verified for gemma-vision-v1 before inspecting vision predictions. Existing item names, counts, quantities, unit prices, pre-discount gross values, signed discounts, post-discount totals, deposits and document amounts were checked against source image(s). No numerical corrections required. Assistant verification is not human gold.",
+    "All item money fields are gross amounts in PLN. Item total is after the signed discount; before_discount is quantity times unit_price rounded to cents. tax_summary.sales is gross taxable turnover, not a net amount. No unprinted net amounts were invented.",
+    "Both overlapping photographs jointly contain 19 unique purchase lines. Repeated views and OPUST name repetitions are counted once. Every listed discount is signed negative; all 19 after-discount totals sum to 221.45. No deposits or returns are shown. Units remain null where no explicit unit token is printed; do not infer kg solely from decimal quantities. The Curry marker uncertainty does not affect any numerical field.",
+    "gemma-vision-v2: Visually checked original image(s); item count, quantities, unit prices, before-discount gross amounts, signed discounts, after-discount totals, goods total, amount due, deposits and date confirmed. No numerical or date corrections were necessary. Current assistant_verified_not_human status supersedes historical pending-review wording in retained notes. These are silver references, not human gold."
+  ],
+  "uncertain_fields": [
+    {
+      "field": "items[15].printed_marker",
+      "detail": "Wąski znak przy Curry XXL odczytano jako I; może wyglądać jak małe i."
+    }
+  ],
+  "same_receipt_id": "lidl-20261017-524861",
+  "sources": [
+    "20261019_181726.jpg",
+    "20261019_181733.jpg"
+  ],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "verification_method": "Source-image review of complete purchase rows, numeric fields, date and deposits before new gemma-vision-v2 predictions. Existing reference retained except added metadata/category labels."
+}

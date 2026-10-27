@@ -1,0 +1,509 @@
+{
+  "taxonomy_version": "1",
+  "reviewer": "blind_assistant_visual_review",
+  "review_notes": "Silver labels, not human verified. All 12 development source images visually inspected without reading model predictions or past reports. Categories refer to original photographed purchases. Two null parser names are pipeline failures: visual category can be labelled, but accepted_names=null excludes unsupported name recovery. Abbreviations are generally preserved; clearly delimited VAT suffixes may be kept or removed. Category coverage is narrow and cannot establish general 18-category performance.",
+  "cases": [
+    {
+      "source": "Screenshot_20261011_140209_appka.jpg",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "KRAKERSY TUC BACON 100g-C",
+          "accepted_names": [
+            "KRAKERSY TUC BACON 100g",
+            "KRAKERSY TUC BACON 100g-C"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 1,
+          "name_raw": "LAYS KRAKERSY 80g-C",
+          "accepted_names": [
+            "LAYS KRAKERSY 80g",
+            "LAYS KRAKERSY 80g-C"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 2,
+          "name_raw": "CHIPSY D0RITO 180g-C",
+          "accepted_names": [
+            "CHIPSY DORITO 180g",
+            "CHIPSY DORITO 180g-C"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Source clearly reads DORITO, not D0RITO; do not expand to DORITOS."
+        }
+      ]
+    },
+    {
+      "source": "IMG_6796.JPEG",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "PIERS PIECZ KURCZ 100G",
+          "accepted_names": [
+            "PIERŚ PIECZ KURCZ 100G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Restore Ś; preserve abbreviated product description."
+        },
+        {
+          "id": 1,
+          "name_raw": "RECZNIK PAPIER FOXY TOR",
+          "accepted_names": [
+            "RĘCZNIK PAPIER FOXY TOR"
+          ],
+          "category": "dom i ogród",
+          "reviewed": true,
+          "note": "Paper towel explicitly assigned to dom i ogród by taxonomy; TOR is preserved."
+        }
+      ]
+    },
+    {
+      "source": "20261011_130153.jpg",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "PIWO TYSKIE GRONIE-A",
+          "accepted_names": [
+            "PIWO TYSKIE GRONIE",
+            "PIWO TYSKIE GRONIE-A"
+          ],
+          "category": "alkohol i tytoń",
+          "reviewed": true,
+          "note": "Can deposit is separate, not a purchase item."
+        }
+      ]
+    },
+    {
+      "source": "20261016_210327.jpg",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "Roma familijna",
+          "accepted_names": [
+            "Roma familijna"
+          ],
+          "category": "restauracje i kawiarnie",
+          "reviewed": true,
+          "note": "Restaurant heading PIZZERIA BRAVO supplies gastronomic context."
+        },
+        {
+          "id": 1,
+          "name_raw": "Lody czekolada",
+          "accepted_names": [
+            "Lody czekolada"
+          ],
+          "category": "restauracje i kawiarnie",
+          "reviewed": true,
+          "note": "Ice cream served at pizzeria."
+        },
+        {
+          "id": 2,
+          "name_raw": "Pivo0.5 lane biate zywiec",
+          "accepted_names": [
+            "Piwo0.5 lane białe żywiec",
+            "Piwo 0.5 lane białe Żywiec",
+            "Piwo 0,5 lane białe Żywiec"
+          ],
+          "category": "alkohol i tytoń",
+          "reviewed": true,
+          "note": "Source reads Piwo0.5 lane białe żywiec; alcohol overrides restaurant context."
+        }
+      ]
+    },
+    {
+      "source": "20261011_130126.jpg",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "Snack.Wrap",
+          "accepted_names": [
+            "Snack.Wrap"
+          ],
+          "category": "restauracje i kawiarnie",
+          "reviewed": true,
+          "note": "McDonald’s receipt, prepared wrap."
+        }
+      ]
+    },
+    {
+      "source": "20261018_090713.jpg",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "B.Benzyna PB95",
+          "accepted_names": [
+            "B.Benzyna PB95"
+          ],
+          "category": "transport i samochód",
+          "reviewed": true,
+          "note": "Prefix B. is printed; PB95 is fuel designation and must be preserved."
+        }
+      ]
+    },
+    {
+      "source": "IMG_6793.JPEG",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "KIEEBASA GtOGOWSKA 400G",
+          "accepted_names": [
+            "KIEŁBASA GŁOGOWSKA 400G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Correct OCR KIEEBASA/GtOGOWSKA from clearly legible source."
+        },
+        {
+          "id": 1,
+          "name_raw": null,
+          "accepted_names": null,
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Parser failure: missing name. Image shows WŁOSZCZYZNA 450G, but do not score name repair from null input.",
+          "parser_missing_name": true
+        },
+        {
+          "id": 2,
+          "name_raw": null,
+          "accepted_names": null,
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Parser failure: second missing name. Image shows a separate WŁOSZCZYZNA 450G row; retain duplicate purchase.",
+          "parser_missing_name": true
+        },
+        {
+          "id": 3,
+          "name_raw": "SOK POM/PIKP./BUR 0,3L",
+          "accepted_names": [
+            "SOK POM/PIKP./BUR 0,3L"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Printed abbreviated flavour preserved without speculative expansion."
+        },
+        {
+          "id": 4,
+          "name_raw": "BUTKA POZNANSKA 95G",
+          "accepted_names": [
+            "BUŁKA POZNAŃSKA 95G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Correct BUTKA and restore Ń."
+        }
+      ]
+    },
+    {
+      "source": "IMG_6799.JPEG",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "SNICKERS BATON 50G",
+          "accepted_names": [
+            "SNICKERS BATON 50G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 1,
+          "name_raw": "K.JUMI JUMI NAPÓJ 320ML",
+          "accepted_names": [
+            "K.JUMI JUMI NAPÓJ 320ML"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "K. and brand spelling printed on receipt; preserve."
+        },
+        {
+          "id": 2,
+          "name_raw": "BISZKOPTY 2 GAL 135G",
+          "accepted_names": [
+            "BISZKOPTY Z GAL 135G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Source clearly prints Z, not OCR digit 2; unit and weight unchanged."
+        },
+        {
+          "id": 3,
+          "name_raw": "MINI WAF ZB-RYZ/KUK.45G",
+          "accepted_names": [
+            "MINI WAF ZB-RYŻ/KUK.45G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Preserve printed abbreviations; restore Ż in RYŻ."
+        },
+        {
+          "id": 4,
+          "name_raw": "MINI WAF ZB-RYZ/KUK.45G",
+          "accepted_names": [
+            "MINI WAF ZB-RYŻ/KUK.45G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Separate repeated purchase, not a duplicate annotation."
+        },
+        {
+          "id": 5,
+          "name_raw": "DROZDZOWKA Z SEREM 100G",
+          "accepted_names": [
+            "DROŻDŻÓWKA Z SEREM 100G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 6,
+          "name_raw": "DAN. RAMEN 136/138/140G",
+          "accepted_names": [
+            "DAN. RAMEN 136/138/140G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Three printed weights denote product variants; preserve all digits."
+        },
+        {
+          "id": 7,
+          "name_raw": "DAN. RAMEN 136/138/140G",
+          "accepted_names": [
+            "DAN. RAMEN 136/138/140G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Separate repeated purchase."
+        },
+        {
+          "id": 8,
+          "name_raw": "CIASTKA KRUCHE 200G",
+          "accepted_names": [
+            "CIASTKA KRUCHE 200G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 9,
+          "name_raw": "K. DR WITT NAP.OWOC.1L",
+          "accepted_names": [
+            "K. DR WITT NAP.OWOC.1L"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Preserve printed abbreviations and brand."
+        }
+      ]
+    },
+    {
+      "source": "IMG_6883.JPEG",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "ApapExtra10szt",
+          "accepted_names": [
+            "ApapExtra10szt",
+            "Apap Extra 10 szt"
+          ],
+          "category": "zdrowie",
+          "reviewed": true,
+          "note": "Recognizable medicine; do not remove strength/count text or invent dosage."
+        },
+        {
+          "id": 1,
+          "name_raw": "Recznik Milla X2",
+          "accepted_names": [
+            "Ręcznik Milla X2"
+          ],
+          "category": "dom i ogród",
+          "reviewed": true,
+          "note": "Receipt and Milla context indicate paper towel; taxonomy assigns paper towels to dom i ogród."
+        },
+        {
+          "id": 2,
+          "name_raw": "Jogurt Nat 200g 2.",
+          "accepted_names": [
+            "Jogurt Nat 200g",
+            "Jogurt naturalny 200g"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Parser appended quantity fragment 2.; source product name ends 200g."
+        },
+        {
+          "id": 3,
+          "name_raw": "MakSpagLub400g 550g BCUUOUUU",
+          "accepted_names": [
+            "MakSpagLub400g 550g",
+            "Mak Spag Lub 400g 550g"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Source itself visibly prints both 400g and 550g. Preserve both; BCUUOUUU is parser/OCR contamination."
+        },
+        {
+          "id": 4,
+          "name_raw": "KabExPaTarcz95",
+          "accepted_names": [
+            "KabExPaTarcz95 g",
+            "KabExPaTarcz95",
+            "Kab Ex Pa Tarcz 95 g"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Source prints abbreviated kabanos description and 95 g; preserve abbreviations."
+        },
+        {
+          "id": 5,
+          "name_raw": "KabExPaTarcz95",
+          "accepted_names": [
+            "KabExPaTarcz95 g",
+            "KabExPaTarcz95",
+            "Kab Ex Pa Tarcz 95 g"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Separate repeated purchase."
+        },
+        {
+          "id": 6,
+          "name_raw": "PasztPodDrob100g",
+          "accepted_names": [
+            "PasztPodDrob100g",
+            "Paszt Pod Drob 100g"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Preserve printed abbreviations."
+        },
+        {
+          "id": 7,
+          "name_raw": "Rozek z Jabtk",
+          "accepted_names": [
+            "Rożek z Jabłk",
+            "Rożek z Jabłk 95g",
+            "Rożek z jabłkami",
+            "Rożek z jabłkami 95g"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Restore diacritics. 95g is present on image but missing from parser name; do not require adding it."
+        },
+        {
+          "id": 8,
+          "name_raw": "BulkaZeSlonecznik70g C 2.",
+          "accepted_names": [
+            "BułkaZeSłonecznik70g",
+            "Bułka ze słonecznikiem 70g"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Restore diacritics; remove trailing VAT/quantity fragment C 2."
+        },
+        {
+          "id": 9,
+          "name_raw": "Torba T-SHIRT",
+          "accepted_names": [
+            "Torba T-SHIRT"
+          ],
+          "category": "dom i ogród",
+          "reviewed": true,
+          "note": "Supermarket carrier bag, not clothing. T-SHIRT is bag shape; household reusable/carrying article."
+        }
+      ]
+    },
+    {
+      "source": "Screenshot_20261011_140234_appka.jpg",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "CYTRONET RAB 0,331-C",
+          "accepted_names": [
+            "CYTRONET RAB 0,33l",
+            "CYTRONET RAB 0,33l-C"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Final source character is lower-case l litre unit, not OCR digit 1; preserve abbreviated RAB."
+        },
+        {
+          "id": 1,
+          "name_raw": "NAPOJ ZYWIEC 500m1-A",
+          "accepted_names": [
+            "NAPÓJ ŻYWIEC 500ml",
+            "NAPÓJ ŻYWIEC 500ml-A"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "NAPÓJ is explicitly non-beer wording; correct m1 to ml and diacritics without guessing variant."
+        },
+        {
+          "id": 2,
+          "name_raw": "GUMA ORBIT 14g-B",
+          "accepted_names": [
+            "GUMA ORBIT 14g",
+            "GUMA ORBIT 14g-B"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Chewing gum is food, not hygiene."
+        }
+      ]
+    },
+    {
+      "source": "IMG_6895.JPEG",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "SMOOTHIE FOODINI S-C",
+          "accepted_names": [
+            "SMOOTHIE FOODINI S",
+            "SMOOTHIE FOODINI S-C"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Preserve terminal S; no evidence for its expansion."
+        }
+      ]
+    },
+    {
+      "source": "IMG_6898.JPEG",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "GUM DO ZU OR T 29g-B",
+          "accepted_names": [
+            "GUM DO ŻU OR T 29g",
+            "GUM DO ŻU OR T 29g-B"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Conservative diacritic restoration of printed abbreviations. OR T is not expanded to a specific variant."
+        },
+        {
+          "id": 1,
+          "name_raw": "BATON KINDER BUENO-C",
+          "accepted_names": [
+            "BATON KINDER BUENO",
+            "BATON KINDER BUENO-C"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        }
+      ]
+    }
+  ]
+}

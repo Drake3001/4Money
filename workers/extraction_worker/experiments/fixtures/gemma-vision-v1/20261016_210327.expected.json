@@ -1,0 +1,80 @@
+{
+  "source": "20261016_210327.jpg",
+  "annotation_method": "assistant_visual_verification_of_existing_reference_against_source_images",
+  "review_status": "assistant_verified_not_human",
+  "transcription_scope": "complete_main_receipt",
+  "store": "PIZZERIA \"BRAVO\"",
+  "receipt_number": "115610",
+  "date": "2026-10-16",
+  "time": "20:57",
+  "currency": "PLN",
+  "total": "143.00",
+  "amount_due": "143.00",
+  "items": [
+    {
+      "name": "Roma familijna",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "56.10",
+      "before_discount": "56.10",
+      "discount": "0.00",
+      "total": "56.10",
+      "tax_code": "B",
+      "printed_marker": null,
+      "total_is_printed": true
+    },
+    {
+      "name": "Lody czekolada",
+      "quantity": "1",
+      "unit": "szt.",
+      "unit_price": "11.90",
+      "before_discount": "11.90",
+      "discount": "0.00",
+      "total": "11.90",
+      "tax_code": "B",
+      "printed_marker": null,
+      "total_is_printed": true
+    },
+    {
+      "name": "Piwo0.5 lane białe Żywiec",
+      "quantity": "6",
+      "unit": "szt",
+      "unit_price": "12.50",
+      "before_discount": "75.00",
+      "discount": "0.00",
+      "total": "75.00",
+      "tax_code": "A",
+      "printed_marker": null,
+      "total_is_printed": true
+    }
+  ],
+  "deposits": [],
+  "deposit_returns": [],
+  "tax_summary": [
+    {
+      "code": "A",
+      "rate_percent": "23",
+      "sales": "75.00",
+      "tax": "14.02"
+    },
+    {
+      "code": "B",
+      "rate_percent": "8",
+      "sales": "68.00",
+      "tax": "5.04"
+    }
+  ],
+  "tax_total": "19.06",
+  "payment": {
+    "label": "KARTA",
+    "amount": "143.00"
+  },
+  "notes": [
+    "Zakres: główny paragon bez reklam, kodów kreskowych i identyfikatorów technicznych. Zgodność rachunkowa nie potwierdza niezależnie każdego znaku transkrypcji.",
+    "Independently visually verified for gemma-vision-v1 before inspecting vision predictions. Existing item names, counts, quantities, unit prices, pre-discount gross values, signed discounts, post-discount totals, deposits and document amounts were checked against source image(s). No numerical corrections required. Assistant verification is not human gold.",
+    "All item money fields are gross amounts in PLN. Item total is after the signed discount; before_discount is quantity times unit_price rounded to cents. tax_summary.sales is gross taxable turnover, not a net amount. No unprinted net amounts were invented.",
+    "The restaurant has exactly three purchase lines: Roma familijna 1 x 56.10 gross, ice cream 1 x 11.90 gross, and beer 6 x 12.50 gross = 75.00. Gross sales B 68.00 and A 75.00 total 143.00. VAT 5.04 + 14.02 = 19.06 is already included in 143.00 and must not be added again. No discount is printed. All relevant monetary values and quantities are readable."
+  ],
+  "uncertain_fields": [],
+  "reviewer": "assistant_visual_review"
+}

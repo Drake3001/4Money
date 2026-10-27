@@ -1,0 +1,820 @@
+{
+  "taxonomy_version": "1",
+  "reviewer": "blind_assistant_visual_review",
+  "review_notes": "Silver reference labels from independent source-image review before model predictions. Not human gold. All 12 holdout documents and 13 source images inspected. Names retain legitimate receipt abbreviations and numbers. VAT suffix variants accepted. Explicit notes separate numeric OCR repairs, structural parser contamination, empty names and overlap duplicates. No deduplication or missing-product invention. Freshener/colouring-disc classification warrants human confirmation.",
+  "cases": [
+    {
+      "source": "20261018_090822.jpg",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "NapGazPolVitMIX1,5l",
+          "accepted_names": [
+            "NapGazPolVitMIX1,5l",
+            "Nap Gaz Pol Vit MIX 1,5l"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 1,
+          "name_raw": "Woda Gaz Zyw 1,75l",
+          "accepted_names": [
+            "Woda Gaz Żyw 1,75l"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 2,
+          "name_raw": "MlekoWiejsk 3,2 1L",
+          "accepted_names": [
+            "MlekoWiejsk 3,2 1L",
+            "Mleko Wiejsk 3,2 1L"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 3,
+          "name_raw": "Serek Wiejski 200g UUA",
+          "accepted_names": [
+            "Serek Wiejski 200g"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "UUA is trailing OCR garbage, absent from printed product name."
+        },
+        {
+          "id": 4,
+          "name_raw": "KawaMielTchi250g",
+          "accepted_names": [
+            "KawaMielTchi250g",
+            "Kawa Miel Tchi 250g"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 5,
+          "name_raw": "Chle kr ksiaz 400g",
+          "accepted_names": [
+            "Chle kr książ 400g"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Retain printed abbreviations; do not invent a bread brand."
+        },
+        {
+          "id": 6,
+          "name_raw": "JabtPolskieGalaluz 00",
+          "accepted_names": [
+            "JabłPolskieGalaluz",
+            "Jabł Polskie Gala luz"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "00 is trailing OCR garbage, not a quantity or product size; removed with visual evidence."
+        },
+        {
+          "id": 7,
+          "name_raw": "MiesoMielWiephot400g",
+          "accepted_names": [
+            "MięsoMielWiepWoł400g",
+            "Mięso Miel Wiep Woł 400g"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 8,
+          "name_raw": "SosCulineBolonsk520",
+          "accepted_names": [
+            "SosCulineBolońsk520",
+            "Sos Culine Bolońsk 520"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "No unit added after 520; source abbreviation preserved."
+        },
+        {
+          "id": 9,
+          "name_raw": "PrzypPapWekan16 20g",
+          "accepted_names": [
+            "PrzypPapWęKam16 20g",
+            "Przyp Pap Wę Kam16 20g"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Keep visible 16 and 20g. Abbreviated printed name; no brand expansion assumed."
+        },
+        {
+          "id": 10,
+          "name_raw": "MakarSpagDobru500g",
+          "accepted_names": [
+            "MakarSpagDobru500g",
+            "Makar Spag Dobru 500g"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 11,
+          "name_raw": "Cebula Zótta Luz",
+          "accepted_names": [
+            "Cebula Żółta Luz"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "source": "IMG_6794.JPEG",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "PRZEC. POMIDOR. 500G",
+          "accepted_names": [
+            "PRZEC. POMIDOR. 500G",
+            "PRZECIER POMIDOROWY 500G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 1,
+          "name_raw": "BOCZEK LARDONS 60G",
+          "accepted_names": [
+            "BOCZEK LARDONS 60G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 2,
+          "name_raw": "MIMOLETTE MILSANI 120G",
+          "accepted_names": [
+            "MIMOLETTE MILSANI 120G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 3,
+          "name_raw": "MIESO MIELONE WOt 400G",
+          "accepted_names": [
+            "MIĘSO MIELONE WOŁ 400G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 4,
+          "name_raw": "BIO KONC.CYTR.LIM 20OML",
+          "accepted_names": [
+            "BIO KONC.CYTR.LIM 200ML",
+            "BIO KONC. CYTR. LIM 200ML"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Numeric OCR corruption 20O -> 200 is visually confirmed. Expected name repairs a letter O mistaken for digit 0; numeric-guard evaluation must flag this separately."
+        },
+        {
+          "id": 5,
+          "name_raw": "PRZEC. POMIDOR. 500G",
+          "accepted_names": [
+            "PRZEC. POMIDOR. 500G",
+            "PRZECIER POMIDOROWY 500G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Separate printed occurrence of same product; not silently deduplicated."
+        },
+        {
+          "id": 6,
+          "name_raw": "CEBULA ZOtTA KG",
+          "accepted_names": [
+            "CEBULA ŻÓŁTA KG"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "source": "IMG_6798.JPEG",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "FIL.Z PIERSI KUR.XXL KG",
+          "accepted_names": [
+            "FIL.Z PIERSI KUR.XXL KG",
+            "FIL. Z PIERSI KUR. XXL KG"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 1,
+          "name_raw": "SOKOL.SZYNE.DROB. 10OG",
+          "accepted_names": [
+            "SOKOL.SZYNE.DROB.100G",
+            "SOKOL. SZYNE. DROB. 100G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Numeric OCR corruption 10O -> 100 visually confirmed; do not infer grams without source evidence."
+        },
+        {
+          "id": 2,
+          "name_raw": "ODSWIEZACZ POW 2EL 150G",
+          "accepted_names": [
+            "ODŚWIEŻACZ POW ŻEL 150G"
+          ],
+          "category": "chemia gospodarcza",
+          "reviewed": true,
+          "note": "Household air freshener; not a personal hygiene product."
+        },
+        {
+          "id": 3,
+          "name_raw": "KRAZKI BARWIACE 4 SZT.",
+          "accepted_names": [
+            "KRĄŻKI BARWIĄCE 4 SZT."
+          ],
+          "category": "chemia gospodarcza",
+          "reviewed": true,
+          "note": "Household toilet colouring/freshening product; product-use interpretation is a silver-label assumption to confirm with human reviewer."
+        },
+        {
+          "id": 4,
+          "name_raw": "TAO TAO SOS 200/220G",
+          "accepted_names": [
+            "TAO TAO SOS 200/220G"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 5,
+          "name_raw": "SASZ. ZAPACH. DO SZAFY",
+          "accepted_names": [
+            "SASZ. ZAPACH. DO SZAFY"
+          ],
+          "category": "chemia gospodarcza",
+          "reviewed": true,
+          "note": "Household wardrobe fragrance; chemistry/home boundary should be human-confirmed if taxonomy excludes fresheners."
+        }
+      ]
+    },
+    {
+      "source": "IMG_6882.JPEG",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": null,
+          "accepted_names": null,
+          "category": null,
+          "reviewed": true,
+          "note": "Parser name is null despite milk visibly present in image. Do not give LLM credit for reconstructing a missing parser name or invent expected item content."
+        },
+        {
+          "id": 1,
+          "name_raw": "JogurtFrukysTrus150g",
+          "accepted_names": [
+            "JogurtFruWyśTrus150g",
+            "Jogurt FruWyś Trus 150g"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Printed brand abbreviation FruWyś retained; no unsupported full brand required."
+        },
+        {
+          "id": 2,
+          "name_raw": "Banan Luz",
+          "accepted_names": [
+            "Banan Luz"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 3,
+          "name_raw": "Ziemniaki Jad Luz",
+          "accepted_names": [
+            "Ziemniaki Jad Luz"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "source": "IMG_6885.JPEG",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "PiwoGarageBerr8 0,4l",
+          "accepted_names": [
+            "PiwoGarageBerr8 0,4l",
+            "Piwo Garage Berr8 0,4l"
+          ],
+          "category": "alkohol i tytoń",
+          "reviewed": true,
+          "note": "Retain printed Berr8 suffix; do not expand flavour or infer alcohol strength."
+        },
+        {
+          "id": 1,
+          "name_raw": "NapLiptonMix0,5l",
+          "accepted_names": [
+            "NapLiptonMix0,5l",
+            "Nap Lipton Mix 0,5l"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 2,
+          "name_raw": "Donut Cookies 75g",
+          "accepted_names": [
+            "Donut Cookies 75g"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "source": "IMG_6886.JPEG",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "ROLLO KEBAB (MALE)",
+          "accepted_names": [
+            "ROLLO KEBAB (MAŁE)"
+          ],
+          "category": "restauracje i kawiarnie",
+          "reviewed": true,
+          "note": "Gastronomic context established by Zahir Kebab receipt."
+        }
+      ]
+    },
+    {
+      "source": "20261019_181950.jpg",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "EFECTA 95 CN27101245",
+          "accepted_names": [
+            "EFECTA 95 CN27101245"
+          ],
+          "category": "transport i samochód",
+          "reviewed": true,
+          "note": "Fuel identified by product and transaction context; digits preserved."
+        }
+      ]
+    },
+    {
+      "source": "Screenshot_20261011_140305_appka.jpg",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "DROZDZE 100g-A",
+          "accepted_names": [
+            "DROŻDŻE 100g",
+            "DROŻDŻE 100g-A"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 1,
+          "name_raw": "BATON KINDER MAXI KING 35g-A",
+          "accepted_names": [
+            "BATON KINDER MAXI KING 35g",
+            "BATON KINDER MAXI KING 35g-A"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "source": "IMG_6904.JPEG",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": null,
+          "accepted_names": null,
+          "category": null,
+          "reviewed": true,
+          "note": "Parser name is null; do not reconstruct first Monster product from neighbouring source image rows."
+        },
+        {
+          "id": 1,
+          "name_raw": "NAP MONST RUBY 500nl-A",
+          "accepted_names": [
+            "NAP MONST RUBY 500ml",
+            "NAP MONST RUBY 500ml-A"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Unit OCR nl -> ml visually confirmed; no digit change."
+        },
+        {
+          "id": 2,
+          "name_raw": "SZMAAMM PIER GRUZ 320g-C",
+          "accepted_names": [
+            "SZAMAMM PIER GRUZ 320g",
+            "SZAMAMM PIER GRUZ 320g-C"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Printed SZAMAMM typo corrected. Store ready meal remains food, not restaurant."
+        },
+        {
+          "id": 3,
+          "name_raw": "SZAMAMM LASAGNE BOL Z KUR-C",
+          "accepted_names": [
+            "SZAMAMM LASAGNE BOL Z KUR",
+            "SZAMAMM LASAGNE BOL Z KUR-C"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 4,
+          "name_raw": "SZAMAMM MAKARON Z KURCZ,-C",
+          "accepted_names": [
+            "SZAMAMM MAKARON Z KURCZ,",
+            "SZAMAMM MAKARON Z KURCZ",
+            "SZAMAMM MAKARON Z KURCZ,-C",
+            "SZAMAMM MAKARON Z KURCZ-C"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 5,
+          "name_raw": "MAKARON BUC CACIO E PEPE-C",
+          "accepted_names": [
+            "MAKARON BUC CACIO E PEPE",
+            "MAKARON BUC CACIO E PEPE-C"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "source": "IMG_6896.JPEG",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "JOGURT PIT SKYR WANI 360g-C",
+          "accepted_names": [
+            "JOGURT PIT SKYR WANI 360g",
+            "JOGURT PIT SKYR WANI 360g-C"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "source": "Screenshot_20261011_140250_appka.jpg",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "LEMONIADA WYCISK M-C",
+          "accepted_names": [
+            "LEMONIADA WYCISK M",
+            "LEMONIADA WYCISK M-C"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Bottled deposit-bearing drink in convenience store; no restaurant context established."
+        }
+      ]
+    },
+    {
+      "source": "lidl-20261017-524861-parts",
+      "items": [
+        {
+          "id": 0,
+          "name_raw": "Orzechy nerkouca",
+          "accepted_names": [
+            "Orzechy nerkowca"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 1,
+          "name_raw": "Filet z indyka XXL",
+          "accepted_names": [
+            "Filet z indyka XXL"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 2,
+          "name_raw": "Brytfanna0524260",
+          "accepted_names": [
+            "Brytfanna0524260",
+            "Brytfanna 0524260"
+          ],
+          "category": "dom i ogród",
+          "reviewed": true,
+          "note": "Product code is part of printed name; preserve digits."
+        },
+        {
+          "id": 3,
+          "name_raw": "Marlenka Miod. kulki Falaow21",
+          "accepted_names": [
+            "Marlenka Miod. kulki"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Trailing Falaow21 is merged OCR garbage, not printed product content."
+        },
+        {
+          "id": 4,
+          "name_raw": "20,170 Ser cheddar kawatek",
+          "accepted_names": [
+            "Ser cheddar kawałek"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Leading 20,170 is previous line amount, not part of name. Structural parser/OCR contamination, flagged rather than treated as numeric product correction."
+        },
+        {
+          "id": 5,
+          "name_raw": "Boczek w plast.130g box",
+          "accepted_names": [
+            "Boczek w plast.130g",
+            "Boczek w plast. 130g"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Trailing box is OCR garbage; printed name ends 130g."
+        },
+        {
+          "id": 6,
+          "name_raw": "9,160 Ziemniaki macz.2.5kg F lii9sol w dsis1",
+          "accepted_names": [
+            "Ziemniaki mącz.2.5kg",
+            "Ziemniaki mącz. 2.5kg"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Leading 9,160 and trailing F lii9sol w dsis1 merge other receipt content into name. Structural parser contamination; visible size 2.5kg retained."
+        },
+        {
+          "id": 7,
+          "name_raw": "Pyzy z miesen proz.",
+          "accepted_names": [
+            "Pyzy z mięsem mroż."
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 8,
+          "name_raw": "1.790 Butka z dt. ferment.",
+          "accepted_names": [
+            "Bułka z dł. ferment."
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Leading 1.790 is a merged amount. Remove only with visual source evidence; not a product size."
+        },
+        {
+          "id": 9,
+          "name_raw": "Cukinia tuzwiyq.bi f xageaob",
+          "accepted_names": [
+            "Cukinia luz"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Trailing tuzwiyq.bi f xageaob is broken OCR/merged adjacent content; printed name readable."
+        },
+        {
+          "id": 10,
+          "name_raw": "Szynka Szuarcualdzka",
+          "accepted_names": [
+            "Szynka Szwarcwaldzka"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 11,
+          "name_raw": "Sliuki wegierki 1kg",
+          "accepted_names": [
+            "Śliwki węgierki 1kg"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 12,
+          "name_raw": "6.410",
+          "accepted_names": null,
+          "category": null,
+          "reviewed": true,
+          "note": "6.410 is a detached amount, not a product name. This phantom/parser fragment cannot be classified as a product; do not infer identity from neighbours."
+        },
+        {
+          "id": 13,
+          "name_raw": null,
+          "accepted_names": null,
+          "category": null,
+          "reviewed": true,
+          "note": "Parser name null. Grouped receipt contains overlapping views and detached amount records; no product identity assigned."
+        },
+        {
+          "id": 14,
+          "name_raw": "Ser cheddar kauatek",
+          "accepted_names": [
+            "Ser cheddar kawałek"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Duplicate observation from overlapping second image; not an independent purchase, preserved as parser entry."
+        },
+        {
+          "id": 15,
+          "name_raw": "Forma0547160",
+          "accepted_names": [
+            "Forma0547160",
+            "Forma 0547160"
+          ],
+          "category": "dom i ogród",
+          "reviewed": true,
+          "note": "Product code preserved; form visible on first and second image."
+        },
+        {
+          "id": 16,
+          "name_raw": "Boczek w plast.1309",
+          "accepted_names": [
+            "Boczek w plast.130g",
+            "Boczek w plast. 130g"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "1309 -> 130g is OCR unit error, visually confirmed, not a new numeric quantity. Duplicate overlap observation."
+        },
+        {
+          "id": 17,
+          "name_raw": "Zienniaki nacz.2.5kg F l91ol wlsi:",
+          "accepted_names": [
+            "Ziemniaki mącz.2.5kg",
+            "Ziemniaki mącz. 2.5kg"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Duplicate overlap; trailing F l91ol wlsi: is OCR garbage. Size digits preserved."
+        },
+        {
+          "id": 18,
+          "name_raw": "Pyzy z miesem mroz.",
+          "accepted_names": [
+            "Pyzy z mięsem mroż."
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Duplicate overlapping observation, not a new purchase."
+        },
+        {
+          "id": 19,
+          "name_raw": "Butka z dt. ferment.",
+          "accepted_names": [
+            "Bułka z dł. ferment."
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Duplicate overlapping observation, not a new purchase."
+        },
+        {
+          "id": 20,
+          "name_raw": "AqJbi",
+          "accepted_names": null,
+          "category": null,
+          "reviewed": true,
+          "note": "AqJbi is unreadable OCR garbage; do not use source position to invent a product name or category."
+        },
+        {
+          "id": 21,
+          "name_raw": "Szynka Szwarcwaldzka",
+          "accepted_names": [
+            "Szynka Szwarcwaldzka"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Duplicate overlapping observation, not a new purchase."
+        },
+        {
+          "id": 22,
+          "name_raw": "Sliwki wegierki 1kg",
+          "accepted_names": [
+            "Śliwki węgierki 1kg"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Duplicate overlapping observation, not a new purchase."
+        },
+        {
+          "id": 23,
+          "name_raw": "6.410 Dynia Pizmowa luz",
+          "accepted_names": [
+            "Dynia Piżmowa luz"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Leading 6.410 is previous line amount. Structural parser contamination; product label remains identifiable."
+        },
+        {
+          "id": 24,
+          "name_raw": "Butka z oliwa",
+          "accepted_names": [
+            "Bułka z oliwą"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 25,
+          "name_raw": "5,410 Curry XXL",
+          "accepted_names": [
+            "Curry XXL"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Leading 5,410 is previous line amount. Structural parser contamination; not a product number."
+        },
+        {
+          "id": 26,
+          "name_raw": "Natka pietruszki",
+          "accepted_names": [
+            "Natka pietruszki"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 27,
+          "name_raw": "Jabtka Gala luz",
+          "accepted_names": [
+            "Jabłka Gala luz"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": ""
+        },
+        {
+          "id": 28,
+          "name_raw": "Cebula czerwona luz L",
+          "accepted_names": [
+            "Cebula czerwona luz"
+          ],
+          "category": "żywność i napoje",
+          "reviewed": true,
+          "note": "Trailing L is OCR artefact, not printed name."
+        }
+      ]
+    }
+  ]
+}

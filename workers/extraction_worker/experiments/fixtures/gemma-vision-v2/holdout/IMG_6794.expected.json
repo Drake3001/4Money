@@ -1,0 +1,130 @@
+{
+  "source": "IMG_6794.JPEG",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "store": "ALDI",
+  "receipt_number": "173146/0307",
+  "date": "2026-10-08",
+  "time": "10:24",
+  "currency": "PLN",
+  "total": "37.00",
+  "amount_due": "37.00",
+  "items": [
+    {
+      "name": "PRZEC. POMIDOR. 500G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "4.49",
+      "before_discount": "4.49",
+      "discount": "0.00",
+      "total": "4.49",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "BOCZEK LARDONS 60G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "3.49",
+      "before_discount": "3.49",
+      "discount": "0.00",
+      "total": "3.49",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "MIMOLETTE MILSANI 120G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "5.99",
+      "before_discount": "5.99",
+      "discount": "0.00",
+      "total": "5.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "MIĘSO MIELONE WOŁ 400G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "16.99",
+      "before_discount": "16.99",
+      "discount": "0.00",
+      "total": "16.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "BIO KONC.CYTR.LIM 200ML",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "2.49",
+      "before_discount": "2.49",
+      "discount": "0.00",
+      "total": "2.49",
+      "tax_code": "B",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "PRZEC. POMIDOR. 500G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "4.49",
+      "before_discount": "4.49",
+      "discount": "-1.80",
+      "total": "2.69",
+      "tax_code": "C",
+      "printed_marker": null,
+      "total_is_printed": false,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "CEBULA ŻÓŁTA KG",
+      "quantity": "0.246",
+      "unit": "kg",
+      "unit_price": "3.49",
+      "before_discount": "0.86",
+      "discount": "0.00",
+      "total": "0.86",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    }
+  ],
+  "deposits": [],
+  "payment": {
+    "label": "Karta",
+    "amount": "37.00"
+  },
+  "tax_summary": [
+    {
+      "code": "B",
+      "rate_percent": "8",
+      "sales": "2.49",
+      "tax": "0.18"
+    },
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "34.51",
+      "tax": "1.64"
+    }
+  ],
+  "tax_total": "1.82",
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia, bez kopiowania wyniku OCR; oczekuje na sprawdzenie użytkownika.",
+    "Zachowano nazwy i skróty z wydruku; reklamy, identyfikatory techniczne i obce paragony w tle pominięto.",
+    "Rabat -1.80 przypisano do drugiej pozycji przecieru, zgodnie z bezpośrednio następującym wierszem OPUST; kwota tej pozycji po rabacie 2.69 jest obliczona.",
+    "gemma-vision-v2: Visually checked original image(s); item count, quantities, unit prices, before-discount gross amounts, signed discounts, after-discount totals, goods total, amount due, deposits and date confirmed. No numerical or date corrections were necessary. Current assistant_verified_not_human status supersedes historical pending-review wording in retained notes. These are silver references, not human gold.",
+    "The two tomato puree entries are separate printed purchase lines. Keep both; apply -1.80 only to the second line, producing derived 2.69. This is not a multi-photo duplicate."
+  ],
+  "uncertain_fields": [],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "verification_method": "Source-image review of complete purchase rows, numeric fields, date and deposits before new gemma-vision-v2 predictions. Existing reference retained except added metadata/category labels."
+}

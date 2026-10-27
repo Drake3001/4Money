@@ -1,0 +1,149 @@
+{
+  "source": "IMG_6798.JPEG",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "store": "ALDI",
+  "receipt_number": "172620/0306",
+  "date": "2026-10-07",
+  "time": "13:36",
+  "currency": "PLN",
+  "total": "59.47",
+  "amount_due": "59.47",
+  "items": [
+    {
+      "name": "FIL.Z PIERSI KUR.XXL KG",
+      "quantity": "1.298",
+      "unit": "kg",
+      "unit_price": "16.99",
+      "before_discount": "22.05",
+      "discount": "0.00",
+      "total": "22.05",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "SOKOL.SZYNE.DROB.100G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "4.49",
+      "before_discount": "4.49",
+      "discount": "0.00",
+      "total": "4.49",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "ODŚWIEŻACZ POW ŻEL 150G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "3.99",
+      "before_discount": "3.99",
+      "discount": "0.00",
+      "total": "3.99",
+      "tax_code": "A",
+      "printed_marker": null,
+      "category": "chemia gospodarcza",
+      "accepted_categories": [
+        "chemia gospodarcza",
+        "dom i ogród"
+      ],
+      "category_note": "Category boundary is ambiguous in current broad taxonomy: household air/wardrobe fragrance or colouring disc may be filed as household chemistry or home accessory. Receipt provides no exact product specification. Both listed categories are accepted prospectively; confirm intended product use with a human. This ambiguity was documented before gemma-vision-v2 predictions."
+    },
+    {
+      "name": "KRĄŻKI BARWIĄCE 4 SZT.",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "5.99",
+      "before_discount": "5.99",
+      "discount": "0.00",
+      "total": "5.99",
+      "tax_code": "A",
+      "printed_marker": null,
+      "category": "chemia gospodarcza",
+      "accepted_categories": [
+        "chemia gospodarcza",
+        "dom i ogród"
+      ],
+      "category_note": "Category boundary is ambiguous in current broad taxonomy: household air/wardrobe fragrance or colouring disc may be filed as household chemistry or home accessory. Receipt provides no exact product specification. Both listed categories are accepted prospectively; confirm intended product use with a human. This ambiguity was documented before gemma-vision-v2 predictions."
+    },
+    {
+      "name": "TAO TAO SOS 200/220G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "6.99",
+      "before_discount": "6.99",
+      "discount": "0.00",
+      "total": "6.99",
+      "tax_code": "B",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "SASZ. ZAPACH. DO SZAFY",
+      "quantity": "4",
+      "unit": "SZT",
+      "unit_price": "3.99",
+      "before_discount": "15.96",
+      "discount": "0.00",
+      "total": "15.96",
+      "tax_code": "A",
+      "printed_marker": null,
+      "category": "chemia gospodarcza",
+      "accepted_categories": [
+        "chemia gospodarcza",
+        "dom i ogród"
+      ],
+      "category_note": "Category boundary is ambiguous in current broad taxonomy: household air/wardrobe fragrance or colouring disc may be filed as household chemistry or home accessory. Receipt provides no exact product specification. Both listed categories are accepted prospectively; confirm intended product use with a human. This ambiguity was documented before gemma-vision-v2 predictions."
+    }
+  ],
+  "deposits": [],
+  "payment": {
+    "label": "Karta",
+    "amount": "59.47"
+  },
+  "tax_summary": [
+    {
+      "code": "A",
+      "rate_percent": "23",
+      "sales": "25.94",
+      "tax": "4.85"
+    },
+    {
+      "code": "B",
+      "rate_percent": "8",
+      "sales": "6.99",
+      "tax": "0.52"
+    },
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "26.54",
+      "tax": "1.26"
+    }
+  ],
+  "tax_total": "6.63",
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia, bez kopiowania wyniku OCR; oczekuje na sprawdzenie użytkownika.",
+    "Zachowano nazwy i skróty z wydruku; reklamy, identyfikatory techniczne i obce paragony w tle pominięto.",
+    "gemma-vision-v2: Visually checked original image(s); item count, quantities, unit prices, before-discount gross amounts, signed discounts, after-discount totals, goods total, amount due, deposits and date confirmed. No numerical or date corrections were necessary. Current assistant_verified_not_human status supersedes historical pending-review wording in retained notes. These are silver references, not human gold."
+  ],
+  "uncertain_fields": [
+    {
+      "field": "items[2].category",
+      "detail": "Category boundary is ambiguous in current broad taxonomy: household air/wardrobe fragrance or colouring disc may be filed as household chemistry or home accessory. Receipt provides no exact product specification. Both listed categories are accepted prospectively; confirm intended product use with a human. This ambiguity was documented before gemma-vision-v2 predictions."
+    },
+    {
+      "field": "items[3].category",
+      "detail": "Category boundary is ambiguous in current broad taxonomy: household air/wardrobe fragrance or colouring disc may be filed as household chemistry or home accessory. Receipt provides no exact product specification. Both listed categories are accepted prospectively; confirm intended product use with a human. This ambiguity was documented before gemma-vision-v2 predictions."
+    },
+    {
+      "field": "items[5].category",
+      "detail": "Category boundary is ambiguous in current broad taxonomy: household air/wardrobe fragrance or colouring disc may be filed as household chemistry or home accessory. Receipt provides no exact product specification. Both listed categories are accepted prospectively; confirm intended product use with a human. This ambiguity was documented before gemma-vision-v2 predictions."
+    }
+  ],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "verification_method": "Source-image review of complete purchase rows, numeric fields, date and deposits before new gemma-vision-v2 predictions. Existing reference retained except added metadata/category labels."
+}

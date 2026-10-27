@@ -1,0 +1,20 @@
+services:
+  extraction-worker:
+    build: .
+    env_file: .env
+    ports:
+      - "${EXTRACTION_BIND_ADDRESS:-127.0.0.1}:8000:8000"
+    volumes:
+      - model-cache:/app/.cache
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", ".venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).close()"]
+      interval: 30s
+      timeout: 5s
+      start_period: 180s
+      retries: 3
+
+volumes:
+  model-cache:

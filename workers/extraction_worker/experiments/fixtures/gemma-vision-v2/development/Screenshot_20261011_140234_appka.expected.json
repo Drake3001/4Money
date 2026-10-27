@@ -1,0 +1,110 @@
+{
+  "source": "Screenshot_20261011_140234_appka.jpg",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "store": "Żabka",
+  "receipt_number": "88627",
+  "date": "2026-08-08",
+  "time": "15:35",
+  "currency": "PLN",
+  "total": "12.20",
+  "amount_due": "13.20",
+  "items": [
+    {
+      "name": "CYTRONET RAB 0,33l-C",
+      "quantity": "1",
+      "unit": "szt.",
+      "unit_price": "3.60",
+      "before_discount": "3.60",
+      "discount": "0.00",
+      "total": "3.60",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "NAPOJ ZYWIEC 500ml-A",
+      "quantity": "1",
+      "unit": "szt.",
+      "unit_price": "4.20",
+      "before_discount": "4.20",
+      "discount": "0.00",
+      "total": "4.20",
+      "tax_code": "A",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "GUMA ORBIT 14g-B",
+      "quantity": "1",
+      "unit": "szt.",
+      "unit_price": "4.40",
+      "before_discount": "4.40",
+      "discount": "0.00",
+      "total": "4.40",
+      "tax_code": "B",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    }
+  ],
+  "deposits": [
+    {
+      "name": "KAUCJA ZA PUSZKE",
+      "quantity": null,
+      "unit_price": null,
+      "total": "0.50"
+    },
+    {
+      "name": "KAUCJA ZA BUT. PLASTIKOWA",
+      "quantity": null,
+      "unit_price": null,
+      "total": "0.50"
+    }
+  ],
+  "payment": {
+    "label": "INNA Karta kred.",
+    "amount": "13.20"
+  },
+  "tax_summary": [
+    {
+      "code": "A",
+      "rate_percent": "23",
+      "sales": "4.20",
+      "tax": "0.79"
+    },
+    {
+      "code": "B",
+      "rate_percent": "8",
+      "sales": "4.40",
+      "tax": "0.33"
+    },
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "3.60",
+      "tax": "0.17"
+    }
+  ],
+  "tax_total": "1.29",
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia, bez kopiowania wyniku OCR; oczekuje na sprawdzenie użytkownika.",
+    "Zachowano nazwy i skróty z wydruku; reklamy, identyfikatory techniczne i obce paragony w tle pominięto.",
+    "E-paragon pokazuje same kwoty kaucji; ilości i cen jednostkowych nie dopisano (null).",
+    "gemma-vision-v2: assistant visually checked source images before new predictions; not human gold. Existing transcription fields were retained. No numerical or name corrections were required. Historical pending-user-review notes remain as provenance; current review_status describes this review.",
+    "Three purchase rows 3.60 + 4.20 + 4.40 = 12.20. Two deposit rows show only totals 0.50 each, without printed quantities or unit prices; nulls are intentionally preserved. Amount_due 13.20. Printed date is 2026-08-08, not October from filename. Time 15:35. NAPOJ ZYWIEC is a nonalcoholic beverage description; do not infer beer from brand.",
+    "Monetary fields represent gross amounts. Item total is after signed discount; tax_summary.sales and document total already include VAT. Do not add VAT again or invent unprinted net values."
+  ],
+  "uncertain_fields": [],
+  "document_type": "e_receipt_screenshot",
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "reference_review": {
+    "method": "visual_check_against_original_source_images_before_new_predictions",
+    "verified_scope": "all_main_receipt_purchase_rows_financial_fields_date_and_deposits",
+    "source_images": [
+      "data/input/Screenshot_20261011_140234_appka.jpg"
+    ],
+    "numerical_corrections": 0,
+    "other_transcription_corrections": 0
+  }
+}

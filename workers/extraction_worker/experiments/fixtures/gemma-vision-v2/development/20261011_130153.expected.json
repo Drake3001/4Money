@@ -1,0 +1,68 @@
+{
+  "source": "20261011_130153.jpg",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "store": "Żabka",
+  "receipt_number": "215412",
+  "date": "2026-10-07",
+  "time": "17:34",
+  "currency": "PLN",
+  "total": "16.80",
+  "amount_due": "18.80",
+  "items": [
+    {
+      "name": "PIWO TYSKIE GRONIE-A",
+      "quantity": "4",
+      "unit": "szt.",
+      "unit_price": "6.50",
+      "before_discount": "26.00",
+      "discount": "-9.20",
+      "total": "16.80",
+      "tax_code": "A",
+      "printed_marker": null,
+      "total_is_printed": false,
+      "category": "alkohol i tytoń"
+    }
+  ],
+  "deposits": [
+    {
+      "name": "KAUCJA ZA PUSZKĘ",
+      "quantity": "4",
+      "unit_price": "0.50",
+      "total": "2.00"
+    }
+  ],
+  "payment": {
+    "label": "INNA Karta kred.",
+    "amount": "18.80"
+  },
+  "tax_summary": [
+    {
+      "code": "A",
+      "rate_percent": "23",
+      "sales": "16.80",
+      "tax": "3.14"
+    }
+  ],
+  "tax_total": "3.14",
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia, bez kopiowania wyniku OCR; oczekuje na sprawdzenie użytkownika.",
+    "Zachowano nazwy i skróty z wydruku; reklamy, identyfikatory techniczne i obce paragony w tle pominięto.",
+    "total pozycji 16.80 obliczono z wydrukowanych 26.00 i OPUST -9.20; wynik zgadza się ze sprzedażą opodatkowaną.",
+    "gemma-vision-v2: assistant visually checked source images before new predictions; not human gold. Existing transcription fields were retained. No numerical or name corrections were required. Historical pending-user-review notes remain as provenance; current review_status describes this review.",
+    "Only the upper complete main receipt is annotated; a different receipt partly visible below is excluded. Four beers: 4 x 6.50 = 26.00, discount -9.20, derived final goods total 16.80. Four deposits x 0.50 = 2.00; amount_due 18.80. Printed VAT 3.14 is included, not added.",
+    "Monetary fields represent gross amounts. Item total is after signed discount; tax_summary.sales and document total already include VAT. Do not add VAT again or invent unprinted net values."
+  ],
+  "uncertain_fields": [],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "reference_review": {
+    "method": "visual_check_against_original_source_images_before_new_predictions",
+    "verified_scope": "all_main_receipt_purchase_rows_financial_fields_date_and_deposits",
+    "source_images": [
+      "data/input/20261011_130153.jpg"
+    ],
+    "numerical_corrections": 0,
+    "other_transcription_corrections": 0
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "source": "IMG_6881.JPEG",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "transcription_scope": "partial",
+  "store": "Biedronka",
+  "receipt_number": "515426",
+  "date": "2026-10-14",
+  "time": "16:12",
+  "currency": "PLN",
+  "total": "47.11",
+  "amount_due": "47.11",
+  "items": [
+    {
+      "name": "KoncPomidorDawt190g",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "3.45",
+      "before_discount": "3.45",
+      "discount": "0.00",
+      "total": "3.45",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "SerHipokrytanixKg",
+      "quantity": "0.364",
+      "unit": null,
+      "unit_price": "49.90",
+      "before_discount": "18.16",
+      "discount": "0.00",
+      "total": "18.16",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "SerHipokrytanixKg",
+      "quantity": "0.351",
+      "unit": null,
+      "unit_price": "49.90",
+      "before_discount": "17.51",
+      "discount": "0.00",
+      "total": "17.51",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Włoszczyzna 650g",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "7.99",
+      "before_discount": "7.99",
+      "discount": "0.00",
+      "total": "7.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    }
+  ],
+  "deposits": [],
+  "payment": {
+    "label": "KARTA Visa Debit 07 1",
+    "amount": "47.11"
+  },
+  "tax_summary": [
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "47.11",
+      "tax": "2.24"
+    }
+  ],
+  "tax_total": "2.24",
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia; oczekuje na sprawdzenie użytkownika.",
+    "Zachowano skróty i powtórzone wiersze produktów; pominięto reklamy, identyfikatory techniczne i obce wydruki w tle.",
+    "gemma-hard-v1: Entire main receipt visually checked against original image(s), including purchase count, names, repeated purchase rows, quantities, unit prices, before-discount gross values, signed discounts, after-discount totals, date, deposits and document total/due. No original numerical/date/name corrections required. Original notes are retained; current assistant_verified_not_human status supersedes historical pending-review wording. These are assistant silver labels, not human gold.",
+    "Exactly four purchase lines: two visually identical abbreviated cheese names are distinct weighed purchases, quantity 0.364 at 49.90 = 18.16 and quantity 0.351 at 49.90 = 17.51. Keep both; same product name/price does not prove duplication. The abbreviated cheese name remains uncertain as documented in original uncertain_fields, but food category and all numeric fields are clear."
+  ],
+  "uncertain_fields": [
+    {
+      "field": "items[1].name",
+      "detail": "Skrócona nazwa sera wygląda jak SerHipokrytanixKg; drobne znaki wymagają przeglądu."
+    },
+    {
+      "field": "items[2].name",
+      "detail": "Powtórzona nazwa sera jak w poprzedniej pozycji; zachowano osobny wiersz."
+    }
+  ],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "verification_method": "Independent source-image verification before gemma-hard-v1 predictions; preserved all original reference fields and financial values."
+}

@@ -91,3 +91,5 @@ Terraform configuration and GitHub Actions setup: [proxmox-infra/README.md](prox
 Polska instrukcja konfiguracji: [notes/precommit_notes.md](notes/precommit_notes.md).
 
 Hook installation, formatting checks, and ClickUp integration: [tools/README.md](tools/README.md).
+
+[Extraction worker](workers/extraction_worker/README.md) · [Polska notatka zespołu](notes/extraction-worker.md)

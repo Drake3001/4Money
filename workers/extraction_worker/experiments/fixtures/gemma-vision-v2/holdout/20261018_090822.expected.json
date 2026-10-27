@@ -1,0 +1,214 @@
+{
+  "source": "20261018_090822.jpg",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "transcription_scope": "partial",
+  "store": "Biedronka",
+  "receipt_number": "318278",
+  "date": "2026-10-09",
+  "time": "19:56",
+  "currency": "PLN",
+  "total": "72.71",
+  "amount_due": "73.71",
+  "items": [
+    {
+      "name": "NapGazPolVitMIX1,5l",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "3.65",
+      "before_discount": "3.65",
+      "discount": "0.00",
+      "total": "3.65",
+      "tax_code": "C",
+      "printed_marker": null,
+      "total_is_printed": true,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Woda Gaz Żyw 1,75l",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "3.35",
+      "before_discount": "3.35",
+      "discount": "0.00",
+      "total": "3.35",
+      "tax_code": "A",
+      "printed_marker": null,
+      "total_is_printed": true,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "MlekoWiejsk 3,2 1L",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "4.99",
+      "before_discount": "4.99",
+      "discount": "0.00",
+      "total": "4.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "total_is_printed": true,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Serek Wiejski 200g",
+      "quantity": "2",
+      "unit": null,
+      "unit_price": "2.99",
+      "before_discount": "5.98",
+      "discount": "0.00",
+      "total": "5.98",
+      "tax_code": "C",
+      "printed_marker": null,
+      "total_is_printed": true,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "KawaMielTchi250g",
+      "quantity": "2",
+      "unit": null,
+      "unit_price": "21.99",
+      "before_discount": "43.98",
+      "discount": "-20.99",
+      "total": "22.99",
+      "tax_code": "A",
+      "printed_marker": null,
+      "total_is_printed": true,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Chle kr książ 400g",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "5.19",
+      "before_discount": "5.19",
+      "discount": "0.00",
+      "total": "5.19",
+      "tax_code": "C",
+      "printed_marker": null,
+      "total_is_printed": true,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "JabłPolskieGalaLuz",
+      "quantity": "0.365",
+      "unit": null,
+      "unit_price": "4.99",
+      "before_discount": "1.82",
+      "discount": "0.00",
+      "total": "1.82",
+      "tax_code": "C",
+      "printed_marker": null,
+      "total_is_printed": true,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "MięsoMielWiepWoł400g",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "13.99",
+      "before_discount": "13.99",
+      "discount": "0.00",
+      "total": "13.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "total_is_printed": true,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "SosCulineBolońsk520",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "5.59",
+      "before_discount": "5.59",
+      "discount": "0.00",
+      "total": "5.59",
+      "tax_code": "B",
+      "printed_marker": null,
+      "total_is_printed": true,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "PrzypPapWęKam16 20g",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "2.49",
+      "before_discount": "2.49",
+      "discount": "0.00",
+      "total": "2.49",
+      "tax_code": "B",
+      "printed_marker": null,
+      "total_is_printed": true,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "MakarSpagDobru500g",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "2.45",
+      "before_discount": "2.45",
+      "discount": "0.00",
+      "total": "2.45",
+      "tax_code": "C",
+      "printed_marker": null,
+      "total_is_printed": true,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Cebula Żółta Luz",
+      "quantity": "0.110",
+      "unit": null,
+      "unit_price": "3.49",
+      "before_discount": "0.38",
+      "discount": "-0.16",
+      "total": "0.22",
+      "tax_code": "C",
+      "printed_marker": null,
+      "total_is_printed": true,
+      "category": "żywność i napoje"
+    }
+  ],
+  "deposits": [
+    {
+      "name": "But Plastik kaucja",
+      "quantity": "2.000",
+      "unit_price": "0.50",
+      "total": "1.00"
+    }
+  ],
+  "deposit_returns": [],
+  "tax_summary": [
+    {
+      "code": "A",
+      "rate_percent": "23",
+      "sales": "26.34",
+      "tax": "4.93"
+    },
+    {
+      "code": "B",
+      "rate_percent": "8",
+      "sales": "8.08",
+      "tax": "0.60"
+    },
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "38.29",
+      "tax": "1.82"
+    }
+  ],
+  "tax_total": "7.35",
+  "payment": {
+    "label": "KARTA VISA 07 1",
+    "amount": "73.71"
+  },
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia i powiększeń, bez używania OCR; oczekuje na sprawdzenie użytkownika.",
+    "Zakres: główny paragon bez reklam, kodów kreskowych i identyfikatorów technicznych. Zgodność rachunkowa nie potwierdza niezależnie każdego znaku transkrypcji.",
+    "gemma-vision-v2: Visually checked original image(s); item count, quantities, unit prices, before-discount gross amounts, signed discounts, after-discount totals, goods total, amount due, deposits and date confirmed. No numerical or date corrections were necessary. Current assistant_verified_not_human status supersedes historical pending-review wording in retained notes. These are silver references, not human gold."
+  ],
+  "uncertain_fields": [],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "verification_method": "Source-image review of complete purchase rows, numeric fields, date and deposits before new gemma-vision-v2 predictions. Existing reference retained except added metadata/category labels."
+}

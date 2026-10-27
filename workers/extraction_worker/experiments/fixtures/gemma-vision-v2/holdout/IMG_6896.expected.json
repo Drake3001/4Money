@@ -1,0 +1,53 @@
+{
+  "source": "IMG_6896.JPEG",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "transcription_scope": "partial",
+  "store": "ŻABKA",
+  "receipt_number": "218560",
+  "date": "2026-10-15",
+  "time": "09:50",
+  "currency": "PLN",
+  "total": "6.99",
+  "amount_due": "6.99",
+  "items": [
+    {
+      "name": "JOGURT PIT SKYR WANI 360g-C",
+      "quantity": "1",
+      "unit": "szt.",
+      "unit_price": "6.99",
+      "before_discount": "6.99",
+      "discount": "0.00",
+      "total": "6.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "total_is_printed": true,
+      "category": "żywność i napoje"
+    }
+  ],
+  "deposits": [],
+  "deposit_returns": [],
+  "tax_summary": [
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "6.99",
+      "tax": "0.33"
+    }
+  ],
+  "tax_total": "0.33",
+  "payment": {
+    "label": "INNA Karta kred.",
+    "amount": "6.99"
+  },
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia i powiększeń bez używania OCR; oczekuje na sprawdzenie użytkownika.",
+    "Zakres obejmuje główny paragon; reklamy, kody kreskowe, identyfikatory techniczne i obce paragony w tle pominięto.",
+    "Zgodność rachunkowa jest kontrolą pomocniczą i nie potwierdza niezależnie każdego znaku transkrypcji.",
+    "gemma-vision-v2: Visually checked original image(s); item count, quantities, unit prices, before-discount gross amounts, signed discounts, after-discount totals, goods total, amount due, deposits and date confirmed. No numerical or date corrections were necessary. Current assistant_verified_not_human status supersedes historical pending-review wording in retained notes. These are silver references, not human gold."
+  ],
+  "uncertain_fields": [],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "verification_method": "Source-image review of complete purchase rows, numeric fields, date and deposits before new gemma-vision-v2 predictions. Existing reference retained except added metadata/category labels."
+}
