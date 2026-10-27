@@ -136,6 +136,7 @@ OCR_TIMEOUT_SECONDS=120
 | `OCR_BASE_URL` | Wymagany adres usługi OCR HTTP(S), bez ścieżki, danych logowania, query i fragmentu |
 | `OCR_TIMEOUT_SECONDS` | Opcjonalny timeout; domyślnie `120`, zakres `1–4294967` sekund |
 | `STORAGE_ENDPOINT` | Wymagany adres serwera S3 HTTP(S), bez ścieżki, danych logowania, query i fragmentu |
+| `STORAGE_PUBLIC_ENDPOINT` | Opcjonalny adres HTTP(S) dla przeglądarki, o tych samych ograniczeniach; używany wyłącznie do podpisywania URL. Domyślnie `STORAGE_ENDPOINT` |
 | `STORAGE_BUCKET` | Wymagany istniejący bucket |
 | `STORAGE_REGION` | Wymagany region używany do podpisywania żądań |
 | `STORAGE_ACCESS_KEY` | Wymagany klucz dostępu backendu |
@@ -160,7 +161,12 @@ z przykładowej konfiguracji endpoint to `http://127.0.0.1:8333`. Przy storage
 na serwerze ustaw adres tego serwera. Jeśli backend działa we własnym kontenerze,
 `127.0.0.1` oznacza ten kontener, a nie komputer hosta ani SeaweedFS.
 
-Endpoint musi być osiągalny również z przeglądarki otwierającej podpisany URL.
+Adres podpisanego URL musi być osiągalny z przeglądarki. Gdy adres połączenia
+backendu jest inny, ustaw `STORAGE_PUBLIC_ENDPOINT`. Lokalnie w Dockerze można
+użyć `STORAGE_ENDPOINT=http://host.docker.internal:8333` i
+`STORAGE_PUBLIC_ENDPOINT=http://localhost:8333`, jeśli przeglądarka działa na
+hoście Dockera. Podpis jest generowany od razu dla publicznego adresu, bez zmiany
+hosta po podpisaniu; upload i usuwanie nadal używają `STORAGE_ENDPOINT`.
 Adres loopback działa tylko na tym samym komputerze. Samo wygenerowanie URL
 nie potwierdza połączenia ze storage, ponieważ podpisywanie odbywa się lokalnie.
 

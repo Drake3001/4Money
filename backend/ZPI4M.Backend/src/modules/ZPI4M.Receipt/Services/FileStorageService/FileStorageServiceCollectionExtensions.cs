@@ -14,6 +14,7 @@ public static class FileStorageServiceCollectionExtensions
 		services.AddOptions<S3StorageOptions>().Configure(options =>
 		{
 			options.Endpoint = configuration["STORAGE_ENDPOINT"] ?? string.Empty;
+			options.PublicEndpoint = configuration["STORAGE_PUBLIC_ENDPOINT"];
 			options.Bucket = configuration["STORAGE_BUCKET"] ?? string.Empty;
 			options.Region = configuration["STORAGE_REGION"] ?? string.Empty;
 			options.AccessKey = configuration["STORAGE_ACCESS_KEY"] ?? string.Empty;

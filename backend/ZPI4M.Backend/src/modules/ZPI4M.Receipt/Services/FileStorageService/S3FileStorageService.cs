@@ -67,12 +67,14 @@ public sealed class S3FileStorageService : IFileStorageService
 		cancellationToken.ThrowIfCancellationRequested();
 		var now = _timeProvider.GetUtcNow();
 		var expiresAt = DateTimeOffset.FromUnixTimeSeconds(now.ToUnixTimeSeconds()).AddMinutes(_options.UrlExpirationMinutes);
-		var url = await _client.GetPreSignedURLAsync(new GetPreSignedUrlRequest
+		// Signing is local: the browser endpoint need not be reachable from this container.
+		using var publicClient = _options.PublicEndpoint is null ? null : _options.CreateClient(usePublicEndpoint: true);
+		var url = await (publicClient ?? _client).GetPreSignedURLAsync(new GetPreSignedUrlRequest
 		{
 			BucketName = _options.Bucket,
 			Key = key,
 			Verb = HttpVerb.GET,
-			Protocol = new Uri(_options.Endpoint).Scheme == Uri.UriSchemeHttp ? Protocol.HTTP : Protocol.HTTPS,
+			Protocol = new Uri(_options.PublicEndpoint ?? _options.Endpoint).Scheme == Uri.UriSchemeHttp ? Protocol.HTTP : Protocol.HTTPS,
 			Expires = expiresAt.UtcDateTime
 		});
 		cancellationToken.ThrowIfCancellationRequested();

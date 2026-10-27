@@ -7,13 +7,14 @@ namespace ZPI4M.Receipt.Services;
 public sealed class S3StorageOptions
 {
 	public string Endpoint { get; set; } = string.Empty;
+	public string? PublicEndpoint { get; set; }
 	public string Bucket { get; set; } = string.Empty;
 	public string Region { get; set; } = string.Empty;
 	public string AccessKey { get; set; } = string.Empty;
 	public string SecretKey { get; set; } = string.Empty;
 	public int UrlExpirationMinutes { get; set; } = 15;
 
-	public IAmazonS3 CreateClient()
+	public IAmazonS3 CreateClient(bool usePublicEndpoint = false)
 	{
 		var validation = new S3StorageOptionsValidator().Validate(null, this);
 		if (validation.Failed)
@@ -21,7 +22,7 @@ public sealed class S3StorageOptions
 
 		return new AmazonS3Client(new BasicAWSCredentials(AccessKey, SecretKey), new AmazonS3Config
 		{
-			ServiceURL = Endpoint,
+			ServiceURL = usePublicEndpoint ? PublicEndpoint ?? Endpoint : Endpoint,
 			AuthenticationRegion = Region,
 			ForcePathStyle = true
 		});
@@ -39,6 +40,13 @@ public sealed class S3StorageOptionsValidator : IValidateOptions<S3StorageOption
 			|| endpoint.AbsolutePath != "/" || !string.IsNullOrEmpty(endpoint.Query)
 			|| !string.IsNullOrEmpty(endpoint.Fragment))
 			errors.Add("STORAGE_ENDPOINT must be an absolute HTTP(S) origin without credentials, path, query or fragment.");
+		if (options.PublicEndpoint is not null
+			&& (!Uri.TryCreate(options.PublicEndpoint, UriKind.Absolute, out var publicEndpoint)
+				|| (publicEndpoint.Scheme != Uri.UriSchemeHttp && publicEndpoint.Scheme != Uri.UriSchemeHttps)
+				|| string.IsNullOrEmpty(publicEndpoint.Host) || !string.IsNullOrEmpty(publicEndpoint.UserInfo)
+				|| publicEndpoint.AbsolutePath != "/" || !string.IsNullOrEmpty(publicEndpoint.Query)
+				|| !string.IsNullOrEmpty(publicEndpoint.Fragment)))
+			errors.Add("STORAGE_PUBLIC_ENDPOINT must be an absolute HTTP(S) origin without credentials, path, query or fragment.");
 		if (string.IsNullOrWhiteSpace(options.Bucket))
 			errors.Add("STORAGE_BUCKET is required.");
 		if (string.IsNullOrWhiteSpace(options.Region))

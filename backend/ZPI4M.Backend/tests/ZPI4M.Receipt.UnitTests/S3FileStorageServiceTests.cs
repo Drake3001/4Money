@@ -13,6 +13,24 @@ namespace ZPI4M.Receipt.UnitTests;
 public sealed class S3FileStorageServiceTests
 {
 	[Fact]
+	public async Task Public_endpoint_is_signed_without_changing_upload_endpoint()
+	{
+		var options = ValidOptions();
+		options.Endpoint = "http://internal-storage.example.test:8333";
+		options.PublicEndpoint = "https://public-storage.example.test";
+		using var client = options.CreateClient();
+		var service = new S3FileStorageService(client, Options.Create(options), TimeProvider.System);
+		var result = await service.GetUrlAsync("receipts/synthetic");
+		var url = new Uri(result.Url);
+		Assert.Equal("https", url.Scheme);
+		Assert.Equal("public-storage.example.test", url.Host);
+		Assert.Equal("/receipts/receipts/synthetic", url.AbsolutePath);
+		Assert.Contains("X-Amz-Signature=", url.Query);
+		Assert.Contains("X-Amz-Expires=900", url.Query);
+		Assert.Equal("internal-storage.example.test", new Uri(client.Config.ServiceURL).Host);
+	}
+
+	[Fact]
 	public async Task Real_SDK_sends_only_remaining_bytes_with_signed_payload_over_HTTP()
 	{
 		using var handler = new CaptureHandler();

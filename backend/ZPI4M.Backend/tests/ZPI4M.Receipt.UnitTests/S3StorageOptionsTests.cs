@@ -10,6 +10,22 @@ namespace ZPI4M.Receipt.UnitTests;
 public sealed class S3StorageOptionsTests
 {
 	[Theory]
+	[InlineData("")]
+	[InlineData("ftp://storage.example.test")]
+	[InlineData("http://user:secret@storage.example.test")]
+	[InlineData("http://storage.example.test/bucket")]
+	[InlineData("http://storage.example.test?secret=value")]
+	[InlineData("http://storage.example.test#fragment")]
+	public void Invalid_public_endpoint_is_rejected_without_echoing_value(string endpoint)
+	{
+		var options = S3FileStorageServiceTests.ValidOptions();
+		options.PublicEndpoint = endpoint;
+		var error = Assert.Throws<OptionsValidationException>(() => options.CreateClient());
+		Assert.Contains("STORAGE_PUBLIC_ENDPOINT", error.Message);
+		Assert.DoesNotContain("secret", error.Message);
+	}
+
+	[Theory]
 	[InlineData("http://127.0.0.1:8333")]
 	[InlineData("https://storage.example.test")]
 	public void Valid_configuration_creates_path_style_client(string endpoint)
