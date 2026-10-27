@@ -14,4 +14,8 @@
     <Project Path="src/modules/ZPI4M.Reports/ZPI4M.Reports.csproj" />
     <Project Path="src/modules/ZPI4M.User/ZPI4M.User.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ZPI4M.Receipt.IntegrationTests/ZPI4M.Receipt.IntegrationTests.csproj" />
+    <Project Path="tests/ZPI4M.Receipt.UnitTests/ZPI4M.Receipt.UnitTests.csproj" />
+  </Folder>
 </Solution>

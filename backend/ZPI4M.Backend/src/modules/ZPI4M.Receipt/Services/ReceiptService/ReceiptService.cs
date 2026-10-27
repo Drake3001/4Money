@@ -13,19 +13,22 @@ public sealed class ReceiptService : IReceiptService
 	private readonly IReceiptAnalysisService _analysis;
 	private readonly IFileStorageService _storage;
 	private readonly ILogger<ReceiptService> _logger;
+	private readonly TimeProvider _timeProvider;
 
 	public ReceiptService(
 		IReceiptRepository repository,
 		ReceiptDbContext context,
 		IReceiptAnalysisService analysis,
 		IFileStorageService storage,
-		ILogger<ReceiptService> logger)
+		ILogger<ReceiptService> logger,
+		TimeProvider timeProvider)
 	{
 		_repository = repository;
 		_context = context;
 		_analysis = analysis;
 		_storage = storage;
 		_logger = logger;
+		_timeProvider = timeProvider;
 	}
 
 	public async Task<Guid> CreateAsync(Stream content, string contentType, CancellationToken cancellationToken = default)
@@ -112,7 +115,7 @@ public sealed class ReceiptService : IReceiptService
 
 	private async Task TryDeleteFileAsync(Models.Receipt receipt)
 	{
-		using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+		using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(10), _timeProvider);
 		try
 		{
 			await _storage.DeleteAsync(receipt.StorageKey, cleanup.Token);
