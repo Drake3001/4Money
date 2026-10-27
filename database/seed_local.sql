@@ -1,7 +1,21 @@
+-- Lokalny reset danych 4Money. Uruchamiaj po zastosowaniu wszystkich migracji EF.
+-- UWAGA: usuwa dane aplikacji, sesje i powiązania użytkowników z Tink.
+-- Konta testowe: seed_anna, seed_bartek, seed_celina, seed_dawid, postman.banking.
+-- Wspólne hasło testowe: TestPassword1! (ASP.NET Core Identity PasswordHasher).
+-- seed_dawid pozostaje nieaktywny; pozostałe konta są aktywne i potwierdzone.
+-- Po resecie odtwórz TinkUserId komendą tink link-db z zachowanego manifestu.
+-- Łączny reset SQL, świeżych danych Tink i mapowania: tools/scripts/reset_state.py reset.
+-- Instrukcja i odzyskiwanie: tools/scripts/reset_state/README.md.
+
 BEGIN;
 SET LOCAL timezone = 'UTC';
 
+-- Pełne czyszczenie danych w jednej transakcji.
 TRUNCATE TABLE
+    banking.bank_refresh_account,
+    banking.bank_refresh,
+    banking.bank_connection_attempt,
+    banking.bank_connection,
     "user".user_token,
     "user"."user",
     "grouping".group_member,
@@ -16,20 +30,23 @@ TRUNCATE TABLE
     limits.category_group_limit,
     notifications.notification;
 
+-- Tożsamości lokalne; hasło podano wyżej, TinkUserId pozostaje NULL.
 WITH seed_users (id, login, name, surname, email, birth_date, is_active, is_email_confirmed) AS (
     VALUES
         ('10000000-0000-0000-0000-000000000001', 'seed_anna', 'Anna', 'Testowa', 'anna@example.test', DATE '1998-04-12', TRUE, TRUE),
         ('10000000-0000-0000-0000-000000000002', 'seed_bartek', 'Bartek', 'Testowy', 'bartek@example.test', DATE '1997-08-23', TRUE, TRUE),
         ('10000000-0000-0000-0000-000000000003', 'seed_celina', 'Celina', 'Testowa', 'celina@example.test', DATE '2000-01-05', TRUE, TRUE),
-        ('10000000-0000-0000-0000-000000000004', 'seed_dawid', 'Dawid', 'Testowy', 'dawid@example.test', DATE '1999-11-18', FALSE, FALSE)
+        ('10000000-0000-0000-0000-000000000004', 'seed_dawid', 'Dawid', 'Testowy', 'dawid@example.test', DATE '1999-11-18', FALSE, FALSE),
+        ('10000000-0000-0000-0000-000000000010', 'postman.banking', 'Postman', 'Banking', 'postman.banking@example.test', DATE '2000-01-01', TRUE, TRUE)
 )
 INSERT INTO "user"."user"
     (_id, login, name, surname, password_hash, email, birth_date, created_at, is_active, is_email_confirmed)
 SELECT id::uuid, login, name, surname,
-    'AQAAAAIAAYagAAAAEAARIjNEVWZ3iJmqu8zd7v8vT3ECOkYkdvA6B7mCOwH9NmPqtE9QnmUBIgWlcWmATw==',
+    'AQAAAAIAAYagAAAAEEGdALNzDlRQdKeW8O7FH+VJ5F0V5aOCWVsNTRNstKkEdpiKo5ufzXwjA84A/vm2ng==',
     email, birth_date, CURRENT_TIMESTAMP - INTERVAL '30 days', is_active, is_email_confirmed
 FROM seed_users;
 
+-- Grupy i członkostwa do testów podziału wydatków.
 INSERT INTO "grouping"."group" (_id, name, icon, weekly_limit, monthly_limit, year_limit) VALUES
     ('20000000-0000-0000-0000-000000000001', 'Dom', 'home', 1000.00, 4000.00, 48000.00),
     ('20000000-0000-0000-0000-000000000002', 'Wyjazd', 'suitcase', NULL, 1500.00, NULL);
@@ -40,12 +57,14 @@ INSERT INTO "grouping".group_member (fk_user_id, fk_group_id, is_admin) VALUES
     ('10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', TRUE),
     ('10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002', FALSE);
 
+-- Kategorie i ich wygląd w interfejsie.
 INSERT INTO expense.category (_id, name, description, icon, color) VALUES
     ('30000000-0000-0000-0000-000000000001', 'Zakupy spozywcze', 'Produkty spozywcze do domu', 'shopping-cart', '#4CAF50'),
     ('30000000-0000-0000-0000-000000000002', 'Restauracje', 'Posilki poza domem', 'utensils', '#FF9800'),
     ('30000000-0000-0000-0000-000000000003', 'Transport', 'Bilety i przejazdy', 'bus', '#2196F3'),
     ('30000000-0000-0000-0000-000000000004', 'Mieszkanie', 'Czynsz i rachunki', 'home', '#9C27B0');
 
+-- Syntetyczne rachunki i transakcje lokalne, niezależne od zdalnego Tink.
 INSERT INTO banking.bank_account
     (_id, fk_user_id, name, number, financial_institution_id, type, currency_code, iban, is_closed)
 VALUES
@@ -61,6 +80,7 @@ VALUES
     ('50000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000001', 45.00, 'Pending', 'Platnosc oczekujaca', CURRENT_DATE, 'PLN', 'seed-transaction-003'),
     ('50000000-0000-0000-0000-000000000004', '40000000-0000-0000-0000-000000000002', 30.00, 'Cancelled', 'Platnosc anulowana', CURRENT_DATE - 3, 'PLN', 'seed-transaction-004');
 
+-- Przykładowy paragon, wydatki, pozycje i udziały uczestników.
 INSERT INTO receipt.receipt (_id, s3_link, extraction_result) VALUES
     ('60000000-0000-0000-0000-000000000001', 'https://example.test/receipts/seed-001.jpg',
      '{"merchant":"Sklep testowy","total":120.00,"currency":"PLN","items":[{"name":"Chleb","unit_price":10.00,"quantity":2},{"name":"Mleko","unit_price":5.00,"quantity":4},{"name":"Warzywa","unit_price":20.00,"quantity":4}]}'::jsonb);
@@ -94,6 +114,7 @@ INSERT INTO expense.expense_share (fk_expense_id, fk_user_id, percentage) VALUES
     ('70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 60.00),
     ('70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000002', 40.00);
 
+-- Limity kategorii oraz powiadomienia.
 INSERT INTO limits.category_group_limit
     (fk_category_id, fk_group_id, weekly_limit, monthly_limit, year_limit)
 VALUES
@@ -109,6 +130,7 @@ INSERT INTO notifications.notification (_id, fk_group_id, text, sent_at) VALUES
 
 COMMIT;
 
+-- Podsumowanie liczby rekordów po zatwierdzeniu resetu.
 SELECT 'user.user' AS "table", COUNT(*) AS row_count FROM "user"."user"
 UNION ALL SELECT 'user.user_token', COUNT(*) FROM "user".user_token
 UNION ALL SELECT 'grouping.group', COUNT(*) FROM "grouping"."group"
@@ -117,6 +139,10 @@ UNION ALL SELECT 'expense.category', COUNT(*) FROM expense.category
 UNION ALL SELECT 'expense.expense', COUNT(*) FROM expense.expense
 UNION ALL SELECT 'expense.expense_item', COUNT(*) FROM expense.expense_item
 UNION ALL SELECT 'expense.expense_share', COUNT(*) FROM expense.expense_share
+UNION ALL SELECT 'banking.bank_refresh', COUNT(*) FROM banking.bank_refresh
+UNION ALL SELECT 'banking.bank_refresh_account', COUNT(*) FROM banking.bank_refresh_account
+UNION ALL SELECT 'banking.bank_connection', COUNT(*) FROM banking.bank_connection
+UNION ALL SELECT 'banking.bank_connection_attempt', COUNT(*) FROM banking.bank_connection_attempt
 UNION ALL SELECT 'banking.bank_account', COUNT(*) FROM banking.bank_account
 UNION ALL SELECT 'banking.bank_transaction', COUNT(*) FROM banking.bank_transaction
 UNION ALL SELECT 'receipt.receipt', COUNT(*) FROM receipt.receipt

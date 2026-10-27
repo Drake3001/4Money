@@ -1,0 +1,34 @@
+flowchart TB
+    PR["Pull request do master"]
+
+    subgraph CI["CI — automatyczna weryfikacja"]
+        B["Backend<br/>jakość kodu, build i testy"]
+        T["Terraform<br/>walidacja i plan infrastruktury"]
+    end
+
+    PR --> B
+    PR --> T
+    B --> REVIEW["Przegląd PR i wyników CI"]
+    T --> REVIEW
+    REVIEW --> MASTER["Merge do master"]
+
+    subgraph CD["CD — wdrożenie infrastruktury"]
+        PLAN["Nowy plan Terraform<br/>i kontrola jego zakresu"]
+        CHECK{"Są zmiany i commit<br/>nadal jest aktualny?"}
+        APPLY["Terraform apply<br/>wdrożenie na Proxmox"]
+        SKIP["Pominięcie wdrożenia"]
+        PLAN --> CHECK
+        CHECK -->|Tak| APPLY
+        CHECK -->|Nie| SKIP
+    end
+
+    MASTER --> PLAN
+
+    classDef event fill:#dbeafe,stroke:#2563eb,color:#172554
+    classDef check fill:#f1f5f9,stroke:#64748b,color:#0f172a
+    classDef decision fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef deploy fill:#dcfce7,stroke:#16a34a,color:#14532d
+    class PR,MASTER event
+    class B,T,PLAN,SKIP check
+    class REVIEW,CHECK decision
+    class APPLY deploy

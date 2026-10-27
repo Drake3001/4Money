@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using ZPI4M.Banking.Models;
 
@@ -11,6 +9,14 @@ public partial class BankingDbContext : DbContext
 		: base(options)
 	{
 	}
+
+	public DbSet<BankRefresh> Refreshes => Set<BankRefresh>();
+
+	public DbSet<BankRefreshAccount> RefreshAccounts => Set<BankRefreshAccount>();
+
+	public DbSet<BankConnectionAttempt> ConnectionAttempts => Set<BankConnectionAttempt>();
+
+	public DbSet<BankConnection> Connections => Set<BankConnection>();
 
 	public virtual DbSet<BankAccount> BankAccounts { get; set; }
 

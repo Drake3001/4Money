@@ -29,6 +29,12 @@ public class BankAccountRepository : IBankAccountRepository
 		return _context.BankAccounts.SingleOrDefaultAsync(e => e.Id == bankAccountId, cancellationToken);
 	}
 
+	public Task<BankAccount?> GetByIdForUserAsync(Guid userId, Guid bankAccountId, CancellationToken cancellationToken = default)
+	{
+		return _context.BankAccounts.AsNoTracking().SingleOrDefaultAsync(
+			e => e.Id == bankAccountId && e.FkUserId == userId, cancellationToken);
+	}
+
 	public Task<bool> ExistsAsync(Guid bankAccountId, CancellationToken cancellationToken = default)
 	{
 		return _context.BankAccounts.AnyAsync(e => e.Id == bankAccountId, cancellationToken);
@@ -44,7 +50,7 @@ public class BankAccountRepository : IBankAccountRepository
 	{
 		ArgumentNullException.ThrowIfNull(query);
 
-		IQueryable<BankAccount> itemsQuery = _context.BankAccounts;
+		IQueryable<BankAccount> itemsQuery = _context.BankAccounts.AsNoTracking();
 		if (query.UserId.HasValue)
 			itemsQuery = itemsQuery.Where(e => e.FkUserId == query.UserId.Value);
 		if (!string.IsNullOrWhiteSpace(query.Name))

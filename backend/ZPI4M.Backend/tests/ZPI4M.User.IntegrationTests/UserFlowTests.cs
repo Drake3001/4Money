@@ -13,12 +13,58 @@ namespace ZPI4M.User.IntegrationTests;
 
 public sealed class UserFlowTests : PostgresFixture
 {
+	[PostgresTheory]
+	[InlineData("seed_anna", 200)]
+	[InlineData("seed_bartek", 200)]
+	[InlineData("seed_celina", 200)]
+	[InlineData("postman.banking", 200)]
+	[InlineData("seed_dawid", 403)]
+	public async Task SeedPasswordsWorkWithoutOverridingHashes(string login, int expectedStatus)
+	{
+		await using var host = await StartHostAsync();
+		await PostAsync(host.Client, "login", new { login, password = Password }, (HttpStatusCode)expectedStatus);
+	}
+
+	[PostgresFact]
+	public async Task SeedCanResetBankingConnectionsAndTinkMapping()
+	{
+		await using var connection = new Npgsql.NpgsqlConnection(ConnectionString);
+		await connection.OpenAsync();
+		await using (var command = new Npgsql.NpgsqlCommand("""
+			INSERT INTO banking.bank_refresh
+			(_id, four_money_user_id, tink_user_id, status, created_at, next_attempt_at, attempts, discovery_completed)
+			VALUES ('13000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000010',
+			'seed-tink-user', 'QUEUED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, false);
+			UPDATE "user"."user" SET tink_user_id = 'seed-tink-user'
+			WHERE _id = '10000000-0000-0000-0000-000000000010';
+			INSERT INTO banking.bank_connection
+			(_id, four_money_user_id, tink_user_id, credentials_id, connection_status, sync_status, created_at, connected_at)
+			VALUES ('11000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000010',
+			'seed-tink-user', 'seed-credential', 'Connected', 'NotStarted', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+			INSERT INTO banking.bank_connection_attempt
+			(_id, four_money_user_id, status, correlation_state_hash, created_at, expires_at, bank_connection_id, version)
+			VALUES ('12000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000010',
+			'Completed', 'synthetic-state-hash', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '15 minutes',
+			'11000000-0000-0000-0000-000000000001', 0);
+			""", connection))
+			await command.ExecuteNonQueryAsync();
+		await using (var reset = new Npgsql.NpgsqlCommand(await File.ReadAllTextAsync(
+			Path.Combine(AppContext.BaseDirectory, "Baseline", "seed_local.sql")), connection))
+			await reset.ExecuteNonQueryAsync();
+		await using var context = OpenDatabase();
+		Assert.Equal(5, await context.Users.CountAsync());
+		Assert.False(await context.Users.AnyAsync(user => user.TinkUserId != null));
+		await using var check = new Npgsql.NpgsqlCommand(
+			"SELECT (SELECT COUNT(*) FROM banking.bank_connection) + (SELECT COUNT(*) FROM banking.bank_connection_attempt) + (SELECT COUNT(*) FROM banking.bank_refresh) + (SELECT COUNT(*) FROM banking.bank_refresh_account)", connection);
+		Assert.Equal(0L, await check.ExecuteScalarAsync());
+	}
+
 	[PostgresFact]
 	public async Task BaselineMigrationsAndSeedProduceUsableDatabase()
 	{
 		await using var context = OpenDatabase();
-		Assert.Equal(4, await context.Users.CountAsync());
-		Assert.Equal(3, await context.Users.CountAsync(u => u.IsActive && u.IsEmailConfirmed));
+		Assert.Equal(5, await context.Users.CountAsync());
+		Assert.Equal(4, await context.Users.CountAsync(u => u.IsActive && u.IsEmailConfirmed));
 		Assert.Equal("anna@example.test", (await context.Users.SingleAsync(u => u.Id == AnnaId)).Email);
 		Assert.Empty(await context.UserTokens.ToListAsync());
 		await using var connection = new Npgsql.NpgsqlConnection(ConnectionString);
@@ -64,7 +110,7 @@ public sealed class UserFlowTests : PostgresFixture
 		await using var host = await StartHostAsync();
 		await PostAsync(host.Client, "register", Registration(login, email), HttpStatusCode.Conflict);
 		await using var context = OpenDatabase();
-		Assert.Equal(4, await context.Users.CountAsync());
+		Assert.Equal(5, await context.Users.CountAsync());
 		Assert.Empty(Email.Messages);
 		Assert.Empty(await context.UserTokens.ToListAsync());
 	}
@@ -253,7 +299,7 @@ public sealed class UserFlowTests : PostgresFixture
 		await PostAsync(host.Client, "refresh", new { refreshToken = login.RefreshToken }, HttpStatusCode.Unauthorized);
 		await PostAsync(host.Client, "login", new { login = "seed_anna", password = Password }, HttpStatusCode.Forbidden);
 		await using var database = OpenDatabase();
-		Assert.Equal(4, await database.Users.CountAsync());
+		Assert.Equal(5, await database.Users.CountAsync());
 		Assert.False((await database.Users.SingleAsync(u => u.Id == AnnaId)).IsActive);
 		Assert.Empty(await database.UserTokens.Where(t => t.FkUserId == AnnaId).ToListAsync());
 	}

@@ -32,7 +32,7 @@ Zgodnie z aktualnym opisem i diagramem Expense koordynuje dodawanie wydatku: prz
 publiczny interfejs Receipt zleca odczyt paragonu, a przez interfejs Banking
 pobiera transakcje do wyboru lub dopasowania. Expense odpowiada za utworzenie
 wydatku i zapisanie powiązań. Receipt korzysta wyłącznie z modelu OCR,
-a Banking wyłącznie z modułu/integracji OpenBanking. Receipt i Banking nie
+a docelowo Banking korzysta z modułu/integracji OpenBanking. Receipt i Banking nie
 zależą od Expense ani od siebie nawzajem. Są to ustalenia dotyczące współpracy
 modułów i integracji; nie oznaczają, że projekty OCR lub OpenBanking już istnieją
 w solucji.
@@ -49,8 +49,9 @@ w solucji.
 | DTOs | Dane przekazywane przez granicę API |
 | Integrations, opcjonalnie | Adaptery usług zewnętrznych, np. OCR lub bankowości |
 
-Wszystkie błędy HTTP korzystają ze standardowego formatu `ProblemDetails`,
-bez dostosowywania pól. Kontrolery zwracają błędy biznesowe przez `Problem()`.
+Docelowo błędy HTTP korzystają ze standardowego formatu `ProblemDetails`.
+User nie rozszerza jego pól. Obecny kontrakt Banking dodaje `code` i opcjonalne
+`attemptId`; ujednolicenie wymaga osobnej decyzji dotyczącej kontraktu. Kontrolery zwracają błędy biznesowe przez `Problem()`.
 Walidacja DTO zwraca `ValidationProblemDetails` z błędami poszczególnych pól.
 Host zapewnia `ProblemDetails` dla pustych błędów HTTP i nieobsłużonych wyjątków.
 
@@ -61,8 +62,9 @@ plikiem `<Nazwa>Queries.cs`. Namespace odzwierciedla katalog konkretnego
 repozytorium: `ZPI4M.<Moduł>.Repositories.<Nazwa>Repository`, np.
 `ZPI4M.Grouping.Repositories.GroupMemberRepository`. Ta sama przestrzeń nazw
 obejmuje interfejs, implementację i Queries. UserToken i Notification nie mają Queries.
-Repozytoria rejestrują dodanie i usunięcie encji, ale nie wykonują własnego
-`SaveChangesAsync`. Granicę zapisu wyznacza serwis, aby np. utworzenie grupy
+Podstawowe repozytoria rejestrują dodanie i usunięcie encji, ale nie wykonują własnego
+`SaveChangesAsync`. Wyjątkiem jest obecne `BankingConnectionRepository`, które
+samodzielnie zapisuje próby oraz atomowo kończy próbę i tworzy połączenie. Granicę zapisu wyznacza serwis, aby np. utworzenie grupy
 i dodanie administratora zapisać atomowo. Wspólny zapis wymaga tego samego
 scoped kontekstu; osobne konteksty modułów nie współdzielą automatycznie
 transakcji ani change trackera.
@@ -90,6 +92,12 @@ Kontrakty Services i DTOs mogą istnieć przed implementacją pełnego przepływ
 Wydzielanie Integrations jest możliwością projektową, nie wymogiem tworzenia
 pustych katalogów w każdym module.
 
+Serwisy Banking są pogrupowane według funkcjonalności: `Services/Reads` zawiera
+`BankingReadService` i jego interfejs, `Services/Connections` — serwis połączeń,
+interfejsy połączeń i callbacku oraz opcje, a `Services/Refresh` — synchronizację.
+Namespace’y odpowiadają katalogom. Wspólne kontrakty pozostają w
+`Services/Contracts`, a `IBankingCurrentUser` bezpośrednio w `Services`.
+
 ## Obecny podział kontrolerów User
 
 Pozostawiamy uzgodniony podział kontrolerów. Ogólna nazwa UsersController
@@ -107,6 +115,28 @@ Kontrolery współdzielą prefiks tras; nazwy klas nie wyznaczają adresów,
 ponieważ routing jest jawny. Nie ma osobnych AuthenticationController
 ani RegistrationController. Szczegóły autoryzacji i odpowiedzi opisuje
 [instrukcja pracy](development.md).
+
+## Proces Banking i granica Tink
+
+Stan po rebase sprawdzono 2026-10-24. Zależność `Expense → Banking` pozostaje.
+Banking nie zależy od Expense; nieużywaną referencję usunięto, aby uniknąć cyklu.
+Obecna zależność `Banking → User` jest tymczasowym odstępstwem od docelowego
+podziału z tabeli. Oddzielenie przez kontrakt i adapter wymaga osobnego planu;
+nie zostało wykonane w ramach rebase’u.
+
+`BankingConnectionService` koordynuje repozytoria prób/połączeń i adapter
+`ITinkConnectionGateway`. Banking zależy także od publicznego serwisu profilu
+modułu User: odczytuje aktywność i inicjalizuje istniejące `User.TinkUserId`.
+User nie zależy od Banking ani Tink. Inicjalizacja mapowania jest serializowana
+transakcyjną blokadą doradczą PostgreSQL, niezależną od zapisów logowania i profilu;
+wywołanie dostawcy jest przekazywane jako operacja.
+Konfiguracja Banking wykorzystuje istniejące mapowanie User dla kluczy obcych.
+
+Host rejestruje zależności i adapter zweryfikowanej tożsamości. Koordynacja procesu
+nie znajduje się już w serwisie generatora linku hosta. Tink odpowiada za tokeny,
+Permanent Users, link i weryfikację credential; Banking za trwałe próby i stan
+lokalny. Szczegóły opisuje
+[README Banking](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md).
 
 ## Persystencja i migracje
 
@@ -135,12 +165,22 @@ znajdują się w [instrukcji pracy](development.md#modele-i-migracje).
 | Mobile | Plan React + Capacitor lub React Native; wybór nie jest rozstrzygnięty |
 | OCR | Plan Python i integracja OCR; brak implementacji pipeline'u w obecnym repo |
 | Automatyzacja | GitHub Actions, pre-commit, narzędzia Python zarządzane przez uv |
-| Testy backendu | Brak projektów w bieżącej solucji; tests zawiera tylko .gitkeep, prace nad testami User odłożono na osobną gałąź |
+| Testy backendu | Sześć projektów User/Banking: UnitTests, Tests i IntegrationTests; testy PostgreSQL wymagają osobnej konfiguracji |
 | Infrastruktura | Obecna konfiguracja Terraform dla Proxmox; Linux i Tailscale w środowisku developerskim |
 | Prezentacja | AWS jako założenie docelowe, nie potwierdzone wdrożenie aplikacji |
 
-Modele Banking zawierają identyfikatory Tink, ale w obecnej gałęzi nie ma
-jeszcze kontrolera, serwisów ani wykonanej integracji dostawcy.
+Banking zawiera kontrolery, serwisy, adapter Tink, odczyt zgód i worker importu
+rachunków oraz transakcji na żądanie. Publiczny `IBankingReadService` udostępnia
+lokalne listy i szczegóły rachunków/transakcji przez DI, z wymaganym właścicielem
+i osobnymi kontraktami danych w `Services/Contracts`. Odczyt nie wymaga Tink,
+nie uruchamia synchronizacji. Expense może użyć
+tego interfejsu do wyboru transakcji; tworzenie wydatku i powiązania pozostaje
+w Expense. `BankingReadController` udostępnia listy i szczegóły rachunków oraz
+transakcji frontendowi przez cztery endpointy GET, z właścicielem z JWT, osobnymi
+DTO HTTP i kwotami jako tekst dziesiętny zachowujący dokładność.
+Szczegóły kontraktu opisuje
+[README Banking](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#local-account-and-transaction-reads).
+Implementacja nie potwierdza rzeczywistego przepływu Sandbox.
 
 ## Źródła
 
@@ -151,3 +191,11 @@ jeszcze kontrolera, serwisów ani wykonanej integracji dostawcy.
 - [Wspólny kontekst migracji](../backend/ZPI4M.Backend/src/ZPI4M.Database/AppDbContext.cs)
 - [Compose](../containers/docker-compose.yml)
 - [Infrastruktura Proxmox i jej proces wdrożenia](../proxmox-infra/README.md)
+
+## Worker synchronizacji Banking
+
+Refresh on demand pozostaje częścią modularnego monolitu. BackgroundService
+w hoście API przetwarza trwałe zadania PostgreSQL; kontroler tylko zleca zadanie
+i udostępnia jego wynik. Serwis/processor koordynuje adapter Tink i repozytorium,
+które przejmuje zadania przez lease oraz zapisuje dane atomowo dla rachunku.
+Nie ma zewnętrznej kolejki. [Kontrakt i parametry workera](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#refresh-on-demand).

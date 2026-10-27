@@ -8,6 +8,7 @@ public interface IBankTransactionRepository
 	void Add(BankTransaction entity);
 	void Remove(BankTransaction entity);
 	Task<BankTransaction?> GetByIdAsync(Guid bankTransactionId, CancellationToken cancellationToken = default);
+	Task<BankTransaction?> GetByIdForUserAsync(Guid userId, Guid bankTransactionId, CancellationToken cancellationToken = default);
 	Task<bool> ExistsAsync(Guid bankTransactionId, CancellationToken cancellationToken = default);
 	Task<PagedResult<BankTransaction>> GetPageAsync(BankTransactionQuery query, CancellationToken cancellationToken = default);
 	Task<BankTransaction?> GetByTinkTransactionIdAsync(string tinkTransactionId, CancellationToken cancellationToken = default);

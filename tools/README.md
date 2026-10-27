@@ -71,6 +71,37 @@ editor opens; `commit-msg` rejects a task prefix with no description. See
 [ClickUp conventions](#clickup-branch-and-commit-conventions). Local hooks can be skipped or uninstalled;
 they do not replace CI or repository access controls.
 
+# Tink Connector fixtures
+
+The [Python CLI](scripts/tink_connector.py) seeds synthetic Data v2 accounts
+and transactions without the 4Money backend. Its
+[Polish guide](scripts/tink_connector/README.md) covers configuration, presets,
+durable run manifests, recovery and local HTTP tests. Use both dependency
+groups in the same tools environment to retain installed Git hooks:
+
+```bash
+uv sync --project tools --group pre-commit --group connector --locked
+uv run --project tools --group pre-commit --group connector --locked python tools/scripts/tink_connector.py plan --preset basic-pln
+uv run --project tools --group pre-commit --group connector --locked python -m unittest discover -s tools/scripts/tests -v
+```
+
+Copy [tools/.env.example](.env.example) to the ignored `tools/.env` and supply
+credentials of a Tink test application before `seed`. Run the Python script
+directly with uv, supplying `--env-file tools/.env` before `python` when needed.
+The Google Fire CLI accepts a run ID for `resume`/`verify` or an explicit
+`--manifest`. State lives in ignored `.cache/tink-connector/`;
+keep manifests to locate created resources. API entitlement and a live Tink run
+are separate from the passing local tests. No update/delete or cleanup commands
+are provided.
+
+For a combined local reset, use
+[`reset_state.py`](scripts/reset_state.py): it runs `database/seed_local.sql`,
+creates fresh Tink fixtures, and binds their generated IDs using a JSON user
+mapping. The default mapping includes only `postman.banking`.
+The [reset guide](scripts/reset_state/README.md) covers `plan`, `reset`, `resume`,
+configuration and disposable PostgreSQL tests. A reset replaces local application
+data and sessions; previous remote Tink fixtures remain.
+
 # Backend CI
 
 The workflow runs repository hygiene checks independently of the backend:

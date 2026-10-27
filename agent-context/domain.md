@@ -23,6 +23,8 @@ zachowuje wcześniejszą datę.
 | `ExpenseShare` | Procentowy udział użytkownika w wydatku; Expense |
 | Paragon / `Receipt` | Zdjęcie lub zrzut potwierdzenia zakupu; odnośnik do obrazu i surowy wynik OCR; Receipt |
 | `BankAccount` | Rachunek bankowy przypisany użytkownikowi; Banking |
+| `BankConnectionAttempt` | Trwała próba połączenia z bankiem, skrót state, termin i wynik; Banking |
+| `BankConnection` | Lokalne połączenie z bankiem; stan połączenia odrębny od synchronizacji; Banking |
 | `BankTransaction` | Transakcja zaimportowana z rachunku, odrębna od wydatku; Banking |
 | Limit / `CategoryGroupLimit` | Próg dla kategorii w grupie; Limits. Model `Group` ma też ogólne limity. |
 | `Notification` | Powiadomienie powiązane z grupą w projekcie bazy; Notifications |
@@ -54,6 +56,22 @@ Aktualne konfiguracje EF używają m.in. `decimal(18,2)` dla kwot,
 `decimal(18,3)` dla ilości i `decimal(5,2)` dla udziału procentowego.
 Zachowuj reprezentację dziesiętną pieniędzy; nie zmieniaj precyzji bez analizy
 modelu i migracji.
+
+## Import Banking
+
+Refresh identyfikuje rachunki przez `(TinkUserId, TinkAccountId)`, zachowując
+lokalne GUID i historię. Zniknięcie z pełnej listy ustawia `IsClosed`, a ponowne
+pojawienie otwiera rachunek. Starsze rekordy bez identyfikatorów Tink wymagają
+osobnego uzgodnienia; nie są dopasowywane po numerze. Numer, IBAN i identyfikator
+instytucji mogą nie być dostępne, zwłaszcza dla danych syntetycznych.
+
+Kwoty BankTransaction zachowują znak Tink (obciążenie ujemne, uznanie dodatnie),
+a migracja `AddBanking` usuwa historyczny CHECK `amount > 0` z SQL init.
+Dokładność pozostaje `decimal(18,2)`; import nie zaokrągla większej precyzji.
+Zdalne `BOOKED` zapisujemy jako lokalne `Booked`. Import nie tworzy Expense.
+`LastSuccessfulSyncAt` dotyczy zakończenia synchronizacji rachunku,
+`TransactionsSyncedThrough` wyznacza kolejny zakres pobierania. Szczegóły i
+ograniczenia opisuje [kontrakt Banking](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#refresh-on-demand).
 
 ## Unikalność źródeł wydatku
 

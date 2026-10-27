@@ -1,9 +1,17 @@
 using DotNetEnv;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using ZPI4M.Api.Services;
+using ZPI4M.Banking.ApiControllers;
 using ZPI4M.Banking.Database;
+using ZPI4M.Banking.Repositories;
 using ZPI4M.Banking.Repositories.BankAccountRepository;
 using ZPI4M.Banking.Repositories.BankTransactionRepository;
+using ZPI4M.Banking.Services;
+using ZPI4M.Banking.Services.Connections;
+using ZPI4M.Banking.Services.Reads;
+using ZPI4M.Banking.Services.Refresh;
+using ZPI4M.Banking.Tink;
 using ZPI4M.Database;
 using ZPI4M.Expense.Database;
 using ZPI4M.Expense.Repositories.CategoryRepository;
@@ -24,6 +32,7 @@ using ZPI4M.User.Database;
 using ZPI4M.User.Integrations.Smtp;
 using ZPI4M.User.Repositories.UserRepository;
 using ZPI4M.User.Repositories.UserTokenRepository;
+using ZPI4M.User.Services;
 using ZPI4M.User.Services.AccountDeactivation;
 using ZPI4M.User.Services.Authentication;
 using ZPI4M.User.Services.EmailChange;
@@ -38,12 +47,34 @@ using ZPI4M.User.Services.Tokens;
 Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddEnvironmentVariables();
 
 // Add services to the container.
 
 builder.Services.AddControllers()
-	.AddApplicationPart(typeof(UsersController).Assembly);
+	.AddApplicationPart(typeof(UsersController).Assembly)
+	.AddApplicationPart(typeof(BankingController).Assembly);
 builder.Services.AddProblemDetails();
+builder.Services.AddAuthorization();
+builder.Services.AddTink(builder.Configuration);
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IBankingCurrentUser, HttpBankingCurrentUser>();
+builder.Services.AddOptions<BankingConnectionOptions>().BindConfiguration("Banking")
+ .Validate(options => options.AttemptLifetimeMinutes is >= 1 and <= 60, "Attempt lifetime must be between 1 and 60 minutes.");
+builder.Services.AddScoped<BankingConnectionRepository>();
+builder.Services.AddScoped<IBankConnectionAttemptRepository>(provider => provider.GetRequiredService<BankingConnectionRepository>());
+builder.Services.AddScoped<IBankConnectionRepository>(provider => provider.GetRequiredService<BankingConnectionRepository>());
+builder.Services.AddScoped<IUserBankingProfileService, UserBankingProfileService>();
+builder.Services.AddOptions<BankRefreshOptions>().BindConfiguration("Banking:Refresh")
+ .ValidateDataAnnotations().Validate(value => value.HeartbeatSeconds * 2 < value.LeaseSeconds,
+  "Refresh heartbeat must be shorter than half the lease.");
+builder.Services.AddScoped<BankRefreshRepository>();
+builder.Services.AddScoped<BankRefreshService>();
+builder.Services.AddScoped<BankRefreshProcessor>();
+builder.Services.AddHostedService<BankRefreshWorker>();
+builder.Services.AddScoped<BankingConnectionService>();
+builder.Services.AddScoped<IBankingConnectionService>(provider => provider.GetRequiredService<BankingConnectionService>());
+builder.Services.AddScoped<IBankingCallbackService>(provider => provider.GetRequiredService<BankingConnectionService>());
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddUserRateLimiting(builder.Configuration);
@@ -69,6 +100,7 @@ builder.Services.AddScoped<IExpenseShareRepository, ExpenseShareRepository>();
 builder.Services.AddDbContext<BankingDbContext>(options => options.UseNpgsql(dbConnectionString));
 builder.Services.AddScoped<IBankAccountRepository, BankAccountRepository>();
 builder.Services.AddScoped<IBankTransactionRepository, BankTransactionRepository>();
+builder.Services.AddScoped<IBankingReadService, BankingReadService>();
 
 // Limits module
 builder.Services.AddDbContext<LimitsDbContext>(options => options.UseNpgsql(dbConnectionString));

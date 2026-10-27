@@ -29,6 +29,12 @@ public class BankTransactionRepository : IBankTransactionRepository
 		return _context.BankTransactions.SingleOrDefaultAsync(e => e.Id == bankTransactionId, cancellationToken);
 	}
 
+	public Task<BankTransaction?> GetByIdForUserAsync(Guid userId, Guid bankTransactionId, CancellationToken cancellationToken = default)
+	{
+		return _context.BankTransactions.AsNoTracking().SingleOrDefaultAsync(
+			e => e.Id == bankTransactionId && e.FkBankAccount.FkUserId == userId, cancellationToken);
+	}
+
 	public Task<bool> ExistsAsync(Guid bankTransactionId, CancellationToken cancellationToken = default)
 	{
 		return _context.BankTransactions.AnyAsync(e => e.Id == bankTransactionId, cancellationToken);
@@ -57,7 +63,7 @@ public class BankTransactionRepository : IBankTransactionRepository
 		if (query.MinAmount > query.MaxAmount)
 			throw new ArgumentException("MinAmount must be less than or equal to MaxAmount.", nameof(query));
 
-		IQueryable<BankTransaction> itemsQuery = _context.BankTransactions;
+		IQueryable<BankTransaction> itemsQuery = _context.BankTransactions.AsNoTracking();
 		if (query.BankAccountId.HasValue)
 			itemsQuery = itemsQuery.Where(e => e.FkBankAccountId == query.BankAccountId.Value);
 		if (query.UserId.HasValue)

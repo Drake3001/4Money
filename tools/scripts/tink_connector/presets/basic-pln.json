@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "name": "basic-pln",
+  "market": "PL",
+  "locale": "pl_PL",
+  "accounts": [
+    {
+      "key": "checking",
+      "name": "4Money TEST Rachunek osobisty",
+      "type": "CHECKING",
+      "currencyCode": "PLN",
+      "minorUnit": 2,
+      "displayAccountNumber": "TEST **** 0001",
+      "balances": {
+        "bookedBalance": "125050",
+        "availableBalanceIncludingCredit": "120050",
+        "creditLimit": "0"
+      },
+      "transactions": [
+        { "key": "groceries", "amount": "-49.99", "description": "TEST Zakupy spozywcze", "status": "BOOKED", "dayOffset": -3, "timeUtc": "10:00:00" },
+        { "key": "salary", "amount": "6500.00", "description": "TEST Wynagrodzenie", "status": "BOOKED", "dayOffset": -2, "timeUtc": "08:00:00" },
+        { "key": "pending", "amount": "-50.00", "description": "TEST Platnosc oczekujaca", "status": "PENDING", "dayOffset": 0, "timeUtc": "09:00:00" }
+      ]
+    }
+  ]
+}

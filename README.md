@@ -95,3 +95,8 @@ Terraform configuration and GitHub Actions setup: [proxmox-infra/README.md](prox
 Polska instrukcja konfiguracji: [notes/precommit_notes.md](notes/precommit_notes.md).
 
 Hook installation, formatting checks, and ClickUp integration: [tools/README.md](tools/README.md).
+
+### Postman — Tink
+
+Kolekcje flow Banking/Tink i diagnostyki dostawcy: [postman/](postman/).
+Polska instrukcja konfiguracji, uruchamiania i rozbudowy: [notes/POSTMAN.md](notes/POSTMAN.md).

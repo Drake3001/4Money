@@ -5,8 +5,8 @@ Polecenia poniżej są zweryfikowane względem konfiguracji repozytorium; nie
 oznacza to potwierdzenia ich wykonania w każdej sesji. Bieżące ograniczenia
 opisuje [status](implementation-status.md).
 
-Stan konfiguracji hosta i testów ponownie sprawdzono 2026-10-23. Bieżąca gałąź
-zawiera funkcje User opisane niżej, ale nie zawiera projektów testowych backendu.
+Stan konfiguracji hosta i testów ponownie sprawdzono 2026-10-24 po rebase.
+Solucja zawiera funkcje i projekty testowe User oraz Banking.
 
 ## Wymagania
 
@@ -18,6 +18,9 @@ Restore i instalacja narzędzi mogą pobierać zależności.
 ## Lokalna baza i API
 
 W `containers/.env` ustaw własne `POSTGRES_USER` i `POSTGRES_PASSWORD`.
+Szablon znajduje się w `containers/.env.example`. Skopiuj go do `.env`, jeśli
+plik lokalny jeszcze nie istnieje. Istniejący wolumen PostgreSQL zachowuje
+pierwotne dane logowania — zmiana `.env` ich nie zmienia.
 Nie zapisuj rzeczywistych wartości w dokumentacji ani w Git.
 Z katalogu `containers/` uruchom:
 
@@ -37,6 +40,14 @@ DB_LOCAL_CONNECTION_STRING=Host=localhost;Port=5434;Database=zpi4m_db;Username=T
 ```
 
 Są to placeholdery. Użyj danych zgodnych z lokalną konfiguracją kontenera.
+Szablon API to `backend/ZPI4M.Backend/src/ZPI4M.Api/.env.example`; zawiera też
+`UserAuthentication__SigningKey`, wymagany przy starcie hosta, oraz pola Tink.
+Klucz JWT powinien być losowy i mieć co najmniej 32 znaki. Lokalne pliki `.env`
+są ignorowane przez Git; przechowuj je z uprawnieniami `600`. Prawdziwe sekrety
+Tink wpisuj wyłącznie lokalnie jako `Tink__ClientSecret`; nie umieszczaj ich
+w `appsettings.json` ani szablonach. Żądania Banking w Postmanie potrzebują
+JWT User, nie sekretu aplikacji Tink. Integracja Tink pozostaje wyłączona przez
+`Tink__ContinuousAccessVerified=false` na etapie przygotowania bazy.
 Po przygotowaniu bazy i migracji uruchom z katalogu `ZPI4M.Api`:
 
 ```bash
@@ -55,7 +66,7 @@ Uruchamianie z tego katalogu zapewnia właściwy kontekst odczytu `.env` przez
 `DotNetEnv`. Profil HTTP wskazuje `http://localhost:5283`, profil HTTPS także
 `https://localhost:7278`. Host używa przekierowania HTTPS; sprawdź profil
 i konfigurację certyfikatu przy diagnozowaniu lokalnych wywołań.
-W Development host mapuje dokument OpenAPI. Host wykrywa kontrolery modułu User;
+W Development host mapuje dokument OpenAPI. Host wykrywa kontrolery modułów User i Banking;
 `POST /api/users/register` waliduje dane, zapisuje niepotwierdzone konto razem
 ze skrótem tokenu i wysyła wiadomość przez SMTP po zakończeniu zapisu.
 `POST /api/users/confirm-email` przyjmuje JSON z polem `token` i zwraca 204
@@ -67,7 +78,7 @@ Stan kodu opisuje [status](implementation-status.md).
 
 ## Rejestracja i potwierdzenie adresu
 
-Wszystkie błędy API korzystają z domyślnego formatu `ProblemDetails` ASP.NET Core.
+Błędy API modułu User korzystają z domyślnego formatu `ProblemDetails` ASP.NET Core.
 Kontrolery zwracają błędy biznesowe przez `Problem(statusCode: ..., title: ...)`.
 Odpowiedź zawiera standardowe pola, np. `type`, `title`, `status` i `traceId`;
 `detail` i `instance` mogą wystąpić, jeśli zostały ustawione.
@@ -114,6 +125,15 @@ przekroczenie zwraca 429. Limit IP jest lokalny dla instancji aplikacji.
 Odstęp między wysyłkami na konto jest sprawdzany w bazie pod blokadą użytkownika.
 
 ## Logowanie i sesja
+
+Do lokalnych testów bez rejestracji i SMTP służy `database/seed_local.sql`,
+wykonywany po migracjach. Resetuje dane aplikacji i odtwarza pięć kont ze wspólnym
+hasłem testowym `TestPassword1!`, opisanych w komentarzach SQL. `seed_dawid`
+pozostaje nieaktywny, pozostałe konta są aktywne i potwierdzone. Dla Banking
+używaj `postman.banking`, ID `10000000-0000-0000-0000-000000000010`.
+Reset usuwa także sesje, połączenia bankowe i TinkUserId. Po resecie zaloguj się
+ponownie, a powiązanie Tink odtwórz komendą `link-db` z istniejącego manifestu.
+Konfigurację opisuje [instrukcja Postmana](../postman/README.md).
 
 Host wymaga `UserAuthentication__SigningKey` w środowisku lub lokalnym `.env`.
 Klucz musi mieć co najmniej 32 znaki i pochodzić z generatora kryptograficznego
@@ -489,6 +509,60 @@ Git; nie zapisuj rzeczywistych danych skrzynki w `appsettings.json`.
 `.env` jest ładowany przed utworzeniem konfiguracji hosta, aby te wartości
 były dostępne dla mechanizmu Options i DI.
 
+## Postman: testy integracji Tink
+
+W katalogu [postman/](../postman/) są kolekcje User, Banking i diagnostyki
+Tink Sandbox oraz szablony środowisk. Kolekcja Banking rozpoczyna folder 10
+żądaniem logowania User; zapisuje wyłącznie `accessToken` do `fourMoneyAccessToken`,
+a Runner kontynuuje do rozpoczęcia próby. Błędy logowania zatrzymują run i nie
+pozostawiają poprzedniego tokenu. Można też używać osobnej kolekcji User. Adapter Banking odczytuje `sub`
+ze zweryfikowanego JWT; wspiera również `ClaimTypes.NameIdentifier`.
+Przepływ bankowy wymaga ręcznego przejścia przez Tink Link.
+Instrukcja: [postman/README.md](../postman/README.md) i [notes/POSTMAN.md](../notes/POSTMAN.md).
+
+## Syntetyczne transakcje Tink Connector
+
+[CLI Python](../tools/scripts/tink_connector.py) działa poza backendem i używa
+środowiska uv `tools`. Komendy `plan`, `seed`, `resume`, `verify` oraz format
+własnego presetu opisuje [instrukcja](../tools/scripts/tink_connector/README.md).
+Używaj testowego klienta Tink i zachowaj manifest runu w ignorowanym `.cache`.
+Utworzenie danych Connector nie zastępuje testu zgody bankowej ani Tink Link.
+
+```bash
+uv sync --project tools --group pre-commit --group connector --locked
+uv run --project tools --group pre-commit --group connector --locked python tools/scripts/tink_connector.py plan --preset basic-pln
+uv run --project tools --group pre-commit --group connector --locked python -m unittest discover -s tools/scripts/tests -v
+```
+
+Grupy `pre-commit` i `connector` współdzielą `tools/.venv`; zachowaj obie podczas
+uruchamiania CLI bezpośrednio przez uv. Opcjonalny `tools/.env` wczytaj przez
+`--env-file tools/.env` przekazane do uv przed `python`; jego
+[pusty szablon](../tools/.env.example) nie zawiera sekretów. Dostęp do rzeczywistego
+Connector v2 wymaga uprawnień aplikacji i osobnego potwierdzenia w Tink.
+
+Powiązanie CLI z lokalnym kontem jest opcjonalne: `seed --four-money-user-id GUID`
+zapisuje je automatycznie po sukcesie, a `link-db <runId> --four-money-user-id GUID`
+odtwarza z ukończonego manifestu. `tools/.env` wymaga wtedy dodatkowego
+`FOURMONEY_DATABASE_DSN` w formacie PostgreSQL/libpq; sekret nie jest argumentem
+CLI i nie trafia do manifestu. Starsze manifesty są obsługiwane, a tryb bez
+powiązania nadal nie wymaga bazy. `plan` pozostaje offline; `verify` nie zmienia
+mapowania lokalnego. Testy powiązań wymagają `FOURMONEY_TEST_POSTGRES_DSN`
+i używają własnych tymczasowych baz. Szczegóły: [CLI Connector](../tools/scripts/tink_connector/README.md).
+Od 2026-10-25 zapis po sukcesie zastępuje również poprzednie `tink_user_id`
+wskazanego konta. Nie tworzy brakujących użytkowników i nadal odrzuca ID należące
+do innego konta. Istniejące połączenia Banking zachowują swoją tożsamość Tink;
+po zmianie mapowania nowa tożsamość wymaga własnego przepływu Link.
+
+## Łączny reset SQL i Connector
+
+[`reset_state.py`](../tools/scripts/reset_state.py) uruchamia istniejący seeder
+SQL, tworzy świeże dane Tink i zapisuje `tink_user_id` według mapowania JSON.
+Domyślnie obejmuje tylko `postman.banking`. Komendy `plan`, `reset`, `resume`,
+format mapowania i konfigurację testów opisuje
+[instrukcja](../tools/scripts/reset_state/README.md). Wymaga już zastosowanych
+migracji, konfiguracji Tink i `FOURMONEY_DATABASE_DSN` dla lokalnej bazy.
+Reset usuwa lokalne dane i sesje; zdalne zasoby poprzednich runów pozostają.
+
 ## Modele i migracje
 
 Zmiany wykonuj w modelach i konfiguracjach EF, uwzględniając kontekst modułu
@@ -525,6 +599,17 @@ indeksów; przed zastosowaniem tej migracji sprawdź dane, jeśli baza nie jest 
 `20261023131244_AddAccountDeactivationTokens` rozszerza CHECK purpose i TargetEmail
 w `user.user_token`; nie dodaje kolumny ani nowej tabeli.
 
+Zmiany Banking z tej gałęzi obejmuje jedna migracja
+`20261026215244_AddBanking`, po `AddAccountDeactivationTokens` z `master`.
+Zastępuje wcześniejsze `AddBankConnections` i `AddBankRefreshes`; zachowuje
+ręczne SQL usuwające historyczną unikalność rachunku i CHECK dodatniej kwoty.
+Migracje z `master` pozostają bez zmian. Bazy z zastosowanymi starymi migracjami
+tej gałęzi wymagają odtworzenia albo osobno uzgodnionego przejścia; nowa migracja
+nie jest dla nich migracją przyrostową. Nie usuwaj samych wpisów historii EF,
+pozostawiając istniejące tabele. `database/seed_local.sql` usuwa dane, ale nie
+odtwarza schematu ani historii migracji, więc nie zastępuje odtworzenia bazy.
+Pierwsza migracja nadal zakłada SQL init; `AddBanking` nie jest nowym baseline.
+
 Nie edytuj SQL init ani zastosowanych migracji w ramach kolejnej zmiany modelu.
 Snapshot i plik Designer są generowane wraz z nową migracją i trafiają do Git.
 Przy zmianie typu timestamp sprawdź strefę dotychczasowych danych. Sam typ
@@ -559,21 +644,33 @@ bash tools/ci/backend_checks.sh unit --results .cache/backend-results
 bash tools/ci/backend_checks.sh integration --results .cache/backend-results
 ```
 
-Użyj świeżego katalogu wyników przy kolejnych uruchomieniach. Filtry wymagają
-końcówek `.UnitTests.csproj` lub `.IntegrationTests.csproj` i wybierają tylko
-pliki śledzone przez Git. W bieżącym backendzie nie ma projektów testowych;
-tests zawiera tylko .gitkeep, bez README i fixture'ów. Komunikat „not configured”
-nie oznacza wykonania testów. Testy User zostały usunięte przez użytkownika
-z tego zakresu i mają powstać na osobnej gałęzi; nie odtwarzaj ich w ramach
-bieżących prac. Nie dodawaj informacyjnych plików w notes.
+Użyj świeżego katalogu wyników przy kolejnych uruchomieniach. Pomocnik wybiera
+śledzone projekty `.UnitTests.csproj` i `.Tests.csproj` dla zestawu unit oraz
+`.IntegrationTests.csproj` dla integration. Solucja zawiera po trzy projekty
+User i Banking. Komunikat „not configured” nie oznacza wykonania testów.
 
-Workflow backendu nie uruchamia PostgreSQL i nie ustawia
-USER_TEST_POSTGRES_CONNECTION_STRING. Program.cs ładuje .env przez Env.Load()
-bez wyjątku dla środowiska Testing i nie ma publicznej części klasy Program
-udostępnianej WebApplicationFactory. Nie zakładaj obecności infrastruktury
-testowej ani wcześniejszych wyników zestawu usuniętego z tej gałęzi.
-Przy wznowieniu testów na osobnej gałęzi uwzględnij projekty w solucji,
-konwencję CI i izolowane zależności integracyjne, zgodnie z ówczesnym zakresem.
+Workflow backendu uruchamia PostgreSQL i ustawia `USER_TEST_POSTGRES` dla
+integracyjnych testów User oraz `BANKING_TEST_POSTGRES` dla testów Banking.
+Oba zestawy tworzą własne bazy o losowych nazwach na serwerze testowym.
+Host nadal ładuje `.env` przez `Env.Load()`; testy HTTP używają własnych hostów.
+
+## Integracyjne testy procesu Banking
+
+Projekt `ZPI4M.Banking.IntegrationTests` pasuje do filtra CI. Wymaga jawnego
+`BANKING_TEST_POSTGRES` wskazującego odizolowany serwer PostgreSQL. Testy tworzą
+własną bazę o losowej nazwie, uruchamiają baseline SQL i migracje, a po zakończeniu
+usuwają wyłącznie swoją bazę. Nie korzystają z `DB_LOCAL_CONNECTION_STRING`.
+Bez konfiguracji testy są pomijane; nie raportuj ich wtedy jako wykonanych.
+Workflow przekazuje PostgreSQL do testów User i Banking przez osobne
+zmienne `USER_TEST_POSTGRES` i `BANKING_TEST_POSTGRES`.
+
+```bash
+dotnet test backend/ZPI4M.Backend/tests/ZPI4M.Banking.IntegrationTests/ZPI4M.Banking.IntegrationTests.csproj --configuration Release --no-build --no-restore
+```
+
+Dalsze ustawienia i warunki testu z rzeczywistym Tink opisuje
+[instrukcja Tink](../notes/TINK.md). Kod nie potwierdza aktywacji Continuous Access
+na koncie. Nigdy nie uruchamiaj testów persystencji na serwerze produkcyjnym.
 
 ## Hooki i konwencje Git
 
@@ -620,3 +717,14 @@ autoryzacyjnych URL-i ani rzeczywistych danych użytkowników.
 - [Migracje](../notes/MIGRATIONS.md)
 - [Narzędzia, hooki i CI](../tools/README.md), [polska instrukcja hooków](../notes/precommit_notes.md)
 - [Workflow backendu](../.github/workflows/backend.yml) i [pomocnik CI](../tools/ci/backend_checks.sh)
+
+## Uruchomienie refresh on demand
+
+Wymagana jest migracja `AddBanking`, istniejący `User.TinkUserId`
+oraz dostęp aplikacji do scope’ów `accounts:read,transactions:read`.
+Worker startuje z hostem API i czyta dane już dostępne w Tink.
+Konfiguracja `Banking:Refresh` i procedura testów ręcznych są opisane
+w [kontrakcie Banking](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#refresh-on-demand)
+i [instrukcji Postmana](../notes/POSTMAN.md#refresh-danych-przez-backend-4money).
+Testy PostgreSQL muszą wskazywać izolowany serwer przez `BANKING_TEST_POSTGRES`;
+nie stosuj migracji na bazie deweloperskiej w ramach weryfikacji.
