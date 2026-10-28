@@ -4,6 +4,7 @@
 .
 ├── .github/
 │   └── workflows/
+├── agent-context/
 ├── backend/
 │   └── ZPI4M.Backend/
 │       ├── src/
@@ -38,8 +39,10 @@
 │       │   │   │   └── Services/
 │       │   │   ├── ZPI4M.Notifications/
 │       │   │   │   ├── ApiControllers/
+│       │   │   │   ├── Database/
 │       │   │   │   ├── DTOs/
 │       │   │   │   ├── Models/
+│       │   │   │   ├── Repositories/
 │       │   │   │   └── Services/
 │       │   │   ├── ZPI4M.Receipt/
 │       │   │   │   ├── ApiControllers/
@@ -71,7 +74,8 @@
 │       │       └── Pagination/
 │       └── tests/
 ├── containers/
-├── database-init/
+├── database/
+|   └── init/
 ├── notes/
 ├── proxmox-infra/
 │   ├── scripts/
@@ -93,3 +97,7 @@ Polska instrukcja konfiguracji: [notes/precommit_notes.md](notes/precommit_notes
 Hook installation, formatting checks, and ClickUp integration: [tools/README.md](tools/README.md).
 
 [Extraction worker](workers/extraction_worker/README.md) · [Polska notatka zespołu](notes/extraction-worker.md)
+### Postman — Tink
+
+Kolekcje flow Banking/Tink i diagnostyki dostawcy: [postman/](postman/).
+Polska instrukcja konfiguracji, uruchamiania i rozbudowy: [notes/POSTMAN.md](notes/POSTMAN.md).

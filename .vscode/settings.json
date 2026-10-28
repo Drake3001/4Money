@@ -1,3 +1,15 @@
 {
-  "python.defaultInterpreterPath": "${workspaceFolder}/workers/extraction_worker/.venv/Scripts/python.exe"
+  "python.defaultInterpreterPath": "${workspaceFolder}/workers/extraction_worker/.venv/Scripts/python.exe",
+  "sqltools.connections": [
+        {
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 5434,
+            "driver": "PostgreSQL",
+            "name": "zpi4m_db_conn",
+            "database": "zpi4m_db",
+            "username": "postgres"
+        }
+    ]
 }

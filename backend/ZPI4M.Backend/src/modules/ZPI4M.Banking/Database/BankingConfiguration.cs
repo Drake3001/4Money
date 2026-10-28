@@ -1,22 +1,25 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
 using Microsoft.EntityFrameworkCore;
 using ZPI4M.Banking.Models;
 
 namespace ZPI4M.Banking.Database;
 
-public static class BankingConfiguration
+public static partial class BankingConfiguration
 {
 	public static void Configure(ModelBuilder modelBuilder)
 	{
+		ConfigureConnections(modelBuilder);
+		ConfigureRefreshes(modelBuilder);
 		modelBuilder.Entity<BankAccount>(entity =>
 		{
 			entity.HasKey(e => e.Id).HasName("bank_account_pkey");
 
 			entity.ToTable("bank_account", "banking");
 
-			entity.HasIndex(e => new { e.FkUserId, e.FinancialInstitutionId, e.Number }, "c_bank_account_unique_fk_user_id_financial_institution_id_numbe").IsUnique();
+			entity.HasIndex(e => new { e.TinkUserId, e.TinkAccountId }).IsUnique();
+			entity.Property(e => e.TinkAccountId).HasMaxLength(128).HasColumnName("tink_account_id");
+			entity.Property(e => e.TinkUserId).HasMaxLength(128).HasColumnName("tink_user_id");
+			entity.Property(e => e.LastSuccessfulSyncAt).HasColumnName("last_successful_sync_at");
+			entity.Property(e => e.TransactionsSyncedThrough).HasColumnName("transactions_synced_through");
 
 			entity.Property(e => e.Id)
 				.ValueGeneratedNever()

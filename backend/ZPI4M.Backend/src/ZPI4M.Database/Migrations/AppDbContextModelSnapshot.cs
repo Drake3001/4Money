@@ -38,7 +38,6 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnName("currency_code");
 
                     b.Property<string>("FinancialInstitutionId")
-                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("financial_institution_id");
 
@@ -47,7 +46,6 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnName("fk_user_id");
 
                     b.Property<string>("Iban")
-                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("iban");
 
@@ -55,15 +53,32 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_closed");
 
+                    b.Property<DateTimeOffset?>("LastSuccessfulSyncAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_successful_sync_at");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("name");
 
                     b.Property<string>("Number")
-                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("number");
+
+                    b.Property<string>("TinkAccountId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("tink_account_id");
+
+                    b.Property<string>("TinkUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("tink_user_id");
+
+                    b.Property<DateTimeOffset?>("TransactionsSyncedThrough")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("transactions_synced_through");
 
                     b.Property<string>("Type")
                         .HasColumnType("text")
@@ -72,10 +87,284 @@ namespace ZPI4M.Database.Migrations
                     b.HasKey("Id")
                         .HasName("bank_account_pkey");
 
-                    b.HasIndex(new[] { "FkUserId", "FinancialInstitutionId", "Number" }, "c_bank_account_unique_fk_user_id_financial_institution_id_numbe")
+                    b.HasIndex("TinkUserId", "TinkAccountId")
                         .IsUnique();
 
                     b.ToTable("bank_account", "banking");
+                });
+
+            modelBuilder.Entity("ZPI4M.Banking.Models.BankConnection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("_id");
+
+                    b.Property<DateTimeOffset>("ConnectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("connected_at");
+
+                    b.Property<string>("ConnectionStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("connection_status");
+
+                    b.Property<DateTimeOffset?>("ConsentExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("consent_expires_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CredentialsId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("credentials_id");
+
+                    b.Property<Guid>("FourMoneyUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("four_money_user_id");
+
+                    b.Property<DateTimeOffset?>("LastSuccessfulSyncAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_successful_sync_at");
+
+                    b.Property<string>("LastSyncFailureCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("last_sync_failure_code");
+
+                    b.Property<string>("ProviderId")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("provider_id");
+
+                    b.Property<string>("ProviderName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("provider_name");
+
+                    b.Property<string>("SyncStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("sync_status");
+
+                    b.Property<string>("TinkUserId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("tink_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CredentialsId")
+                        .IsUnique();
+
+                    b.HasIndex("FourMoneyUserId");
+
+                    b.ToTable("bank_connection", "banking");
+                });
+
+            modelBuilder.Entity("ZPI4M.Banking.Models.BankConnectionAttempt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("_id");
+
+                    b.Property<Guid?>("BankConnectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bank_connection_id");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<string>("CorrelationStateHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("correlation_state_hash");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("failure_code");
+
+                    b.Property<Guid>("FourMoneyUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("four_money_user_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TinkUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("tink_user_id");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BankConnectionId");
+
+                    b.HasIndex("CorrelationStateHash")
+                        .IsUnique();
+
+                    b.HasIndex("FourMoneyUserId", "CreatedAt");
+
+                    b.HasIndex("Status", "ExpiresAt");
+
+                    b.ToTable("bank_connection_attempt", "banking");
+                });
+
+            modelBuilder.Entity("ZPI4M.Banking.Models.BankRefresh", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("_id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("DiscoveryCompleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("discovery_completed");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("failure_code");
+
+                    b.Property<Guid>("FourMoneyUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("four_money_user_id");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_expires_at");
+
+                    b.Property<Guid?>("LeaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lease_id");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TinkUserId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("tink_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FourMoneyUserId")
+                        .IsUnique()
+                        .HasFilter("status IN ('QUEUED', 'RUNNING')");
+
+                    b.HasIndex("Status", "NextAttemptAt");
+
+                    b.ToTable("bank_refresh", "banking");
+                });
+
+            modelBuilder.Entity("ZPI4M.Banking.Models.BankRefreshAccount", b =>
+                {
+                    b.Property<Guid>("RefreshId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("refresh_id");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<int>("AddedTransactions")
+                        .HasColumnType("integer")
+                        .HasColumnName("added_transactions");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("failure_code");
+
+                    b.Property<DateTimeOffset>("From")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("from");
+
+                    b.Property<DateTimeOffset?>("LastSuccessfulSyncAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_successful_sync_at");
+
+                    b.Property<DateTimeOffset?>("RetryAfter")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("retry_after");
+
+                    b.Property<bool>("Retryable")
+                        .HasColumnType("boolean")
+                        .HasColumnName("retryable");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("Through")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("through");
+
+                    b.Property<string>("TinkAccountId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("tink_account_id");
+
+                    b.Property<int>("UpdatedTransactions")
+                        .HasColumnType("integer")
+                        .HasColumnName("updated_transactions");
+
+                    b.HasKey("RefreshId", "AccountId");
+
+                    b.HasIndex("AccountId");
+
+                    b.ToTable("bank_refresh_account", "banking");
                 });
 
             modelBuilder.Entity("ZPI4M.Banking.Models.BankTransaction", b =>
@@ -195,11 +484,17 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnName("name");
 
                     b.Property<DateTime>("TransactionTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("transaction_time");
 
                     b.HasKey("Id")
                         .HasName("expense_pkey");
+
+                    b.HasIndex(new[] { "FkBankTransactionId" }, "c_expense_unique_fk_bank_transaction_id")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "FkReceiptId" }, "c_expense_unique_fk_receipt_id")
+                        .IsUnique();
 
                     b.ToTable("expense", "expense");
                 });
@@ -369,6 +664,81 @@ namespace ZPI4M.Database.Migrations
                     b.ToTable("category_group_limit", "limits");
                 });
 
+            modelBuilder.Entity("ZPI4M.Notifications.Models.Notification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid?>("FkExpenseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fk_expense_id");
+
+                    b.Property<Guid?>("FkGroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fk_group_id");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("title");
+
+                    b.Property<int>("Type")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("type");
+
+                    b.HasKey("Id")
+                        .HasName("notification_pkey");
+
+                    b.HasIndex(new[] { "CreatedAt", "Id" }, "ix_notification_created_at_id")
+                        .IsDescending();
+
+                    b.HasIndex(new[] { "FkExpenseId" }, "ix_notification_fk_expense_id");
+
+                    b.ToTable("notification", "notifications", t =>
+                        {
+                            t.HasCheckConstraint("c_notification_valid_type", "type IN (0, 1, 2, 3, 4)");
+                        });
+                });
+
+            modelBuilder.Entity("ZPI4M.Notifications.Models.NotificationRecipient", b =>
+                {
+                    b.Property<Guid>("FkNotificationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fk_notification_id");
+
+                    b.Property<Guid>("FkUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fk_user_id");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("read_at");
+
+                    b.HasKey("FkNotificationId", "FkUserId")
+                        .HasName("notification_recipient_pkey");
+
+                    b.HasIndex(new[] { "FkUserId", "FkNotificationId" }, "ix_notification_recipient_unread")
+                        .HasFilter("read_at IS NULL");
+
+                    b.HasIndex(new[] { "FkUserId", "FkNotificationId" }, "ix_notification_recipient_user");
+
+                    b.ToTable("notification_recipient", "notifications");
+                });
+
             modelBuilder.Entity("ZPI4M.Receipt.Models.Receipt", b =>
                 {
                     b.Property<Guid>("Id")
@@ -379,17 +749,13 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("extraction_result");
 
-                    b.Property<string>("StorageKey")
+                    b.Property<string>("S3Link")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasColumnName("storage_key");
+                        .HasColumnName("s3_link");
 
                     b.HasKey("Id")
                         .HasName("receipt_pkey");
-
-                    b.HasIndex("StorageKey")
-                        .IsUnique()
-                        .HasDatabaseName("ux_receipt_storage_key");
 
                     b.ToTable("receipt", "receipt");
                 });
@@ -406,11 +772,12 @@ namespace ZPI4M.Database.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("Email")
+                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("email");
 
@@ -424,8 +791,14 @@ namespace ZPI4M.Database.Migrations
                         .HasDefaultValue(true)
                         .HasColumnName("is_active");
 
+                    b.Property<bool>("IsEmailConfirmed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_email_confirmed");
+
                     b.Property<DateTime?>("LastLoginTime")
-                        .HasColumnType("timestamp without time zone")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_login_time");
 
                     b.Property<string>("Login")
@@ -446,14 +819,6 @@ namespace ZPI4M.Database.Migrations
                     b.Property<string>("Phone")
                         .HasColumnType("text")
                         .HasColumnName("phone");
-
-                    b.Property<string>("RefreshToken")
-                        .HasColumnType("text")
-                        .HasColumnName("refresh_token");
-
-                    b.Property<DateTime?>("RefreshTokenExpiryTime")
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("refresh_token_expiry_time");
 
                     b.Property<string>("Surname")
                         .IsRequired()
@@ -477,6 +842,105 @@ namespace ZPI4M.Database.Migrations
                         .IsUnique();
 
                     b.ToTable("user", "user");
+                });
+
+            modelBuilder.Entity("ZPI4M.User.Models.UserToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<Guid>("FkUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fk_user_id");
+
+                    b.Property<int>("Purpose")
+                        .HasColumnType("integer")
+                        .HasColumnName("purpose");
+
+                    b.Property<string>("TargetEmail")
+                        .HasColumnType("text")
+                        .HasColumnName("target_email");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("token_hash");
+
+                    b.HasKey("Id")
+                        .HasName("user_token_pkey");
+
+                    b.HasIndex(new[] { "TokenHash" }, "c_user_token_unique_token_hash")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "FkUserId", "Purpose" }, "c_user_token_unique_user_purpose")
+                        .IsUnique();
+
+                    b.ToTable("user_token", "user", t =>
+                        {
+                            t.HasCheckConstraint("c_user_token_expiry_after_creation", "expires_at > created_at");
+
+                            t.HasCheckConstraint("c_user_token_target_email", "(purpose IN (1, 2, 3, 5) AND target_email IS NOT NULL) OR (purpose = 4 AND target_email IS NULL)");
+
+                            t.HasCheckConstraint("c_user_token_valid_purpose", "purpose IN (1, 2, 3, 4, 5)");
+                        });
+                });
+
+            modelBuilder.Entity("ZPI4M.Banking.Models.BankConnection", b =>
+                {
+                    b.HasOne("ZPI4M.User.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("FourMoneyUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ZPI4M.Banking.Models.BankConnectionAttempt", b =>
+                {
+                    b.HasOne("ZPI4M.Banking.Models.BankConnection", null)
+                        .WithMany()
+                        .HasForeignKey("BankConnectionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ZPI4M.User.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("FourMoneyUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ZPI4M.Banking.Models.BankRefresh", b =>
+                {
+                    b.HasOne("ZPI4M.User.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("FourMoneyUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ZPI4M.Banking.Models.BankRefreshAccount", b =>
+                {
+                    b.HasOne("ZPI4M.Banking.Models.BankAccount", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ZPI4M.Banking.Models.BankRefresh", null)
+                        .WithMany("Accounts")
+                        .HasForeignKey("RefreshId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ZPI4M.Banking.Models.BankTransaction", b =>
@@ -520,9 +984,54 @@ namespace ZPI4M.Database.Migrations
                     b.Navigation("FkGroup");
                 });
 
+            modelBuilder.Entity("ZPI4M.Notifications.Models.Notification", b =>
+                {
+                    b.HasOne("ZPI4M.Expense.Models.Expense", null)
+                        .WithMany()
+                        .HasForeignKey("FkExpenseId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("c_notification_fk_expense_id");
+                });
+
+            modelBuilder.Entity("ZPI4M.Notifications.Models.NotificationRecipient", b =>
+                {
+                    b.HasOne("ZPI4M.Notifications.Models.Notification", "FkNotification")
+                        .WithMany("NotificationRecipients")
+                        .HasForeignKey("FkNotificationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("c_notification_recipient_fk_notification_id");
+
+                    b.HasOne("ZPI4M.User.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("FkUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("c_notification_recipient_fk_user_id");
+
+                    b.Navigation("FkNotification");
+                });
+
+            modelBuilder.Entity("ZPI4M.User.Models.UserToken", b =>
+                {
+                    b.HasOne("ZPI4M.User.Models.User", "FkUser")
+                        .WithMany("UserTokens")
+                        .HasForeignKey("FkUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("c_user_token_fk_user_id");
+
+                    b.Navigation("FkUser");
+                });
+
             modelBuilder.Entity("ZPI4M.Banking.Models.BankAccount", b =>
                 {
                     b.Navigation("BankTransactions");
+                });
+
+            modelBuilder.Entity("ZPI4M.Banking.Models.BankRefresh", b =>
+                {
+                    b.Navigation("Accounts");
                 });
 
             modelBuilder.Entity("ZPI4M.Expense.Models.Category", b =>
@@ -538,6 +1047,16 @@ namespace ZPI4M.Database.Migrations
             modelBuilder.Entity("ZPI4M.Grouping.Models.Group", b =>
                 {
                     b.Navigation("GroupMembers");
+                });
+
+            modelBuilder.Entity("ZPI4M.Notifications.Models.Notification", b =>
+                {
+                    b.Navigation("NotificationRecipients");
+                });
+
+            modelBuilder.Entity("ZPI4M.User.Models.User", b =>
+                {
+                    b.Navigation("UserTokens");
                 });
 #pragma warning restore 612, 618
         }

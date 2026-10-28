@@ -62,6 +62,18 @@ jobs:
     container:
       image: mcr.microsoft.com/dotnet/sdk:10.0
       options: --user 1000:1000
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: backend_tests
+          POSTGRES_PASSWORD: backend_tests_ci
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U backend_tests -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     timeout-minutes: 20
     defaults:
       run:
@@ -71,6 +83,7 @@ jobs:
       DOTNET_NOLOGO: "1"
       DOTNET_CLI_HOME: /tmp/dotnet-home
       NUGET_PACKAGES: /tmp/nuget-packages
+      TEST_POSTGRES_CONNECTION_STRING: Host=postgres;Port=5432;Database=postgres;Username=backend_tests;Password=backend_tests_ci
 
     steps:
       - name: Prepare writable home

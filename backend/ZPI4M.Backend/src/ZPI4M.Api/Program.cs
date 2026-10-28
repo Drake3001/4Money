@@ -1,7 +1,16 @@
 using DotNetEnv;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using ZPI4M.Banking.ApiControllers;
 using ZPI4M.Banking.Database;
 using ZPI4M.Banking.Repositories;
+using ZPI4M.Banking.Repositories.BankAccountRepository;
+using ZPI4M.Banking.Repositories.BankTransactionRepository;
+using ZPI4M.Banking.Services.Connections;
+using ZPI4M.Banking.Services.Reads;
+using ZPI4M.Banking.Services.Refresh;
+using ZPI4M.Banking.Tink;
 using ZPI4M.Database;
 using ZPI4M.Expense.Database;
 using ZPI4M.Expense.Repositories.CategoryRepository;
@@ -9,38 +18,86 @@ using ZPI4M.Expense.Repositories.ExpenseItemRepository;
 using ZPI4M.Expense.Repositories.ExpenseRepository;
 using ZPI4M.Expense.Repositories.ExpenseShareRepository;
 using ZPI4M.Grouping.Database;
-using ZPI4M.Grouping.Repositories;
+using ZPI4M.Grouping.Repositories.GroupMemberRepository;
+using ZPI4M.Grouping.Repositories.GroupRepository;
 using ZPI4M.Limits.Database;
 using ZPI4M.Limits.Repositories.CategoryGroupLimitRepository;
+using ZPI4M.Notifications.Database;
+using ZPI4M.Notifications.Repositories.NotificationRecipientRepository;
+using ZPI4M.Notifications.Repositories.NotificationRepository;
+using ZPI4M.Notifications.Services.Notifications;
 using ZPI4M.Receipt.Database;
 using ZPI4M.Receipt.Repositories.ReceiptRepository;
 using ZPI4M.Receipt.Services;
+using ZPI4M.Shared.CurrentUser;
+using ZPI4M.User.ApiControllers;
 using ZPI4M.User.Database;
-using ZPI4M.User.Repositories;
+using ZPI4M.User.Integrations.Smtp;
+using ZPI4M.User.Repositories.UserRepository;
+using ZPI4M.User.Repositories.UserTokenRepository;
+using ZPI4M.User.Services.AccountDeactivation;
+using ZPI4M.User.Services.Authentication;
+using ZPI4M.User.Services.BankingProfile;
+using ZPI4M.User.Services.EmailChange;
+using ZPI4M.User.Services.EmailConfirmation;
+using ZPI4M.User.Services.Lookup;
+using ZPI4M.User.Services.PasswordReset;
+using ZPI4M.User.Services.Profile;
+using ZPI4M.User.Services.RateLimiting;
+using ZPI4M.User.Services.Registration;
+using ZPI4M.User.Services.Tokens;
 
 // Load environment variables from .env file
 Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddEnvironmentVariables();
 
 // Add services to the container.
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+	.AddApplicationPart(typeof(UsersController).Assembly)
+	.AddApplicationPart(typeof(BankingController).Assembly);
+builder.Services.AddProblemDetails();
+builder.Services.AddAuthorization();
+builder.Services.AddTink(builder.Configuration);
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
+builder.Services.AddOptions<BankingConnectionOptions>().BindConfiguration("Banking")
+ .Validate(options => options.AttemptLifetimeMinutes is >= 1 and <= 60, "Attempt lifetime must be between 1 and 60 minutes.");
+builder.Services.AddScoped<BankingConnectionRepository>();
+builder.Services.AddScoped<IBankConnectionAttemptRepository>(provider => provider.GetRequiredService<BankingConnectionRepository>());
+builder.Services.AddScoped<IBankConnectionRepository>(provider => provider.GetRequiredService<BankingConnectionRepository>());
+builder.Services.AddScoped<IUserBankingProfileService, UserBankingProfileService>();
+builder.Services.AddOptions<BankRefreshOptions>().BindConfiguration("Banking:Refresh")
+ .ValidateDataAnnotations().Validate(value => value.HeartbeatSeconds * 2 < value.LeaseSeconds,
+  "Refresh heartbeat must be shorter than half the lease.");
+builder.Services.AddScoped<BankRefreshRepository>();
+builder.Services.AddScoped<BankRefreshService>();
+builder.Services.AddScoped<BankRefreshProcessor>();
+builder.Services.AddHostedService<BankRefreshWorker>();
+builder.Services.AddScoped<BankingConnectionService>();
+builder.Services.AddScoped<IBankingConnectionService>(provider => provider.GetRequiredService<BankingConnectionService>());
+builder.Services.AddScoped<IBankingCallbackService>(provider => provider.GetRequiredService<BankingConnectionService>());
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddUserRateLimiting(builder.Configuration);
 
 // Add database context
 var dbConnectionString = Environment.GetEnvironmentVariable("DB_LOCAL_CONNECTION_STRING");
+builder.Services.AddScoped<NpgsqlConnection>(_ => new NpgsqlConnection(dbConnectionString));
 builder.Services.AddDbContext<AppDbContext>(options =>
 	options.UseNpgsql(dbConnectionString, npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "public")));
 
 // Grouping module
-builder.Services.AddDbContext<GroupingDbContext>(options => options.UseNpgsql(dbConnectionString));
+builder.Services.AddDbContext<GroupingDbContext>((provider, options) =>
+	options.UseNpgsql(provider.GetRequiredService<NpgsqlConnection>(), contextOwnsConnection: false));
 builder.Services.AddScoped<IGroupRepository, GroupRepository>();
 builder.Services.AddScoped<IGroupMemberRepository, GroupMemberRepository>();
 
 // Expense module
-builder.Services.AddDbContext<ExpenseDbContext>(options => options.UseNpgsql(dbConnectionString));
+builder.Services.AddDbContext<ExpenseDbContext>((provider, options) =>
+	options.UseNpgsql(provider.GetRequiredService<NpgsqlConnection>(), contextOwnsConnection: false));
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<IExpenseItemRepository, ExpenseItemRepository>();
 builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
@@ -50,6 +107,7 @@ builder.Services.AddScoped<IExpenseShareRepository, ExpenseShareRepository>();
 builder.Services.AddDbContext<BankingDbContext>(options => options.UseNpgsql(dbConnectionString));
 builder.Services.AddScoped<IBankAccountRepository, BankAccountRepository>();
 builder.Services.AddScoped<IBankTransactionRepository, BankTransactionRepository>();
+builder.Services.AddScoped<IBankingReadService, BankingReadService>();
 
 // Limits module
 builder.Services.AddDbContext<LimitsDbContext>(options => options.UseNpgsql(dbConnectionString));
@@ -63,10 +121,52 @@ builder.Services.AddReceiptAnalysis(builder.Configuration);
 builder.Services.AddReceiptFileStorage(builder.Configuration);
 
 // User module
+builder.Services.AddUserAuthentication(builder.Configuration);
+builder.Services.AddScoped<IAccountDeactivationService, AccountDeactivationService>();
+builder.Services.AddOptions<AccountDeactivationOptions>()
+	.Bind(builder.Configuration.GetSection(AccountDeactivationOptions.SectionName))
+	.ValidateDataAnnotations()
+	.ValidateOnStart();
 builder.Services.AddDbContext<UserDbContext>(options => options.UseNpgsql(dbConnectionString));
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IUserLookupService, UserLookupService>();
+builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
+builder.Services.AddScoped<IPasswordHasher<ZPI4M.User.Models.User>, PasswordHasher<ZPI4M.User.Models.User>>();
+builder.Services.AddScoped<IUserRegistrationService, UserRegistrationService>();
+builder.Services.AddScoped<IUserProfileService, UserProfileService>();
+builder.Services.AddSingleton<IUserTokenGenerator, UserTokenGenerator>();
+builder.Services.AddScoped<IEmailConfirmationService, EmailConfirmationService>();
+builder.Services.AddOptions<EmailConfirmationOptions>();
+builder.Services.AddScoped<IEmailChangeService, EmailChangeService>();
+builder.Services.AddOptions<EmailChangeOptions>()
+	.Bind(builder.Configuration.GetSection(EmailChangeOptions.SectionName))
+	.ValidateDataAnnotations()
+	.ValidateOnStart();
+builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
+builder.Services.AddOptions<PasswordResetOptions>()
+	.Bind(builder.Configuration.GetSection(PasswordResetOptions.SectionName))
+	.ValidateDataAnnotations()
+	.ValidateOnStart();
+builder.Services.AddOptions<SmtpOptions>()
+	.Bind(builder.Configuration.GetSection(SmtpOptions.SectionName))
+	.ValidateDataAnnotations()
+	.Validate(options =>
+		(string.IsNullOrWhiteSpace(options.Username) && string.IsNullOrEmpty(options.Password)) ||
+		(!string.IsNullOrWhiteSpace(options.Username) && !string.IsNullOrEmpty(options.Password)),
+		"SMTP username and password must both be provided or both be empty.");
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+
+// Notifications module
+builder.Services.AddDbContext<NotificationsDbContext>((provider, options) =>
+	options.UseNpgsql(provider.GetRequiredService<NpgsqlConnection>(), contextOwnsConnection: false));
+builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+builder.Services.AddScoped<INotificationRecipientRepository, NotificationRecipientRepository>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 var app = builder.Build();
+
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -76,6 +176,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseRateLimiter();
+
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

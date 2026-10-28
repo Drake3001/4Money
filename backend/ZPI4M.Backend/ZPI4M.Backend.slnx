@@ -17,5 +17,14 @@
   <Folder Name="/tests/">
     <Project Path="tests/ZPI4M.Receipt.IntegrationTests/ZPI4M.Receipt.IntegrationTests.csproj" />
     <Project Path="tests/ZPI4M.Receipt.UnitTests/ZPI4M.Receipt.UnitTests.csproj" />
+    <Project Path="tests/ZPI4M.Notifications.UnitTests/ZPI4M.Notifications.UnitTests.csproj" />
+    <Project Path="tests/ZPI4M.Notifications.Tests/ZPI4M.Notifications.Tests.csproj" />
+    <Project Path="tests/ZPI4M.Notifications.IntegrationTests/ZPI4M.Notifications.IntegrationTests.csproj" />
+    <Project Path="tests/ZPI4M.User.UnitTests/ZPI4M.User.UnitTests.csproj" />
+    <Project Path="tests/ZPI4M.User.Tests/ZPI4M.User.Tests.csproj" />
+    <Project Path="tests/ZPI4M.User.IntegrationTests/ZPI4M.User.IntegrationTests.csproj" />
+    <Project Path="tests/ZPI4M.Banking.IntegrationTests/ZPI4M.Banking.IntegrationTests.csproj" />
+    <Project Path="tests/ZPI4M.Banking.Tests/ZPI4M.Banking.Tests.csproj" />
+    <Project Path="tests/ZPI4M.Banking.UnitTests/ZPI4M.Banking.UnitTests.csproj" />
   </Folder>
 </Solution>

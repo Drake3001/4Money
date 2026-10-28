@@ -47,7 +47,7 @@ fi
 projects=()
 for path in "${tracked[@]}"; do
   case "$command:$path" in
-    unit:"$backend"/tests/*.UnitTests.csproj|integration:"$backend"/tests/*.IntegrationTests.csproj)
+    unit:"$backend"/tests/*.UnitTests.csproj|unit:"$backend"/tests/*.Tests.csproj|integration:"$backend"/tests/*.IntegrationTests.csproj)
       projects+=("$path") ;;
   esac
 done

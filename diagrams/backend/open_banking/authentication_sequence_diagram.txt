@@ -1,0 +1,63 @@
+
+sequenceDiagram
+    autonumber
+    actor U as Użytkownik
+    participant FE as Frontend 4Money
+    participant BE as Backend ASP.NET Core
+    participant DB as Baza 4Money
+    participant API as Tink API
+    participant LINK as Tink Link
+    participant BANK as Demo Bank
+
+    Note over U,BE: Użytkownik jest zalogowany do 4Money
+
+    U->>FE: Kliknij "Dodaj konto bankowe"
+    FE->>BE: POST /api/bank-connections
+    BE->>BE: Sprawdź sesję użytkownika
+
+    BE->>DB: Odczytaj powiązanie z Tink User
+    DB-->>BE: TinkUserId lub brak
+
+    BE->>API: POST /api/v1/oauth/token
+    Note right of BE: client_credentials<br/>client_id + client_secret
+    API-->>BE: Client Access Token
+
+    alt Użytkownik nie istnieje w Tink
+        BE->>API: POST /api/v1/user/create
+        Note right of BE: Utwórz Permanent User
+        API-->>BE: Tink User ID
+        BE->>DB: Zapisz mapowanie UserId - TinkUserId
+    end
+
+    BE->>API: POST /api/v1/oauth/authorization-grant/delegate
+    Note right of BE: Delegowana autoryzacja<br/>dla konkretnego Tink User
+    API-->>BE: User Authorization Code
+
+    BE->>DB: Zapisz jednorazową próbę połączenia i state
+    BE-->>FE: Tink Link URL
+
+    FE->>LINK: Przekierowanie użytkownika
+    Note over LINK: Transactions Continuous Access<br/>authorization_code i refreshable_items
+
+    LINK->>U: Wybierz bank i zaakceptuj zgodę
+    U->>LINK: Wybór Demo Bank i zgoda
+
+    LINK->>BANK: Rozpocznij uwierzytelnianie
+    BANK->>U: Potwierdź dostęp do rachunku
+    U->>BANK: Autoryzacja
+    BANK-->>LINK: Wynik autoryzacji
+
+    alt Połączenie udane
+        LINK-->>FE: Redirect do callback z credentials_id
+        FE->>BE: Przekaż wynik callback
+        BE->>BE: Zweryfikuj state i powiązanie z użytkownikiem
+        BE->>DB: Zapisz powiązanie z credentials_id
+        BE-->>FE: Połączenie przyjęte
+        FE-->>U: Konto bankowe połączone
+    else Anulowanie lub odmowa zgody
+        LINK-->>FE: Redirect z błędem
+        FE->>BE: Przekaż błąd procesu
+        BE->>DB: Oznacz próbę jako nieudaną
+        BE-->>FE: Wynik błędu
+        FE-->>U: Pokaż błąd lub możliwość ponowienia
+    end

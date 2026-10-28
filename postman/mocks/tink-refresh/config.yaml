@@ -1,0 +1,10 @@
+version: 1
+name: tink-refresh
+slug: tink-refresh
+protocol: http
+port: 4901
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

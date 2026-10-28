@@ -1,0 +1,6 @@
+simulation: banking-refresh
+routing: path
+mocks:
+  - name: tink-refresh
+    routeKey: tink
+    path: postman/mocks/tink-refresh
