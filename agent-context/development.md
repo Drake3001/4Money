@@ -5,8 +5,10 @@ Polecenia poniżej są zweryfikowane względem konfiguracji repozytorium; nie
 oznacza to potwierdzenia ich wykonania w każdej sesji. Bieżące ograniczenia
 opisuje [status](implementation-status.md).
 
-Stan konfiguracji hosta i testów ponownie sprawdzono 2026-10-24 po rebase.
-Solucja zawiera funkcje i projekty testowe User oraz Banking.
+Stan kodu, migracji i konfiguracji sprawdzono statycznie 2026-10-28 po rebase i review.
+Solucja zawiera User, Banking i Notifications oraz po trzy projekty testowe
+każdego z tych modułów. Starsze wyniki uruchomień opisuje status; nie traktuj
+ich jako nowej weryfikacji obecnej rewizji po rebase.
 
 ## Wymagania
 
@@ -28,10 +30,27 @@ Z katalogu `containers/` uruchom:
 docker compose up -d
 ```
 
+Równoważne uruchomienie z katalogu głównego repo z jawnym plikiem środowiska:
+
+```bash
+docker compose --env-file containers/.env --project-directory containers up -d
+```
+
+Ostrzeżenia o brakujących POSTGRES_USER/POSTGRES_PASSWORD oznaczają, że Compose
+nie dostał tych wartości. Uzupełnij containers/.env przed inicjalizacją nowego
+wolumenu; nie zakładaj domyślnego loginu PostgreSQL. Poświadczenia bazy są inne
+niż loginy i hasło kont aplikacji z seeda.
+
 Polecenie tworzy lub uruchamia lokalny kontener i trwały wolumen.
 PostgreSQL jest dostępny na `localhost:5434`, baza to `zpi4m_db`.
 Skrypty z `database/init/` wykonują się przy inicjalizacji pustego wolumenu,
 nie przy każdym restarcie. Nie usuwaj wolumenu w ramach zwykłego uruchomienia.
+
+Kolejność przygotowania pustej bazy: SQL init (automatycznie z Compose na nowym
+wolumenie) → wszystkie migracje EF → `database/seed_local.sql`. Migracje tworzą
+m.in. notification_recipient i nowe kolumny powiadomień, więc seed wykonany
+przed migracjami nie zadziała. Samo `database update` nie odtwarza pustej bazy
+bez baseline SQL. Przy zwykłym starcie istniejącej bazy nie uruchamiaj resetu.
 
 W `backend/ZPI4M.Backend/src/ZPI4M.Api/.env` ustaw:
 
@@ -66,7 +85,8 @@ Uruchamianie z tego katalogu zapewnia właściwy kontekst odczytu `.env` przez
 `DotNetEnv`. Profil HTTP wskazuje `http://localhost:5283`, profil HTTPS także
 `https://localhost:7278`. Host używa przekierowania HTTPS; sprawdź profil
 i konfigurację certyfikatu przy diagnozowaniu lokalnych wywołań.
-W Development host mapuje dokument OpenAPI. Host wykrywa kontrolery modułów User i Banking;
+W Development host mapuje dokument OpenAPI. Host udostępnia kontrolery User,
+Banking i Notifications;
 `POST /api/users/register` waliduje dane, zapisuje niepotwierdzone konto razem
 ze skrótem tokenu i wysyła wiadomość przez SMTP po zakończeniu zapisu.
 `POST /api/users/confirm-email` przyjmuje JSON z polem `token` i zwraca 204
@@ -483,17 +503,22 @@ wysyłce, więc samo uruchomienie API nie wymaga skonfigurowanej skrzynki.
 W środowisku procesu lub lokalnym `ZPI4M.Api/.env` ustaw np.:
 
 ```dotenv
-Smtp__Host=ADRES_SERWERA_SMTP
-Smtp__Port=587
-Smtp__SecurityMode=StartTls
-Smtp__Username=LOGIN_SMTP
-Smtp__Password="HASLO_SMTP"
-Smtp__SenderEmail=NADAWCA@example.com
-Smtp__SenderName=4Money
-Smtp__TimeoutSeconds=30
+SMTP__HOST=ADRES_SERWERA_SMTP
+SMTP__PORT=587
+SMTP__SECURITYMODE=StartTls
+SMTP__CHECKCERTIFICATEREVOCATION=true
+SMTP__USERNAME=LOGIN_SMTP
+SMTP__PASSWORD="HASLO_SMTP"
+SMTP__SENDEREMAIL=NADAWCA@example.com
+SMTP__SENDERNAME=4Money
+SMTP__TIMEOUTSECONDS=30
 ```
 
 To placeholdery; wartości muszą odpowiadać konfiguracji wybranego dostawcy.
+Aktualny ZPI4M.Api/.env.example zawiera te ustawienia SMTP i stosuje wielkie
+litery we wszystkich nazwach zmiennych. Nie przenoś sekretów z lokalnego .env
+do szablonu. Konfiguracja ASP.NET Core dopasowuje klucze bez rozróżniania
+wielkości liter; podwójny podkreślnik oddziela sekcję od nazwy ustawienia.
 `StartTls` wymaga obsługi STARTTLS przez serwer (zwykle port 587).
 `SslOnConnect` włącza TLS od początku połączenia (zwykle port 465).
 `None` oznacza brak szyfrowania, np. dla lokalnego serwera deweloperskiego.
@@ -511,7 +536,7 @@ były dostępne dla mechanizmu Options i DI.
 
 ## Postman: testy integracji Tink
 
-W katalogu [postman/](../postman/) są kolekcje User, Banking i diagnostyki
+W katalogu [postman/](../postman/) są kolekcje User, Banking, Notifications i diagnostyki
 Tink Sandbox oraz szablony środowisk. Kolekcja Banking rozpoczyna folder 10
 żądaniem logowania User; zapisuje wyłącznie `accessToken` do `fourMoneyAccessToken`,
 a Runner kontynuuje do rozpoczęcia próby. Błędy logowania zatrzymują run i nie
@@ -563,6 +588,66 @@ format mapowania i konfigurację testów opisuje
 migracji, konfiguracji Tink i `FOURMONEY_DATABASE_DSN` dla lokalnej bazy.
 Reset usuwa lokalne dane i sesje; zdalne zasoby poprzednich runów pozostają.
 
+`database/seed_local.sql` to lokalny reset danych przez TRUNCATE, nie migracja
+ani aktualizacja przyrostowa. Obecny seed tworzy pięć syntetycznych kont:
+seed_anna, seed_bartek, seed_celina, seed_dawid i postman.banking. Wspólne hasło
+testowe to `TestPassword1!`; seed_dawid jest celowo nieaktywny. Te dane są
+wyłącznie lokalne. Nie zmieniaj hasła bazy PostgreSQL na hasło kont aplikacji.
+Zmiana pliku seed nie modyfikuje istniejących rekordów; aktualizację danych
+wykonuje się osobno, a pełny seed tylko po zaakceptowaniu utraty lokalnych danych.
+
+## Inbox powiadomień
+
+Wewnętrzny NotifyAsync zwraca Task<Guid?>. Wywołujący przekazuje kandydatów
+na odbiorców; UserLookupService jednym zapytaniem wybiera aktywne ID.
+Nieaktywne i nieistniejące konta są pomijane. Pusta lista lub brak aktywnych
+kont daje null bez zapisu, a nie błąd operacji biznesowej. Guid.Empty i pozostałe
+niepoprawne dane żądania nadal powodują błąd walidacji.
+
+Program.cs przekazuje kontekstom Expense, Grouping i Notifications tę samą
+scoped instancję NpgsqlConnection, zwalnianą przez DI. Przyszły koordynator
+operacji musi rozpocząć transakcję, dołączyć pozostałe konteksty przez
+UseTransactionAsync i wykonać CommitAsync dopiero po wszystkich zapisach.
+NotifyAsync nadal wykonuje SaveChangesAsync. Nie uruchamiaj operacji na tym
+połączeniu równolegle ani nie otwieraj kolejnej transakcji w wywołanym serwisie.
+Koordynacja Expense/Grouping nie jest jeszcze zaimplementowana.
+
+`GET /api/notifications` wymaga Bearer JWT. ID użytkownika dostarcza ICurrentUser;
+endpoint nie przyjmuje userId klienta. Parametry query: pageNumber (domyślnie 1,
+minimum 1), pageSize (domyślnie 20, zakres 1–100), isRead (opcjonalny bool).
+Brak isRead oznacza wszystkie wpisy, false nieodczytane, true odczytane.
+Niepoprawne parametry i offset większy niż int.MaxValue zwracają 400
+ValidationProblemDetails. Brak poprawnej sesji zwraca 401.
+
+Odpowiedź to PagedResult<NotificationResponse> z metadanymi paginacji.
+Wpis zawiera id, title, text, type (liczba 0–4), createdAt, groupId, expenseId,
+readAt oraz isRead wyliczone z readAt. Wyniki są zawsze od najnowszych,
+z ID jako drugim kluczem sortowania. Pusty inbox zwraca 200 i pustą listę.
+Pobieranie nie oznacza powiadomień jako odczytane i nie zwraca danych innych
+odbiorców ani encji EF. NotifyAsync pozostaje kontraktem wewnętrznym;
+nie ma publicznego endpointu tworzenia powiadomień.
+
+`PUT /api/notifications/{notificationId}/read` oznacza pojedyncze powiadomienie
+zalogowanego użytkownika jako odczytane. Nie wymaga body. Zwraca 204 również
+przy ponowieniu, 404 dla nieistniejącego powiadomienia lub braku przypisania
+do odbiorcy oraz 401 bez poprawnej sesji. Serwis przekazuje czas UTC;
+repozytorium wykonuje natychmiast warunkowy UPDATE po obu ID i ReadAt IS NULL,
+bez SaveChangesAsync. Pierwsza zapisana data pozostaje bez zmian, także przy
+równoległych żądaniach. Przy braku aktualizacji sprawdzane jest istnienie
+wpisu odbiorcy, aby odróżnić ponowienie od 404.
+
+`PUT /api/notifications/read-all` oznacza wszystkie aktualnie nieodczytane
+powiadomienia zalogowanego użytkownika, również poza bieżącą stroną inboxa.
+Nie wymaga body i zwraca 204 także dla pustego inboxa lub przy ponowieniu;
+bez poprawnej sesji zwraca 401. Jeden warunkowy UPDATE po userId i ReadAt IS NULL
+ustawia wspólny czas UTC bez pobierania listy i bez nadpisywania wcześniejszych dat.
+Nowe wpisy dodane po wykonaniu UPDATE pozostają nieodczytane.
+Testy Notifications są już dodane na życzenie użytkownika: UnitTests, Tests
+(HTTP z atrapą serwisu) oraz IntegrationTests (PostgreSQL i prawdziwe JWT).
+Do ręcznej weryfikacji służy kolekcja `postman/4Money.Notifications.postman_collection.json`
+ze wspólnym środowiskiem 4Money.Local i tokenem z loginu User. Zmienne
+notificationPageNumber, notificationPageSize i notificationId opisuje postman/README.md.
+
 ## Modele i migracje
 
 Zmiany wykonuj w modelach i konfiguracjach EF, uwzględniając kontekst modułu
@@ -589,8 +674,16 @@ inicjalizacyjny. Nie traktuj migracji jako samodzielnego sposobu zbudowania
 całej bazy od zera. Następna migracja przenosi `expense_share` do `expense`.
 Kolejne dodają `UserToken` i `IsEmailConfirmed`, usuwają stare pola refresh
 tokenu z `User` i zmieniają mapowania dat na `timestamp with time zone`.
-Migracja Notifications zakłada istniejącą tabelę z SQL init i zmienia tylko
+Historyczna migracja AddNotificationsConfigurationClass zakłada tabelę z SQL init i zmienia tylko
 typ `sent_at`; jej snapshot zawiera już encję Notification.
+Aktualny opis bazy (sprawdzony 2026-10-27) i kod Notifications rozszerzają ten
+model o odbiorców, odczyt, tytuł, typy 0–4, created_at i fk_expense_id.
+Migracja `20261027172612_AddNotificationsAfterRebase` jest już w historii
+plików i zastępuje usuniętą `20261026233657_AddNotificationRecipient`.
+Zachowuje daty przez RenameColumn, wypełnia title pustym tekstem i type wartością
+0 oraz nie przypisuje automatycznie odbiorców do istniejących wpisów.
+Snapshot uwzględnia Banking i nowy inbox. Obecność plików nie potwierdza
+zastosowania migracji do aktualnej bazy użytkownika.
 `UserEmailNotNull` ustawia wymagany e-mail. Migracja
 `20261021162958_AddUniqueExpenseSourceReferences` dodaje osobne unikalne indeksy
 na `expense.expense.fk_bank_transaction_id` i `fk_receipt_id`. Kolumny nadal
@@ -647,22 +740,23 @@ bash tools/ci/backend_checks.sh integration --results .cache/backend-results
 Użyj świeżego katalogu wyników przy kolejnych uruchomieniach. Pomocnik wybiera
 śledzone projekty `.UnitTests.csproj` i `.Tests.csproj` dla zestawu unit oraz
 `.IntegrationTests.csproj` dla integration. Solucja zawiera po trzy projekty
-User i Banking. Komunikat „not configured” nie oznacza wykonania testów.
+User, Banking i Notifications (łącznie dziewięć projektów). Komunikat
+„not configured” nie oznacza wykonania testów.
 
-Workflow backendu uruchamia PostgreSQL i ustawia `USER_TEST_POSTGRES` dla
-integracyjnych testów User oraz `BANKING_TEST_POSTGRES` dla testów Banking.
-Oba zestawy tworzą własne bazy o losowych nazwach na serwerze testowym.
+Workflow backendu uruchamia PostgreSQL i ustawia `TEST_POSTGRES_CONNECTION_STRING`
+dla integracyjnych testów User, Banking i Notifications. Wszystkie zestawy tworzą
+własne bazy o losowych nazwach na serwerze testowym.
 Host nadal ładuje `.env` przez `Env.Load()`; testy HTTP używają własnych hostów.
 
 ## Integracyjne testy procesu Banking
 
 Projekt `ZPI4M.Banking.IntegrationTests` pasuje do filtra CI. Wymaga jawnego
-`BANKING_TEST_POSTGRES` wskazującego odizolowany serwer PostgreSQL. Testy tworzą
+`TEST_POSTGRES_CONNECTION_STRING` wskazującego odizolowany serwer PostgreSQL. Testy tworzą
 własną bazę o losowej nazwie, uruchamiają baseline SQL i migracje, a po zakończeniu
 usuwają wyłącznie swoją bazę. Nie korzystają z `DB_LOCAL_CONNECTION_STRING`.
 Bez konfiguracji testy są pomijane; nie raportuj ich wtedy jako wykonanych.
-Workflow przekazuje PostgreSQL do testów User i Banking przez osobne
-zmienne `USER_TEST_POSTGRES` i `BANKING_TEST_POSTGRES`.
+Workflow przekazuje PostgreSQL do wszystkich modułów przez wspólną
+zmienną `TEST_POSTGRES_CONNECTION_STRING`.
 
 ```bash
 dotnet test backend/ZPI4M.Backend/tests/ZPI4M.Banking.IntegrationTests/ZPI4M.Banking.IntegrationTests.csproj --configuration Release --no-build --no-restore
@@ -671,6 +765,13 @@ dotnet test backend/ZPI4M.Backend/tests/ZPI4M.Banking.IntegrationTests/ZPI4M.Ban
 Dalsze ustawienia i warunki testu z rzeczywistym Tink opisuje
 [instrukcja Tink](../notes/TINK.md). Kod nie potwierdza aktywacji Continuous Access
 na koncie. Nigdy nie uruchamiaj testów persystencji na serwerze produkcyjnym.
+Testy Notifications używają tej samej zmiennej TEST_POSTGRES_CONNECTION_STRING.
+Fixture stosuje SQL init, migracje i seed; sprawdza zachowanie starych dat oraz
+brak automatycznie przypisanych odbiorców. Nie używa EnsureCreated ani EF InMemory.
+Brak konfiguracji lokalnie pomija testy PostgreSQL, a w CI jest błędem.
+Hosty testowe używają TestServer i jawnej konfiguracji DI, nie produkcyjnego .env.
+Szczegóły opisuje [tests/README](../backend/ZPI4M.Backend/tests/README.md).
+Nie dodawaj informacyjnych plików w notes.
 
 ## Hooki i konwencje Git
 
@@ -726,5 +827,5 @@ Worker startuje z hostem API i czyta dane już dostępne w Tink.
 Konfiguracja `Banking:Refresh` i procedura testów ręcznych są opisane
 w [kontrakcie Banking](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#refresh-on-demand)
 i [instrukcji Postmana](../notes/POSTMAN.md#refresh-danych-przez-backend-4money).
-Testy PostgreSQL muszą wskazywać izolowany serwer przez `BANKING_TEST_POSTGRES`;
+Testy PostgreSQL muszą wskazywać izolowany serwer przez `TEST_POSTGRES_CONNECTION_STRING`;
 nie stosuj migracji na bazie deweloperskiej w ramach weryfikacji.

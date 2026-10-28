@@ -17,6 +17,7 @@ using ZPI4M.Banking.ApiControllers;
 using ZPI4M.Banking.Services;
 using ZPI4M.Banking.Services.Contracts;
 using ZPI4M.Banking.Services.Reads;
+using ZPI4M.Shared.CurrentUser;
 using ZPI4M.Shared.Pagination;
 
 namespace ZPI4M.Banking.Tests;
@@ -231,7 +232,7 @@ public sealed class BankingReadControllerTests
 	}
 
 	private sealed class ReadDatabaseException() : DbException("synthetic private diagnostic");
-	private sealed class FixedUser : IBankingCurrentUser { public Guid? UserId => Guid.Parse(Id); }
+	private sealed class FixedUser : ICurrentUser { public Guid? UserId => Guid.Parse(Id); }
 	private static ClaimsPrincipal Principal(string id) => new(new ClaimsIdentity([new Claim("sub", id)], "Test"));
 
 	private sealed class Host(WebApplication app, HttpClient client, ReadStub service) : IAsyncDisposable
@@ -248,7 +249,7 @@ public sealed class BankingReadControllerTests
 			builder.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, TestAuthentication>("Test", _ => { });
 			builder.Services.AddAuthorization();
 			builder.Services.AddHttpContextAccessor();
-			builder.Services.AddScoped<IBankingCurrentUser, CurrentUser>();
+			builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 			var service = new ReadStub();
 			builder.Services.AddSingleton<IBankingReadService>(service);
 			var app = builder.Build();
@@ -269,7 +270,7 @@ public sealed class BankingReadControllerTests
 			Request.Headers.TryGetValue("X-Test-Identity", out var id)
 				? AuthenticateResult.Success(new AuthenticationTicket(Principal(id.ToString()), Scheme.Name)) : AuthenticateResult.NoResult());
 	}
-	private sealed class CurrentUser(IHttpContextAccessor accessor) : IBankingCurrentUser
+	private sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser
 	{
 		public Guid? UserId => Guid.TryParse(accessor.HttpContext?.User.FindFirstValue("sub"), out var id) ? id : null;
 	}

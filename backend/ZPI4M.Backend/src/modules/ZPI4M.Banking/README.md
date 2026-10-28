@@ -92,7 +92,7 @@ dependency or "unassigned transaction" filter.
 ### HTTP account and transaction reads
 
 All four read endpoints require the existing User Bearer JWT and use
-`IBankingCurrentUser` to supply the owner. No `userId` query parameter selects
+`ICurrentUser` from `ZPI4M.Shared.CurrentUser` to supply the owner. No `userId` query parameter selects
 another user's data. Reads work without a Tink mapping or configuration and do
 not start synchronization. Responses from the controller use `Cache-Control:
 no-store`. Closed accounts, historical mappings and all stored transaction
@@ -185,7 +185,7 @@ does not apply it to a developer database.
 
 User operations require validated 4Money authentication and scope all resource
 reads to the local user. Foreign and missing resources both return 404. The host
-registers `HttpBankingCurrentUser`, which reads `sub` from a validated User JWT
+registers the shared `HttpCurrentUser`, which reads `sub` from a validated User JWT
 and also supports `ClaimTypes.NameIdentifier`. The User module configures JWT
 validation and checks that the session and account are active. Authentication
 middleware runs before authorization. No request header or development fallback

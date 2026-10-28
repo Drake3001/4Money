@@ -14,11 +14,14 @@ public sealed class MigrationFlowTests : PostgresFixture
 		await using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
 			.UseNpgsql(ConnectionString).Options);
 		var migrations = context.Database.GetMigrations().ToArray();
-		Assert.EndsWith("_AddBanking", migrations[^1]);
-		Assert.EndsWith("_AddAccountDeactivationTokens", migrations[^2]);
+		var bankingMigration = Assert.Single(migrations, migration => migration.EndsWith("_AddBanking", StringComparison.Ordinal));
+		var bankingMigrationIndex = Array.IndexOf(migrations, bankingMigration);
+		Assert.True(bankingMigrationIndex > 0);
+		var previousMigration = migrations[bankingMigrationIndex - 1];
+		Assert.EndsWith("_AddAccountDeactivationTokens", previousMigration);
 		var migrator = context.GetService<IMigrator>();
 
-		await migrator.MigrateAsync(migrations[^2]);
+		await migrator.MigrateAsync(previousMigration);
 
 		string[] newTables = ["bank_connection", "bank_connection_attempt", "bank_refresh", "bank_refresh_account"];
 		foreach (var table in newTables)

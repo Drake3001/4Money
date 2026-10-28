@@ -7,7 +7,21 @@ paragonów. Zakres zachowań opisuje [produkt](product.md), a organizację kodu
 Zakres MVP i opis tabel ponownie sprawdzono 2026-10-23 względem tekstów
 `Funkcjonalności.txt` i `Baza danych.txt`, w tym purpose 5 i warunek TargetEmail
 z aktualnego opisu bazy. Przegląd diagramów opisany niżej
-zachowuje wcześniejszą datę.
+zachowuje wcześniejszą datę dla niezmienionych źródeł. Opis bazy, modele
+konceptualny i logiczny oraz podział encji ponownie sprawdzono 2026-10-27.
+Opis bazy zawiera już NotificationRecipient, nowe pola Notification,
+Receipt.storage_key i BankAccount.credentials_id oraz złożoną unikalność rachunku.
+
+`Słownik pojęć.txt` ponownie sprawdzono 2026-10-27 po aktualizacji użytkownika.
+Zawiera Produkt, Wydatek, Kategorię, Paragon, Konto, Grupę Wydatkową, Limit/Budżet
+i Raport/Podsumowanie; usunięto definicję Prognozy oraz numerację pojęć.
+Nie traktuj wcześniejszej definicji jako aktualnego wymagania prognozowania wydatków.
+
+Zakres funkcjonalny ponownie porównano z `Funkcjonalności.txt` 2026-10-27:
+podział kosztów jest teraz w 2.8 (MVP), limity w 2.6 i raportowanie w 2.9
+nie mają oznaczenia MVP. Automatyczne dopasowanie paragonów do transakcji
+oraz zwykły i interaktywny push są rozszerzeniami z sekcji 3. Inbox jest
+jawnie częścią MVP (2.10).
 
 ## Pojęcia i encje
 
@@ -27,7 +41,7 @@ zachowuje wcześniejszą datę.
 | `BankConnection` | Lokalne połączenie z bankiem; stan połączenia odrębny od synchronizacji; Banking |
 | `BankTransaction` | Transakcja zaimportowana z rachunku, odrębna od wydatku; Banking |
 | Limit / `CategoryGroupLimit` | Próg dla kategorii w grupie; Limits. Model `Group` ma też ogólne limity. |
-| `Notification` | Powiadomienie powiązane z grupą w projekcie bazy; Notifications |
+| `Notification` / `NotificationRecipient` | Treść powiadomienia z opcjonalnym FK grupy albo wydatku oraz odbiorcy z indywidualną datą odczytu; Notifications; migracja AddNotificationsAfterRebase |
 | Raport | Agregacja danych, a nie osobna encja w obecnym projekcie bazy; Reports |
 
 Dokumentacja opisuje zakup jako jeden lub wiele produktów; diagram i aktualny
@@ -49,6 +63,9 @@ wydatku należy ustalić przy implementacji przepływu.
 - `BankAccount` należy do użytkownika, a `BankTransaction` do rachunku.
   Identyfikatory dostawcy występują w modelu bankowym, ale nie są automatycznie
   publicznym kontraktem API.
+  Aktualny opis bazy wskazuje opcjonalne credentials_id oraz UNIQUE
+  (fk_user_id, financial_institution_id, number); obecna konfiguracja Banking
+  uwzględnia oba elementy. Nie zakładaj ich wdrożenia bez odpowiedniej migracji.
 - `CategoryGroupLimit` łączy kategorię i grupę. Modele przewidują opcjonalne
   limity tygodniowe, miesięczne i roczne.
 
@@ -183,7 +200,9 @@ CHECK dla 1–4; nie reaktywuje kont.
 
 Opis bazy i aktualne mapowania EF używają `timestamp with time zone` dla
 `User.CreatedAt`, `User.LastLoginTime`, `UserToken.CreatedAt`,
-`UserToken.ExpiresAt`, `Expense.TransactionTime` i `Notification.SentAt`.
+`UserToken.ExpiresAt`, `Expense.TransactionTime`, `Notification.CreatedAt`
+i `NotificationRecipient.ReadAt`. Zmiana `Notification.SentAt` na `CreatedAt`
+jest uwzględniona w migracji `20261027172612_AddNotificationsAfterRebase`.
 W C# pozostaje `DateTime` / `DateTime?`; zapis powinien używać UTC.
 `User.BirthDate` i `BankTransaction.Date` pozostają `DateOnly` / SQL `date`.
 Przy konwersji istniejących kolumn bez strefy sprawdź znaczenie dotychczasowych
@@ -195,12 +214,55 @@ typy aktualizują migracje.
 - Źródła danych mają zasilać spójny obraz wydatków; transakcja bankowa i paragon
   mogą opisywać ten sam zakup.
 - OCR i kategoryzacja dają wynik możliwy do ręcznej korekty.
-- Powiązanie paragonu z transakcją jest propozycją do akceptacji lub odrzucenia.
+- Powiązanie paragonu z transakcją jest propozycją do akceptacji lub odrzucenia
+  według historyjki 1.6; automatyczne dopasowanie jest rozszerzeniem z sekcji 3,
+  a nie wymaganiem MVP.
 - Podział kosztów prowadzi do prezentacji zobowiązań; przekazanie środków
   następuje poza aplikacją. MVP obejmuje uczestników i udziały na poziomie całego
   wydatku, nie rozliczanie uczestników poszczególnych produktów.
 - Analiza osobista i grupowa oraz kategorie produktów są istotnymi częściami
   produktu, nie należy sprowadzać ich wyłącznie do klasyfikacji całej płatności.
+
+Model `Notification` ma typ (General = 0, ExpenseAdded = 1, LimitApproaching = 2,
+LimitExceeded = 3, GroupMemberJoined = 4), tytuł, treść, CreatedAt oraz opcjonalne FkGroupId i FkExpenseId.
+FkExpenseId zastępuje wcześniejszą parę TargetType/TargetId; nawigacja prowadzi
+do wydatku, jeśli jest wskazany, w przeciwnym razie do wskazanej grupy.
+FK do Expense jest skonfigurowany we wspólnym AppDbContext, aby uniknąć cyklu
+zależności projektów; usunięcie wydatku ustawia fk_expense_id na NULL,
+zachowując historię powiadomień. `NotificationRecipient`
+ma klucz (FkNotificationId, FkUserId) i opcjonalny ReadAt; NULL oznacza nieodczytane.
+Odczyt jest indywidualny dla każdego odbiorcy.
+`NotifyAsync` od 2026-10-28 tworzy przypisania tylko dla istniejących aktywnych
+kont zwróconych przez lookup User. Nieaktywne konto może zachować członkostwo
+w grupie, ale jest pomijane przy tworzeniu nowych powiadomień. Brak aktywnych
+odbiorców nie blokuje operacji biznesowej: metoda zwraca null bez zapisu.
+Jest to reguła tworzenia nowych przypisań; nie usuwa historycznych powiadomień.
+
+Migracja
+`20261027172612_AddNotificationsAfterRebase` zastępuje usuniętą przy rebase
+`AddNotificationRecipient`. Zmienia nazwę sent_at na created_at bez utraty dat,
+uzupełnia title pustym tekstem i type wartością 0 oraz tworzy odbiorców bez
+przypisywania ich do starych powiadomień. Seed wymaga zastosowania aktualnego
+łańcucha migracji. Zastosowanie migracji na konkretnej bazie sprawdzaj oddzielnie.
+
+Docelowo FkExpenseId wskazuje wydatek, a FkGroupId służy powiadomieniom o samej
+grupie, dołączeniu i limitach; grupę wydatku można odczytać przez Expense.
+NotifyAsync odrzuca jednoczesny zapis obu FK; aktualny seed również stosuje
+pojedynczy cel. Konfiguracja EF nie ma CHECK ich wzajemnej wyłączności,
+więc jest to reguła serwisu, a nie ograniczenie bazy. Seed zawiera przykłady
+ExpenseAdded, General i GroupMemberJoined oraz odczyt per odbiorca.
+
+Diagram logiczny przedstawia po stronie grupy Notification → Group liczność 1,
+natomiast kod dopuszcza FkGroupId = NULL; opis TXT nie oznacza tego pola jako
+NOT NULL. Nie wyprowadzaj obowiązkowego powiązania z grupą z samego diagramu.
+NotificationRecipient realizuje relację N:M użytkowników i powiadomień,
+z indywidualnym ReadAt. Obie encje należą do Notifications na diagramie podziału.
+
+`Receipt.storage_key` w aktualnym opisie i diagramie logicznym zastąpiło
+dawny odnośnik s3_link. Kod Receipt nadal ma S3Link mapowane na s3_link;
+nie ma jeszcze właściwości StorageKey ani tej zmiany schematu. Opis wymaga
+unikalnego klucza pliku, nie pełnego adresu URL. Dostosowanie modelu i migracji
+pozostaje osobną pracą.
 
 ## Kwestie wymagające ustalenia przy zadaniu
 

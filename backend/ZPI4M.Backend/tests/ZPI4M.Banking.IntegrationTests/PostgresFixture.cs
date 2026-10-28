@@ -10,7 +10,7 @@ using ZPI4M.Banking.Tink;
 using ZPI4M.Banking.Tink.Http;
 using ZPI4M.Database;
 using ZPI4M.User.Database;
-using ZPI4M.User.Services;
+using ZPI4M.User.Services.BankingProfile;
 
 namespace ZPI4M.Banking.IntegrationTests;
 
@@ -18,8 +18,9 @@ public sealed class PostgresFactAttribute : FactAttribute
 {
 	public PostgresFactAttribute()
 	{
-		if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("BANKING_TEST_POSTGRES")))
-			Skip = "Set BANKING_TEST_POSTGRES to a disposable PostgreSQL server; tests create and drop their own uniquely named database.";
+		if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("TEST_POSTGRES_CONNECTION_STRING")) &&
+			!string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase))
+			Skip = "Set TEST_POSTGRES_CONNECTION_STRING to a disposable PostgreSQL server; tests create and drop their own uniquely named database.";
 	}
 }
 
@@ -27,8 +28,7 @@ public sealed class PostgresTheoryAttribute : TheoryAttribute
 {
 	public PostgresTheoryAttribute()
 	{
-		if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("BANKING_TEST_POSTGRES")))
-			Skip = "Set BANKING_TEST_POSTGRES to a disposable PostgreSQL server.";
+		Skip = new PostgresFactAttribute().Skip;
 	}
 }
 
@@ -41,7 +41,9 @@ public abstract class PostgresFixture : IAsyncLifetime
 
 	public async Task InitializeAsync()
 	{
-		var maintenance = Environment.GetEnvironmentVariable("BANKING_TEST_POSTGRES")!;
+		var maintenance = Environment.GetEnvironmentVariable("TEST_POSTGRES_CONNECTION_STRING")!;
+		if (string.IsNullOrWhiteSpace(maintenance))
+			throw new InvalidOperationException("TEST_POSTGRES_CONNECTION_STRING is required in CI. Integration tests must not silently skip.");
 		await using var admin = new NpgsqlConnection(maintenance);
 		await admin.OpenAsync();
 		await using (var command = new NpgsqlCommand($"CREATE DATABASE {_databaseName}", admin))
@@ -62,7 +64,7 @@ public abstract class PostgresFixture : IAsyncLifetime
 
 	public async Task DisposeAsync()
 	{
-		var maintenance = Environment.GetEnvironmentVariable("BANKING_TEST_POSTGRES");
+		var maintenance = Environment.GetEnvironmentVariable("TEST_POSTGRES_CONNECTION_STRING");
 		if (string.IsNullOrWhiteSpace(maintenance))
 			return;
 		// Only this fixture's generated database is ever dropped, never the configured database.

@@ -7,6 +7,7 @@ using ZPI4M.Banking.DTOs;
 using ZPI4M.Banking.Repositories;
 using ZPI4M.Banking.Services;
 using ZPI4M.Banking.Services.Refresh;
+using ZPI4M.Shared.CurrentUser;
 
 namespace ZPI4M.Banking.ApiControllers;
 
@@ -19,7 +20,7 @@ namespace ZPI4M.Banking.ApiControllers;
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class BankingRefreshController(BankRefreshService service, IBankingCurrentUser currentUser) : ControllerBase
+public sealed class BankingRefreshController(BankRefreshService service, ICurrentUser currentUser) : ControllerBase
 {
 	[HttpPost]
 	[ProducesResponseType(typeof(StartBankRefreshResponse), StatusCodes.Status202Accepted)]

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using ZPI4M.Shared.CurrentUser;
 using ZPI4M.User.DTOs.AccountDeactivation;
 using ZPI4M.User.Services.AccountDeactivation;
 
@@ -10,7 +11,7 @@ namespace ZPI4M.User.ApiControllers;
 [ApiController]
 [Route("api/users")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class AccountDeactivationController(IAccountDeactivationService deactivationService) : ControllerBase
+public sealed class AccountDeactivationController(IAccountDeactivationService deactivationService, ICurrentUser currentUser) : ControllerBase
 {
 	[HttpPost("profile/deactivate")]
 	[Authorize]
@@ -21,7 +22,8 @@ public sealed class AccountDeactivationController(IAccountDeactivationService de
 	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
 	public async Task<IActionResult> RequestDeactivation(CancellationToken cancellationToken)
 	{
-		var userId = Guid.Parse(User.FindFirst("sub")!.Value);
+		if (currentUser.UserId is not Guid userId)
+			return Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Authenticated user is unavailable.");
 		var result = await deactivationService.RequestAsync(userId, cancellationToken);
 		return result switch
 		{

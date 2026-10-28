@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using ZPI4M.Shared.CurrentUser;
 using ZPI4M.User.DTOs.Authentication;
 using ZPI4M.User.DTOs.EmailConfirmation;
 using ZPI4M.User.DTOs.Registration;
@@ -19,13 +20,15 @@ public sealed class UsersController : ControllerBase
 	private readonly IUserRegistrationService _registrationService;
 	private readonly IEmailConfirmationService _emailConfirmationService;
 	private readonly IUserAuthenticationService _authenticationService;
+	private readonly ICurrentUser _currentUser;
 
 	public UsersController(IUserRegistrationService registrationService, IEmailConfirmationService emailConfirmationService,
-		IUserAuthenticationService authenticationService)
+		IUserAuthenticationService authenticationService, ICurrentUser currentUser)
 	{
 		_registrationService = registrationService;
 		_emailConfirmationService = emailConfirmationService;
 		_authenticationService = authenticationService;
+		_currentUser = currentUser;
 	}
 
 	[HttpPost("login")]
@@ -72,7 +75,8 @@ public sealed class UsersController : ControllerBase
 	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
 	public async Task<IActionResult> Logout(CancellationToken cancellationToken)
 	{
-		var userId = Guid.Parse(User.FindFirst("sub")!.Value);
+		if (_currentUser.UserId is not Guid userId)
+			return Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Authenticated user is unavailable.");
 		var sessionId = Guid.Parse(User.FindFirst("sid")!.Value);
 		await _authenticationService.LogoutAsync(userId, sessionId, cancellationToken);
 		return NoContent();

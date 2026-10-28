@@ -1,7 +1,7 @@
 using DotNetEnv;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using ZPI4M.Api.Services;
+using Npgsql;
 using ZPI4M.Banking.ApiControllers;
 using ZPI4M.Banking.Database;
 using ZPI4M.Banking.Repositories;
@@ -24,19 +24,23 @@ using ZPI4M.Grouping.Repositories.GroupRepository;
 using ZPI4M.Limits.Database;
 using ZPI4M.Limits.Repositories.CategoryGroupLimitRepository;
 using ZPI4M.Notifications.Database;
+using ZPI4M.Notifications.Repositories.NotificationRecipientRepository;
 using ZPI4M.Notifications.Repositories.NotificationRepository;
+using ZPI4M.Notifications.Services.Notifications;
 using ZPI4M.Receipt.Database;
 using ZPI4M.Receipt.Repositories.ReceiptRepository;
+using ZPI4M.Shared.CurrentUser;
 using ZPI4M.User.ApiControllers;
 using ZPI4M.User.Database;
 using ZPI4M.User.Integrations.Smtp;
 using ZPI4M.User.Repositories.UserRepository;
 using ZPI4M.User.Repositories.UserTokenRepository;
-using ZPI4M.User.Services;
 using ZPI4M.User.Services.AccountDeactivation;
 using ZPI4M.User.Services.Authentication;
+using ZPI4M.User.Services.BankingProfile;
 using ZPI4M.User.Services.EmailChange;
 using ZPI4M.User.Services.EmailConfirmation;
+using ZPI4M.User.Services.Lookup;
 using ZPI4M.User.Services.PasswordReset;
 using ZPI4M.User.Services.Profile;
 using ZPI4M.User.Services.RateLimiting;
@@ -58,7 +62,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddAuthorization();
 builder.Services.AddTink(builder.Configuration);
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<IBankingCurrentUser, HttpBankingCurrentUser>();
+builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 builder.Services.AddOptions<BankingConnectionOptions>().BindConfiguration("Banking")
  .Validate(options => options.AttemptLifetimeMinutes is >= 1 and <= 60, "Attempt lifetime must be between 1 and 60 minutes.");
 builder.Services.AddScoped<BankingConnectionRepository>();
@@ -81,16 +85,19 @@ builder.Services.AddUserRateLimiting(builder.Configuration);
 
 // Add database context
 var dbConnectionString = Environment.GetEnvironmentVariable("DB_LOCAL_CONNECTION_STRING");
+builder.Services.AddScoped<NpgsqlConnection>(_ => new NpgsqlConnection(dbConnectionString));
 builder.Services.AddDbContext<AppDbContext>(options =>
 	options.UseNpgsql(dbConnectionString, npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "public")));
 
 // Grouping module
-builder.Services.AddDbContext<GroupingDbContext>(options => options.UseNpgsql(dbConnectionString));
+builder.Services.AddDbContext<GroupingDbContext>((provider, options) =>
+	options.UseNpgsql(provider.GetRequiredService<NpgsqlConnection>(), contextOwnsConnection: false));
 builder.Services.AddScoped<IGroupRepository, GroupRepository>();
 builder.Services.AddScoped<IGroupMemberRepository, GroupMemberRepository>();
 
 // Expense module
-builder.Services.AddDbContext<ExpenseDbContext>(options => options.UseNpgsql(dbConnectionString));
+builder.Services.AddDbContext<ExpenseDbContext>((provider, options) =>
+	options.UseNpgsql(provider.GetRequiredService<NpgsqlConnection>(), contextOwnsConnection: false));
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<IExpenseItemRepository, ExpenseItemRepository>();
 builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
@@ -119,6 +126,7 @@ builder.Services.AddOptions<AccountDeactivationOptions>()
 	.ValidateOnStart();
 builder.Services.AddDbContext<UserDbContext>(options => options.UseNpgsql(dbConnectionString));
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IUserLookupService, UserLookupService>();
 builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
 builder.Services.AddScoped<IPasswordHasher<ZPI4M.User.Models.User>, PasswordHasher<ZPI4M.User.Models.User>>();
 builder.Services.AddScoped<IUserRegistrationService, UserRegistrationService>();
@@ -146,8 +154,11 @@ builder.Services.AddOptions<SmtpOptions>()
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 
 // Notifications module
-builder.Services.AddDbContext<NotificationsDbContext>(options => options.UseNpgsql(dbConnectionString));
+builder.Services.AddDbContext<NotificationsDbContext>((provider, options) =>
+	options.UseNpgsql(provider.GetRequiredService<NpgsqlConnection>(), contextOwnsConnection: false));
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+builder.Services.AddScoped<INotificationRecipientRepository, NotificationRecipientRepository>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 var app = builder.Build();
 

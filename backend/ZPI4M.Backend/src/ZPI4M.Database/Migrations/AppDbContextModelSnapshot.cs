@@ -670,25 +670,73 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("_id");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid?>("FkExpenseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fk_expense_id");
+
                     b.Property<Guid?>("FkGroupId")
                         .HasColumnType("uuid")
                         .HasColumnName("fk_group_id");
-
-                    b.Property<DateTime>("SentAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("sent_at")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("Text")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("text");
 
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("title");
+
+                    b.Property<int>("Type")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("type");
+
                     b.HasKey("Id")
                         .HasName("notification_pkey");
 
-                    b.ToTable("notification", "notifications");
+                    b.HasIndex(new[] { "CreatedAt", "Id" }, "ix_notification_created_at_id")
+                        .IsDescending();
+
+                    b.HasIndex(new[] { "FkExpenseId" }, "ix_notification_fk_expense_id");
+
+                    b.ToTable("notification", "notifications", t =>
+                        {
+                            t.HasCheckConstraint("c_notification_valid_type", "type IN (0, 1, 2, 3, 4)");
+                        });
+                });
+
+            modelBuilder.Entity("ZPI4M.Notifications.Models.NotificationRecipient", b =>
+                {
+                    b.Property<Guid>("FkNotificationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fk_notification_id");
+
+                    b.Property<Guid>("FkUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fk_user_id");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("read_at");
+
+                    b.HasKey("FkNotificationId", "FkUserId")
+                        .HasName("notification_recipient_pkey");
+
+                    b.HasIndex(new[] { "FkUserId", "FkNotificationId" }, "ix_notification_recipient_unread")
+                        .HasFilter("read_at IS NULL");
+
+                    b.HasIndex(new[] { "FkUserId", "FkNotificationId" }, "ix_notification_recipient_user");
+
+                    b.ToTable("notification_recipient", "notifications");
                 });
 
             modelBuilder.Entity("ZPI4M.Receipt.Models.Receipt", b =>
@@ -936,6 +984,34 @@ namespace ZPI4M.Database.Migrations
                     b.Navigation("FkGroup");
                 });
 
+            modelBuilder.Entity("ZPI4M.Notifications.Models.Notification", b =>
+                {
+                    b.HasOne("ZPI4M.Expense.Models.Expense", null)
+                        .WithMany()
+                        .HasForeignKey("FkExpenseId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("c_notification_fk_expense_id");
+                });
+
+            modelBuilder.Entity("ZPI4M.Notifications.Models.NotificationRecipient", b =>
+                {
+                    b.HasOne("ZPI4M.Notifications.Models.Notification", "FkNotification")
+                        .WithMany("NotificationRecipients")
+                        .HasForeignKey("FkNotificationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("c_notification_recipient_fk_notification_id");
+
+                    b.HasOne("ZPI4M.User.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("FkUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("c_notification_recipient_fk_user_id");
+
+                    b.Navigation("FkNotification");
+                });
+
             modelBuilder.Entity("ZPI4M.User.Models.UserToken", b =>
                 {
                     b.HasOne("ZPI4M.User.Models.User", "FkUser")
@@ -971,6 +1047,11 @@ namespace ZPI4M.Database.Migrations
             modelBuilder.Entity("ZPI4M.Grouping.Models.Group", b =>
                 {
                     b.Navigation("GroupMembers");
+                });
+
+            modelBuilder.Entity("ZPI4M.Notifications.Models.Notification", b =>
+                {
+                    b.Navigation("NotificationRecipients");
                 });
 
             modelBuilder.Entity("ZPI4M.User.Models.User", b =>

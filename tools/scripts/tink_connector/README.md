@@ -377,4 +377,4 @@ własne tymczasowe bazy z kontraktem tabeli użytkowników. Ustaw
 uruchom zwykły zestaw `python -m unittest discover -s tools/scripts/tests -v`.
 Bez tej zmiennej testy PostgreSQL są pomijane. Nie używają `FOURMONEY_DATABASE_DSN`
 jako serwera administracyjnego. Pełny SQL init, migracje, reset seedera i logowanie
-wszystkich kont sprawdzają osobno testy .NET z `USER_TEST_POSTGRES`.
+wszystkich kont sprawdzają osobno testy .NET z `TEST_POSTGRES_CONNECTION_STRING`.

@@ -14,7 +14,7 @@ osobnych usług ani niezależnych wdrożeń.
 | --- | --- | --- |
 | Banking | Integracja bankowa i pobieranie transakcji | Tylko OpenBanking |
 | Receipt | Przetwarzanie obrazów paragonów | Tylko model OCR |
-| Expense | Ewidencja wydatków i kategoryzacja | Banking, Receipt, model kategoryzujący, User, Grouping |
+| Expense | Ewidencja wydatków i kategoryzacja | Banking, Receipt, User, Grouping |
 | Limits | Budżety i progi wydatkowe | Expense, Grouping, Notifications, User |
 | Grouping | Grupy, podział kosztów i zobowiązania | Notifications, User |
 | Reports | Raporty i statystyki | Expense, Limits, Grouping, User |
@@ -22,7 +22,9 @@ osobnych usług ani niezależnych wdrożeń.
 | User | Tożsamość i uprawnienia | Brak innych modułów |
 
 Tabela opisuje projekt zależności z `../doc/Architektura systemu.txt`
-i diagramu systemu; tekst ponownie sprawdzono 2026-10-23, diagram 2026-10-21.
+i diagramu systemu; tekst i diagram ponownie sprawdzono 2026-10-27.
+Aktualne źródła nie wskazują już osobnego modelu kategoryzującego jako
+zależności Expense; nie oznacza to usunięcia wymagań kategoryzacji z MVP.
 Nie jest to lista aktualnych
 `ProjectReference`. Przed dodaniem
 zależności sprawdź kod i istniejące kontrakty.
@@ -36,6 +38,22 @@ a docelowo Banking korzysta z modułu/integracji OpenBanking. Receipt i Banking 
 zależą od Expense ani od siebie nawzajem. Są to ustalenia dotyczące współpracy
 modułów i integracji; nie oznaczają, że projekty OCR lub OpenBanking już istnieją
 w solucji.
+
+Aktualizacja zakresu z `Funkcjonalności.txt` sprawdzona 2026-10-27:
+automatyczne dopasowanie paragonu do transakcji jest rozszerzeniem (sekcja 3).
+Opis współpracy Expense, Receipt i Banking nie oznacza obowiązku realizacji
+automatycznego dopasowania w MVP. Interaktywny push po wykryciu transakcji,
+pozwalający dodać wydatek odpowiedzią „tak”, również należy do rozszerzeń.
+Limity i raportowanie pozostają w zakresie funkcjonalnym bez oznaczenia MVP.
+Wewnętrzny inbox jest jawnie oznaczony jako MVP (2.10); zwykły push również
+znajduje się w rozszerzeniach (sekcja 3).
+
+Uzgodniony przepływ powiadomienia o wydatku to Expense → Grouping → Notifications
+→ User. Expense przekazuje dane, Grouping ustala odbiorców i wywołuje kontrakt
+Notifications; Notifications nie pobiera encji Expense. Ten przepływ jest
+planowany, a nie zaimplementowany. Relacja FK Notification → Expense jest
+konfigurowana wyłącznie we wspólnym AppDbContext; nie dodawaj referencji
+projektu Expense do Notifications, bo utworzyłaby cykl zależności.
 
 ## Warstwy modułu
 
@@ -56,18 +74,85 @@ Walidacja DTO zwraca `ValidationProblemDetails` z błędami poszczególnych pól
 Host zapewnia `ProblemDetails` dla pustych błędów HTTP i nieobsłużonych wyjątków.
 
 Schemat przepływu to `ApiControllers → Services → Repositories → baza`.
+Kod używa zarówno klasycznych konstruktorów z polami private readonly,
+jak i konstruktorów głównych. Oba sposoby korzystają z DI rejestrowanego
+w Program.cs. Parametr konstruktora głównego nie jest publiczną właściwością;
+inny moduł nie może przez niego podmienić zależności istniejącej instancji.
+Różnica względem readonly dotyczy możliwości ponownego przypisania wewnątrz
+klasy, nie autoryzacji ani granicy bezpieczeństwa między modułami.
 Zaimplementowane repozytoria mają osobne katalogi
 `Repositories/<Nazwa>Repository/` z interfejsem, implementacją i opcjonalnym
 plikiem `<Nazwa>Queries.cs`. Namespace odzwierciedla katalog konkretnego
 repozytorium: `ZPI4M.<Moduł>.Repositories.<Nazwa>Repository`, np.
 `ZPI4M.Grouping.Repositories.GroupMemberRepository`. Ta sama przestrzeń nazw
-obejmuje interfejs, implementację i Queries. UserToken i Notification nie mają Queries.
-Podstawowe repozytoria rejestrują dodanie i usunięcie encji, ale nie wykonują własnego
-`SaveChangesAsync`. Wyjątkiem jest obecne `BankingConnectionRepository`, które
-samodzielnie zapisuje próby oraz atomowo kończy próbę i tworzy połączenie. Granicę zapisu wyznacza serwis, aby np. utworzenie grupy
+obejmuje interfejs, implementację i Queries. UserToken, Notification oraz
+NotificationRecipient nie mają Queries. NotificationRecipientRepository przyjmuje
+parametry pageNumber, pageSize i opcjonalny isRead; sortuje zawsze od najnowszych.
+Inbox użytkownika pobiera NotificationRecipientRepository,
+a NotificationRepository odpowiada za treść powiadomienia (Add/GetByIdAsync).
+Od 2026-10-28 NotificationService sprawdza odbiorców przez publiczny kontrakt
+User: IUserLookupService.GetActiveUserIdsAsync. UserLookupService wykonuje jedno
+zapytanie AsNoTracking z projekcją samych ID istniejących, aktywnych kont.
+Notifications tworzy odbiorców wyłącznie z ID zwróconych przez lookup, pomijając
+nieaktywne i nieistniejące konta; nie pobiera encji User ani IUserRepository.
+NotifyAsync zwraca Guid?; pusta lista wejściowa lub brak aktywnych odbiorców
+oznacza null bez tworzenia encji i bez SaveChangesAsync. Guid.Empty nadal jest
+błędem walidacji. Nieaktywne członkostwo nie blokuje powiadomień pozostałych osób.
+NotificationRecipientRepository.MarkAsReadAsync wykonuje warunkowy UPDATE
+natychmiast przez ExecuteUpdateAsync; nie wymaga SaveChangesAsync i nie
+nadpisuje daty już odczytanego wpisu. Operacja ogranicza zapis do obu ID
+(użytkownika i powiadomienia).
+MarkAllAsReadAsync również wykonuje natychmiast ExecuteUpdateAsync, ograniczając
+zapis do nieodczytanych wpisów jednego użytkownika, bez pobierania encji.
+Repozytoria rejestrują dodanie i usunięcie encji, ale nie wykonują własnego
+`SaveChangesAsync`. Granicę zapisu wyznacza serwis, aby np. utworzenie grupy
 i dodanie administratora zapisać atomowo. Wspólny zapis wymaga tego samego
 scoped kontekstu; osobne konteksty modułów nie współdzielą automatycznie
 transakcji ani change trackera.
+
+Od 2026-10-28 host przekazuje ExpenseDbContext, GroupingDbContext i
+NotificationsDbContext tę samą scoped instancję NpgsqlConnection. Połączenie
+zwalnia DI, a konteksty mają contextOwnsConnection: false. Pozostałe konteksty,
+w tym AppDbContext migracji, zachowują konfigurację przez connection string.
+Jest to przygotowanie do integracji: wspólne połączenie nie rozpoczyna ani nie
+współdzieli automatycznie transakcji. Serwis koordynujący rozpoczyna transakcję,
+dołącza pozostałe konteksty przez UseTransactionAsync i wykonuje końcowy commit
+dopiero po powodzeniu wszystkich zapisów. NotifyAsync może zachować
+SaveChangesAsync; w dołączonym kontekście nie zatwierdza ono transakcji
+koordynatora. Błąd musi przerwać całą operację i spowodować rollback.
+Operacje na wspólnym połączeniu wykonuj kolejno, bez Task.WhenAll i bez
+otwierania zagnieżdżonych transakcji. Serwisy koordynujące Expense/Grouping
+oraz testy atomowości między modułami nie są jeszcze zaimplementowane.
+
+### Do wykonania przy implementacji Expense i Grouping
+
+Przy zapisie wydatku z powiadomieniem oraz operacji grupowej z powiadomieniem
+(np. dołączeniu członka) obowiązuje jedna transakcja obejmująca zapis biznesowy
+i powiadomienie wraz z odbiorcami. W przyszłym serwisie koordynującym:
+
+1. Korzystaj z kontekstów z tego samego zakresu DI i wspólnego połączenia.
+2. Przed pierwszym zapisem rozpocznij transakcję przez BeginTransactionAsync
+   na kontekście operacji biznesowej.
+3. Dołącz NotificationsDbContext i każdy inny kontekst zapisujący dane tej
+   operacji przez UseTransactionAsync(transaction.GetDbTransaction()).
+4. Zapisz dane biznesowe, a następnie wywołaj NotifyAsync. Wcześniejszy zapis
+   jest potrzebny m.in. dla FK powiadomienia do nowego wydatku lub grupy.
+5. Wykonaj CommitAsync wyłącznie w koordynatorze, po powodzeniu wszystkich
+   kroków. Wyjątek lub anulowanie przed commitem ma wycofać całą operację;
+   nie przechwytuj błędu powiadomienia po to, żeby zatwierdzić sam zapis biznesowy.
+
+Jeśli Expense wywołuje Grouping w ramach już otwartej transakcji, Grouping
+uczestniczy w tej transakcji: nie otwiera własnej i nie wykonuje końcowego commitu.
+NotifyAsync zachowuje SaveChangesAsync, ale nie przejmuje własności transakcji.
+Wynik null oznacza brak aktywnych odbiorców i pozwala zatwierdzić operację
+biznesową bez powiadomienia. Błąd zapisu powiadomienia jest inną sytuacją
+i wymaga rollbacku. Wszystkie operacje na wspólnym połączeniu wykonuj kolejno.
+
+Dodaj testy PostgreSQL dla obu przepływów: wspólny sukces, błąd powiadomienia
+po zapisie biznesowym, błąd po udanym NotifyAsync przed commitem oraz brak
+aktywnych odbiorców. Po rollbacku nie mogą pozostać ani dane biznesowe,
+ani powiadomienie czy przypisania odbiorców. Sam test NotifyAsync nie wystarcza.
+
 Metody `UserTokenRepository.TryConsumeAsync` i `UserRepository.TryConfirmEmailAsync`
 wykonują warunkowe DELETE/UPDATE natychmiast. Serwis potwierdzenia e-maila
 obejmuje oba wywołania jedną transakcją na wspólnym `UserDbContext`, aby
@@ -96,7 +181,15 @@ Serwisy Banking są pogrupowane według funkcjonalności: `Services/Reads` zawie
 `BankingReadService` i jego interfejs, `Services/Connections` — serwis połączeń,
 interfejsy połączeń i callbacku oraz opcje, a `Services/Refresh` — synchronizację.
 Namespace’y odpowiadają katalogom. Wspólne kontrakty pozostają w
-`Services/Contracts`, a `IBankingCurrentUser` bezpośrednio w `Services`.
+`Services/Contracts`. Bieżącą tożsamość aplikacji udostępnia wspólny ICurrentUser.
+
+Od 2026-10-28 pary interfejs/implementacja UserLookupService i
+UserBankingProfileService znajdują się odpowiednio w User `Services/Lookup`
+i `Services/BankingProfile`. NotificationService i INotificationService są
+w Notifications `Services/Notifications`. Namespace’y odpowiadają katalogom.
+Szablon API `.env.example` używa nazw zmiennych wielkimi literami i zawiera
+ustawienia SMTP z przykładowymi wartościami; lokalny `.env` nie jest szablonem
+do kopiowania sekretów do repozytorium.
 
 ## Obecny podział kontrolerów User
 
@@ -132,7 +225,19 @@ transakcyjną blokadą doradczą PostgreSQL, niezależną od zapisów logowania 
 wywołanie dostawcy jest przekazywane jako operacja.
 Konfiguracja Banking wykorzystuje istniejące mapowanie User dla kluczy obcych.
 
-Host rejestruje zależności i adapter zweryfikowanej tożsamości. Koordynacja procesu
+Od 2026-10-28 ICurrentUser i HttpCurrentUser znajdują się w
+`ZPI4M.Shared/CurrentUser` (namespace ZPI4M.Shared.CurrentUser). Zastępują
+IBankingCurrentUser i adapter z hosta API. Implementacja używa IHttpContextAccessor,
+uwierzytelnionej tożsamości oraz claimu sub z fallbackiem NameIdentifier;
+niepoprawny lub pusty GUID daje null. Nie dotyczy to TinkUserId.
+Banking, User i Notifications korzystają ze wspólnego kontraktu w kontrolerach,
+zamiast bezpośredniego parsowania sub; brak ID daje 401. Host i hosty testowe
+rejestrują scoped ICurrentUser/HttpCurrentUser oraz IHttpContextAccessor.
+Shared ma FrameworkReference Microsoft.AspNetCore.App, ponieważ na życzenie
+projektu zawiera także implementację HTTP. Walidacja JWT i odczyt identyfikatora
+sesji sid pozostają osobną odpowiedzialnością warstwy uwierzytelniania/User.
+
+Host rejestruje zależności i wspólną implementację tożsamości. Koordynacja procesu
 nie znajduje się już w serwisie generatora linku hosta. Tink odpowiada za tokeny,
 Permanent Users, link i weryfikację credential; Banking za trwałe próby i stan
 lokalny. Szczegóły opisuje
@@ -162,10 +267,10 @@ znajdują się w [instrukcji pracy](development.md#modele-i-migracje).
 | API | Obecnie OpenAPI w Development; Swagger i Postman wymieniono w planie narzędzi |
 | Baza lokalna | PostgreSQL 15 Alpine w Docker Compose |
 | Web | Docelowo React; brak aplikacji frontendowej w obecnym repo |
-| Mobile | Plan React + Capacitor lub React Native; wybór nie jest rozstrzygnięty |
+| Mobile | Uzgodniono React + Capacitor; Stos technologiczny.txt nadal wymienia alternatywę React Native, brak aplikacji w repo |
 | OCR | Plan Python i integracja OCR; brak implementacji pipeline'u w obecnym repo |
 | Automatyzacja | GitHub Actions, pre-commit, narzędzia Python zarządzane przez uv |
-| Testy backendu | Sześć projektów User/Banking: UnitTests, Tests i IntegrationTests; testy PostgreSQL wymagają osobnej konfiguracji |
+| Testy backendu | Dziewięć projektów: po trzy User, Banking i Notifications (UnitTests, Tests, IntegrationTests); CI dostarcza PostgreSQL 15 i zmienne połączeń dla wszystkich trzech modułów |
 | Infrastruktura | Obecna konfiguracja Terraform dla Proxmox; Linux i Tailscale w środowisku developerskim |
 | Prezentacja | AWS jako założenie docelowe, nie potwierdzone wdrożenie aplikacji |
 

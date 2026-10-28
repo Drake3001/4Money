@@ -14,6 +14,7 @@ using ZPI4M.Banking.ApiControllers;
 using ZPI4M.Banking.Services;
 using ZPI4M.Banking.Services.Connections;
 using ZPI4M.Banking.Services.Contracts;
+using ZPI4M.Shared.CurrentUser;
 
 namespace ZPI4M.Banking.Tests;
 
@@ -195,7 +196,7 @@ public sealed class BankingControllerTests
 			builder.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>("Test", _ => { });
 			builder.Services.AddAuthorization();
 			builder.Services.AddHttpContextAccessor();
-			builder.Services.AddScoped<IBankingCurrentUser, TestCurrentUser>();
+			builder.Services.AddScoped<ICurrentUser, TestCurrentUser>();
 			var service = new FakeConnectionService();
 			builder.Services.AddSingleton<IBankingConnectionService>(service);
 			var app = builder.Build();
@@ -228,7 +229,7 @@ public sealed class BankingControllerTests
 		}
 	}
 
-	private sealed class TestCurrentUser(IHttpContextAccessor accessor) : IBankingCurrentUser
+	private sealed class TestCurrentUser(IHttpContextAccessor accessor) : ICurrentUser
 	{
 		public Guid? UserId => Guid.TryParse(accessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier), out var id)
 			? id : null;

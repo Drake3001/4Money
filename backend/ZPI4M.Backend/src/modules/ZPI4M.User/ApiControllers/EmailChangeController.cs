@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using ZPI4M.Shared.CurrentUser;
 using ZPI4M.User.DTOs.EmailChange;
 using ZPI4M.User.Services.EmailChange;
 
@@ -10,7 +11,7 @@ namespace ZPI4M.User.ApiControllers;
 [ApiController]
 [Route("api/users")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class EmailChangeController(IEmailChangeService emailChangeService) : ControllerBase
+public sealed class EmailChangeController(IEmailChangeService emailChangeService, ICurrentUser currentUser) : ControllerBase
 {
 	[HttpPost("profile/change-email")]
 	[Authorize]
@@ -23,7 +24,8 @@ public sealed class EmailChangeController(IEmailChangeService emailChangeService
 	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
 	public async Task<IActionResult> RequestChange([FromBody] ChangeEmailRequest request, CancellationToken cancellationToken)
 	{
-		var userId = Guid.Parse(User.FindFirst("sub")!.Value);
+		if (currentUser.UserId is not Guid userId)
+			return Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Authenticated user is unavailable.");
 		var result = await emailChangeService.RequestAsync(userId, request, cancellationToken);
 		return result switch
 		{

@@ -1,4 +1,4 @@
-namespace ZPI4M.User.Services;
+namespace ZPI4M.User.Services.BankingProfile;
 
 public sealed record UserBankingProfile(Guid Id, bool IsActive, string? TinkUserId, string IdHint);
 

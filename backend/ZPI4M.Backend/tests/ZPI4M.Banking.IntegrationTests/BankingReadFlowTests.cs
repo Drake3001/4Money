@@ -7,7 +7,7 @@ using ZPI4M.Banking.Repositories.BankTransactionRepository;
 using ZPI4M.Banking.Services.Contracts;
 using ZPI4M.Banking.Services.Reads;
 using ZPI4M.User.Database;
-using ZPI4M.User.Services;
+using ZPI4M.User.Services.BankingProfile;
 
 namespace ZPI4M.Banking.IntegrationTests;
 

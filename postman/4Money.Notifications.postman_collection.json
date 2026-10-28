@@ -1,0 +1,341 @@
+{
+  "info": {
+    "name": "4Money - Notifications",
+    "description": "Inbox zalogowanego użytkownika: lista z paginacją i filtrem odczytu, odczyt pojedynczy i zbiorczy. Wymaga migracji AddNotificationRecipient i Bearer uzyskanego przez login w kolekcji User. Nie ma publicznego endpointu NotifyAsync; dane pochodzą z seeda lub wewnętrznych wywołań backendu. Każde żądanie zatrzymuje Runner, aby pełny run nie oznaczał automatycznie wpisów jako odczytane. Instrukcja: postman/README.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{fourMoneyAccessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "(function () {",
+          "    pm.execution.setNextRequest(null);",
+          "    const required = ['baseUrl', 'fourMoneyAccessToken'];",
+          "    const isList = pm.request.method === 'GET';",
+          "    const isSingleRead = pm.request.method === 'PUT' && pm.request.url.toString().split('?')[0].endsWith('/read');",
+          "    if (isList) required.push('notificationPageNumber', 'notificationPageSize');",
+          "    if (isSingleRead) required.push('notificationId');",
+          "    const missing = required.filter(key => {",
+          "        const value = pm.environment.get(key);",
+          "        return typeof value !== 'string' || !value.trim() || value.includes('{{');",
+          "    });",
+          "    if (missing.length) {",
+          "        pm.test('Wymagane zmienne środowiska', () => { throw new Error('Uzupełnij: ' + missing.join(', ')); });",
+          "        pm.execution.skipRequest();",
+          "        return;",
+          "    }",
+          "    if (isList) {",
+          "        const number = Number(pm.environment.get('notificationPageNumber'));",
+          "        const size = Number(pm.environment.get('notificationPageSize'));",
+          "        if (!Number.isInteger(number) || number < 1 || number > 2147483647 || !Number.isInteger(size) || size < 1 || size > 100 || (number - 1) * size > 2147483647) {",
+          "            pm.test('Poprawna paginacja', () => { throw new Error('pageNumber >= 1; pageSize 1–100; offset <= int.MaxValue.'); });",
+          "            pm.execution.skipRequest();",
+          "            return;",
+          "        }",
+          "    }",
+          "    if (isSingleRead && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pm.environment.get('notificationId'))) {",
+          "        pm.test('Poprawny notificationId', () => { throw new Error('Wklej UUID powiadomienia z odpowiedzi listy.'); });",
+          "        pm.execution.skipRequest();",
+          "    }",
+          "})();"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 — Wszystkie powiadomienia",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/notifications?pageNumber={{notificationPageNumber}}&pageSize={{notificationPageSize}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "notifications"
+          ],
+          "query": [
+            {
+              "key": "pageNumber",
+              "value": "{{notificationPageNumber}}"
+            },
+            {
+              "key": "pageSize",
+              "value": "{{notificationPageSize}}"
+            }
+          ]
+        },
+        "description": "Zwraca stronę powiadomień od najnowszych. Nie zmienia ReadAt. Użytkownik pochodzi z JWT; nie podawaj userId. Pusty inbox to 200 z pustą listą. Wybierz id z items i wklej lokalnie do notificationId.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "    const page = pm.response.json();",
+              "    pm.test('Strona inboxa i metadane paginacji', () => {",
+              "        pm.expect(page.items).to.be.an('array');",
+              "        pm.expect(page.totalCount).to.be.a('number').and.to.be.at.least(0);",
+              "        pm.expect(page.pageNumber).to.equal(Number(pm.environment.get('notificationPageNumber')));",
+              "        pm.expect(page.pageSize).to.equal(Number(pm.environment.get('notificationPageSize')));",
+              "        pm.expect(page.items.length).to.be.at.most(page.pageSize);",
+              "        pm.expect(page.totalPages).to.equal(Math.ceil(page.totalCount / page.pageSize));",
+              "        pm.expect(page.hasPreviousPage).to.be.a('boolean');",
+              "        pm.expect(page.hasNextPage).to.be.a('boolean');",
+              "    });",
+              "    pm.test('DTO powiadomienia i stan odczytu', () => {",
+              "        page.items.forEach(item => {",
+              "            pm.expect(item).to.have.all.keys('id', 'title', 'text', 'type', 'createdAt', 'groupId', 'expenseId', 'readAt', 'isRead');",
+              "            pm.expect(item.type).to.be.oneOf([0, 1, 2, 3, 4]);",
+              "            pm.expect(item.isRead).to.equal(item.readAt !== null);",
+              "            const filter = pm.request.url.query.get('isRead');",
+              "            if (filter === 'true' || filter === 'false') pm.expect(item.isRead).to.equal(filter === 'true');",
+              "        });",
+              "    });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "02 — Nieodczytane powiadomienia",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/notifications?pageNumber={{notificationPageNumber}}&pageSize={{notificationPageSize}}&isRead=false",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "notifications"
+          ],
+          "query": [
+            {
+              "key": "pageNumber",
+              "value": "{{notificationPageNumber}}"
+            },
+            {
+              "key": "pageSize",
+              "value": "{{notificationPageSize}}"
+            },
+            {
+              "key": "isRead",
+              "value": "false"
+            }
+          ]
+        },
+        "description": "Tylko wpisy z readAt = null. TotalCount dotyczy nieodczytanych.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "    const page = pm.response.json();",
+              "    pm.test('Strona inboxa i metadane paginacji', () => {",
+              "        pm.expect(page.items).to.be.an('array');",
+              "        pm.expect(page.totalCount).to.be.a('number').and.to.be.at.least(0);",
+              "        pm.expect(page.pageNumber).to.equal(Number(pm.environment.get('notificationPageNumber')));",
+              "        pm.expect(page.pageSize).to.equal(Number(pm.environment.get('notificationPageSize')));",
+              "        pm.expect(page.items.length).to.be.at.most(page.pageSize);",
+              "        pm.expect(page.totalPages).to.equal(Math.ceil(page.totalCount / page.pageSize));",
+              "        pm.expect(page.hasPreviousPage).to.be.a('boolean');",
+              "        pm.expect(page.hasNextPage).to.be.a('boolean');",
+              "    });",
+              "    pm.test('DTO powiadomienia i stan odczytu', () => {",
+              "        page.items.forEach(item => {",
+              "            pm.expect(item).to.have.all.keys('id', 'title', 'text', 'type', 'createdAt', 'groupId', 'expenseId', 'readAt', 'isRead');",
+              "            pm.expect(item.type).to.be.oneOf([0, 1, 2, 3, 4]);",
+              "            pm.expect(item.isRead).to.equal(item.readAt !== null);",
+              "            const filter = pm.request.url.query.get('isRead');",
+              "            if (filter === 'true' || filter === 'false') pm.expect(item.isRead).to.equal(filter === 'true');",
+              "        });",
+              "    });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "03 — Odczytane powiadomienia",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/notifications?pageNumber={{notificationPageNumber}}&pageSize={{notificationPageSize}}&isRead=true",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "notifications"
+          ],
+          "query": [
+            {
+              "key": "pageNumber",
+              "value": "{{notificationPageNumber}}"
+            },
+            {
+              "key": "pageSize",
+              "value": "{{notificationPageSize}}"
+            },
+            {
+              "key": "isRead",
+              "value": "true"
+            }
+          ]
+        },
+        "description": "Tylko wpisy z uzupełnionym readAt.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "    const page = pm.response.json();",
+              "    pm.test('Strona inboxa i metadane paginacji', () => {",
+              "        pm.expect(page.items).to.be.an('array');",
+              "        pm.expect(page.totalCount).to.be.a('number').and.to.be.at.least(0);",
+              "        pm.expect(page.pageNumber).to.equal(Number(pm.environment.get('notificationPageNumber')));",
+              "        pm.expect(page.pageSize).to.equal(Number(pm.environment.get('notificationPageSize')));",
+              "        pm.expect(page.items.length).to.be.at.most(page.pageSize);",
+              "        pm.expect(page.totalPages).to.equal(Math.ceil(page.totalCount / page.pageSize));",
+              "        pm.expect(page.hasPreviousPage).to.be.a('boolean');",
+              "        pm.expect(page.hasNextPage).to.be.a('boolean');",
+              "    });",
+              "    pm.test('DTO powiadomienia i stan odczytu', () => {",
+              "        page.items.forEach(item => {",
+              "            pm.expect(item).to.have.all.keys('id', 'title', 'text', 'type', 'createdAt', 'groupId', 'expenseId', 'readAt', 'isRead');",
+              "            pm.expect(item.type).to.be.oneOf([0, 1, 2, 3, 4]);",
+              "            pm.expect(item.isRead).to.equal(item.readAt !== null);",
+              "            const filter = pm.request.url.query.get('isRead');",
+              "            if (filter === 'true' || filter === 'false') pm.expect(item.isRead).to.equal(filter === 'true');",
+              "        });",
+              "    });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "04 — Oznacz jedno jako odczytane",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/notifications/{{notificationId}}/read",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "notifications",
+            "{{notificationId}}",
+            "read"
+          ]
+        },
+        "description": "ZMIENIA DANE: ustawia ReadAt własnego wpisu. Uzupełnij notificationId. Bez body. 204 również przy ponowieniu, pierwsza data pozostaje bez zmian. Cudzy lub nieistniejący wpis zwraca 404 ProblemDetails.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status HTTP 204', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "05 — Oznacz wszystkie jako odczytane",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/notifications/read-all",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "notifications",
+            "read-all"
+          ]
+        },
+        "description": "ZMIENIA DANE: oznacza WSZYSTKIE nieodczytane wpisy konta, również poza bieżącą stroną i filtrem. Bez body. 204 także dla pustego inboxa i przy ponowieniu. Nie nadpisuje wcześniejszych dat. Wyślij świadomie na koncie testowym.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status HTTP 204', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    }
+  ]
+}

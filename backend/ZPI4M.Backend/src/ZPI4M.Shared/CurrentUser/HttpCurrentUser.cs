@@ -1,9 +1,9 @@
 using System.Security.Claims;
-using ZPI4M.Banking.Services;
+using Microsoft.AspNetCore.Http;
 
-namespace ZPI4M.Api.Services;
+namespace ZPI4M.Shared.CurrentUser;
 
-public sealed class HttpBankingCurrentUser(IHttpContextAccessor accessor) : IBankingCurrentUser
+public sealed class HttpCurrentUser(IHttpContextAccessor accessor) : ICurrentUser
 {
 	public Guid? UserId
 	{

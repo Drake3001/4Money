@@ -5,6 +5,7 @@ using ZPI4M.Banking.DTOs;
 using ZPI4M.Banking.Services;
 using ZPI4M.Banking.Services.Connections;
 using ZPI4M.Banking.Services.Contracts;
+using ZPI4M.Shared.CurrentUser;
 
 namespace ZPI4M.Banking.ApiControllers;
 
@@ -18,7 +19,7 @@ namespace ZPI4M.Banking.ApiControllers;
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
 public sealed class BankingController(
 	IBankingConnectionService connectionService,
-	IBankingCurrentUser currentUser) : ControllerBase
+	ICurrentUser currentUser) : ControllerBase
 {
 	[HttpPost("connection-attempts")]
 	[ProducesResponseType(typeof(StartBankConnectionResponse), StatusCodes.Status201Created)]

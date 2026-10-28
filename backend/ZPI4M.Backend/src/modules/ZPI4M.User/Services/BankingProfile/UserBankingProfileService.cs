@@ -4,7 +4,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using ZPI4M.User.Database;
 
-namespace ZPI4M.User.Services;
+namespace ZPI4M.User.Services.BankingProfile;
 
 public sealed class UserBankingProfileService(UserDbContext database) : IUserBankingProfileService
 {

@@ -1,16 +1,7 @@
--- Lokalny reset danych 4Money. Uruchamiaj po zastosowaniu wszystkich migracji EF.
--- UWAGA: usuwa dane aplikacji, sesje i powiązania użytkowników z Tink.
--- Konta testowe: seed_anna, seed_bartek, seed_celina, seed_dawid, postman.banking.
--- Wspólne hasło testowe: TestPassword1! (ASP.NET Core Identity PasswordHasher).
--- seed_dawid pozostaje nieaktywny; pozostałe konta są aktywne i potwierdzone.
--- Po resecie odtwórz TinkUserId komendą tink link-db z zachowanego manifestu.
--- Łączny reset SQL, świeżych danych Tink i mapowania: tools/scripts/reset_state.py reset.
--- Instrukcja i odzyskiwanie: tools/scripts/reset_state/README.md.
-
+-- Shared password for all seeded test accounts: TestPassword1!
 BEGIN;
 SET LOCAL timezone = 'UTC';
 
--- Pełne czyszczenie danych w jednej transakcji.
 TRUNCATE TABLE
     banking.bank_refresh_account,
     banking.bank_refresh,
@@ -28,9 +19,9 @@ TRUNCATE TABLE
     banking.bank_account,
     receipt.receipt,
     limits.category_group_limit,
-    notifications.notification;
+    notifications.notification,
+    notifications.notification_recipient;
 
--- Tożsamości lokalne; hasło podano wyżej, TinkUserId pozostaje NULL.
 WITH seed_users (id, login, name, surname, email, birth_date, is_active, is_email_confirmed) AS (
     VALUES
         ('10000000-0000-0000-0000-000000000001', 'seed_anna', 'Anna', 'Testowa', 'anna@example.test', DATE '1998-04-12', TRUE, TRUE),
@@ -46,7 +37,6 @@ SELECT id::uuid, login, name, surname,
     email, birth_date, CURRENT_TIMESTAMP - INTERVAL '30 days', is_active, is_email_confirmed
 FROM seed_users;
 
--- Grupy i członkostwa do testów podziału wydatków.
 INSERT INTO "grouping"."group" (_id, name, icon, weekly_limit, monthly_limit, year_limit) VALUES
     ('20000000-0000-0000-0000-000000000001', 'Dom', 'home', 1000.00, 4000.00, 48000.00),
     ('20000000-0000-0000-0000-000000000002', 'Wyjazd', 'suitcase', NULL, 1500.00, NULL);
@@ -57,14 +47,12 @@ INSERT INTO "grouping".group_member (fk_user_id, fk_group_id, is_admin) VALUES
     ('10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', TRUE),
     ('10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002', FALSE);
 
--- Kategorie i ich wygląd w interfejsie.
 INSERT INTO expense.category (_id, name, description, icon, color) VALUES
     ('30000000-0000-0000-0000-000000000001', 'Zakupy spozywcze', 'Produkty spozywcze do domu', 'shopping-cart', '#4CAF50'),
     ('30000000-0000-0000-0000-000000000002', 'Restauracje', 'Posilki poza domem', 'utensils', '#FF9800'),
     ('30000000-0000-0000-0000-000000000003', 'Transport', 'Bilety i przejazdy', 'bus', '#2196F3'),
     ('30000000-0000-0000-0000-000000000004', 'Mieszkanie', 'Czynsz i rachunki', 'home', '#9C27B0');
 
--- Syntetyczne rachunki i transakcje lokalne, niezależne od zdalnego Tink.
 INSERT INTO banking.bank_account
     (_id, fk_user_id, name, number, financial_institution_id, type, currency_code, iban, is_closed)
 VALUES
@@ -80,7 +68,6 @@ VALUES
     ('50000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000001', 45.00, 'Pending', 'Platnosc oczekujaca', CURRENT_DATE, 'PLN', 'seed-transaction-003'),
     ('50000000-0000-0000-0000-000000000004', '40000000-0000-0000-0000-000000000002', 30.00, 'Cancelled', 'Platnosc anulowana', CURRENT_DATE - 3, 'PLN', 'seed-transaction-004');
 
--- Przykładowy paragon, wydatki, pozycje i udziały uczestników.
 INSERT INTO receipt.receipt (_id, s3_link, extraction_result) VALUES
     ('60000000-0000-0000-0000-000000000001', 'https://example.test/receipts/seed-001.jpg',
      '{"merchant":"Sklep testowy","total":120.00,"currency":"PLN","items":[{"name":"Chleb","unit_price":10.00,"quantity":2},{"name":"Mleko","unit_price":5.00,"quantity":4},{"name":"Warzywa","unit_price":20.00,"quantity":4}]}'::jsonb);
@@ -114,7 +101,6 @@ INSERT INTO expense.expense_share (fk_expense_id, fk_user_id, percentage) VALUES
     ('70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 60.00),
     ('70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000002', 40.00);
 
--- Limity kategorii oraz powiadomienia.
 INSERT INTO limits.category_group_limit
     (fk_category_id, fk_group_id, weekly_limit, monthly_limit, year_limit)
 VALUES
@@ -123,14 +109,24 @@ VALUES
     ('30000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', NULL, 400.00, NULL),
     ('30000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002', NULL, 300.00, NULL);
 
-INSERT INTO notifications.notification (_id, fk_group_id, text, sent_at) VALUES
-    ('90000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Dodano wydatek: Zakupy do domu.', CURRENT_TIMESTAMP - INTERVAL '2 days'),
-    ('90000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', 'Dodano wydatek: Bilety na wyjazd.', CURRENT_TIMESTAMP - INTERVAL '1 day'),
-    ('90000000-0000-0000-0000-000000000003', NULL, 'Przykladowe powiadomienie ogolne.', CURRENT_TIMESTAMP);
+INSERT INTO notifications.notification
+    (_id, fk_group_id, type, title, text, created_at, fk_expense_id)
+VALUES
+    ('90000000-0000-0000-0000-000000000001', NULL, 1, 'Nowy wydatek', 'Dodano wydatek: Zakupy do domu.', CURRENT_TIMESTAMP - INTERVAL '2 days', '70000000-0000-0000-0000-000000000001'),
+    ('90000000-0000-0000-0000-000000000002', NULL, 1, 'Nowy wydatek', 'Dodano wydatek: Bilety na wyjazd.', CURRENT_TIMESTAMP - INTERVAL '1 day', '70000000-0000-0000-0000-000000000003'),
+    ('90000000-0000-0000-0000-000000000003', NULL, 0, 'Informacja', 'Przykladowe powiadomienie ogolne.', CURRENT_TIMESTAMP, NULL),
+    ('90000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', 4, 'Nowy czlonek grupy', 'Bartek dolaczyl do grupy Dom.', CURRENT_TIMESTAMP - INTERVAL '3 days', NULL);
+
+INSERT INTO notifications.notification_recipient (fk_notification_id, fk_user_id, read_at) VALUES
+    ('90000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', CURRENT_TIMESTAMP - INTERVAL '1 day'),
+    ('90000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', NULL),
+    ('90000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', NULL),
+    ('90000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000003', CURRENT_TIMESTAMP - INTERVAL '12 hours'),
+    ('90000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', NULL),
+    ('90000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', CURRENT_TIMESTAMP - INTERVAL '2 days');
 
 COMMIT;
 
--- Podsumowanie liczby rekordów po zatwierdzeniu resetu.
 SELECT 'user.user' AS "table", COUNT(*) AS row_count FROM "user"."user"
 UNION ALL SELECT 'user.user_token', COUNT(*) FROM "user".user_token
 UNION ALL SELECT 'grouping.group', COUNT(*) FROM "grouping"."group"
@@ -148,4 +144,5 @@ UNION ALL SELECT 'banking.bank_transaction', COUNT(*) FROM banking.bank_transact
 UNION ALL SELECT 'receipt.receipt', COUNT(*) FROM receipt.receipt
 UNION ALL SELECT 'limits.category_group_limit', COUNT(*) FROM limits.category_group_limit
 UNION ALL SELECT 'notifications.notification', COUNT(*) FROM notifications.notification
+UNION ALL SELECT 'notifications.notification_recipient', COUNT(*) FROM notifications.notification_recipient
 ORDER BY "table";

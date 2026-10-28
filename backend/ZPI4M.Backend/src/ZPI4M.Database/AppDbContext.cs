@@ -29,6 +29,11 @@ namespace ZPI4M.Database
 			NotificationsConfiguration.Configure(modelBuilder);
 			ReceiptConfiguration.Configure(modelBuilder);
 			UserConfiguration.Configure(modelBuilder);
+			modelBuilder.Entity<ZPI4M.Notifications.Models.Notification>()
+				.HasOne<ZPI4M.Expense.Models.Expense>().WithMany()
+				.HasForeignKey(e => e.FkExpenseId)
+				.OnDelete(DeleteBehavior.SetNull)
+				.HasConstraintName("c_notification_fk_expense_id");
 		}
 	}
 }

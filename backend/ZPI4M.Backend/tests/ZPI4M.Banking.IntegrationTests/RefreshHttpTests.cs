@@ -7,15 +7,15 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Xunit;
-using ZPI4M.Api.Services;
 using ZPI4M.Banking.ApiControllers;
 using ZPI4M.Banking.Database;
 using ZPI4M.Banking.Repositories;
 using ZPI4M.Banking.Services;
 using ZPI4M.Banking.Services.Refresh;
 using ZPI4M.Banking.Tink;
+using ZPI4M.Shared.CurrentUser;
 using ZPI4M.User.Database;
-using ZPI4M.User.Services;
+using ZPI4M.User.Services.BankingProfile;
 
 namespace ZPI4M.Banking.IntegrationTests;
 
@@ -34,7 +34,7 @@ public sealed partial class BankingHttpTests
 		builder.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, TestAuthentication>("Test", _ => { });
 		builder.Services.AddAuthorization();
 		builder.Services.AddHttpContextAccessor();
-		builder.Services.AddScoped<IBankingCurrentUser, HttpBankingCurrentUser>();
+		builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 		builder.Services.AddDbContext<BankingDbContext>(options => options.UseNpgsql(ConnectionString));
 		builder.Services.AddDbContext<UserDbContext>(options => options.UseNpgsql(ConnectionString));
 		builder.Services.AddSingleton<TimeProvider>(Clock);

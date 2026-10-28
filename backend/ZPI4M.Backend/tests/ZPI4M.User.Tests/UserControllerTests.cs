@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Xunit;
+using ZPI4M.Shared.CurrentUser;
 using ZPI4M.User.ApiControllers;
 using ZPI4M.User.DTOs.AccountDeactivation;
 using ZPI4M.User.DTOs.Authentication;
@@ -190,6 +191,8 @@ public sealed partial class UserControllerTests
 			if (configuration is not null)
 				builder.Configuration.AddInMemoryCollection(configuration);
 			builder.Services.AddUserRateLimiting(builder.Configuration);
+			builder.Services.AddHttpContextAccessor();
+			builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 			builder.Services.AddControllers().AddApplicationPart(typeof(UsersController).Assembly);
 			builder.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, TestAuthentication>("Test", _ => { });
 			builder.Services.AddAuthorization();

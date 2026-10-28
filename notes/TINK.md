@@ -137,7 +137,7 @@ dotnet test backend/ZPI4M.Backend/tests/ZPI4M.Banking.Tests/ZPI4M.Banking.Tests.
 dotnet test backend/ZPI4M.Backend/tests/ZPI4M.Banking.IntegrationTests/ZPI4M.Banking.IntegrationTests.csproj --configuration Release --no-build
 ```
 
-Dla testów integracyjnych ustaw `BANKING_TEST_POSTGRES` na connection string
+Dla testów integracyjnych ustaw `TEST_POSTGRES_CONNECTION_STRING` na connection string
 **odizolowanego serwera testowego**, którego użytkownik może tworzyć bazy.
 Fixture uruchamia SQL bazowy i migracje w nowej bazie `banking_tests_<guid>`,
 a następnie usuwa wyłącznie tę bazę. Nigdy nie wskazuj środowiska produkcyjnego.

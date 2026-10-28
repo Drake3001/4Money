@@ -8,6 +8,7 @@ using ZPI4M.Banking.DTOs;
 using ZPI4M.Banking.Services;
 using ZPI4M.Banking.Services.Contracts;
 using ZPI4M.Banking.Services.Reads;
+using ZPI4M.Shared.CurrentUser;
 using ZPI4M.Shared.Pagination;
 
 namespace ZPI4M.Banking.ApiControllers;
@@ -22,7 +23,7 @@ namespace ZPI4M.Banking.ApiControllers;
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
-public sealed class BankingReadController(IBankingReadService service, IBankingCurrentUser currentUser) : ControllerBase
+public sealed class BankingReadController(IBankingReadService service, ICurrentUser currentUser) : ControllerBase
 {
 	/// <summary>Lists the owner's local accounts, including closed and historical accounts unless filtered.</summary>
 	[HttpGet("accounts")]

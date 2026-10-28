@@ -1,12 +1,13 @@
 # Postman — 4Money i diagnostyka Tink
 
-Kolekcja User odpowiada obecnej implementacji modułu użytkownika.
+Kolekcje User i Notifications odpowiadają obecnej implementacji tych modułów.
 Kolekcje Banking i Tink obejmują połączenia bankowe oraz diagnostykę dostawcy;
 ich obecność nie potwierdza wykonania rzeczywistego przepływu Sandbox.
 
 | Kolekcja | Środowisko | Przeznaczenie |
 | --- | --- | --- |
 | `4Money.User.postman_collection.json` | `environments/4Money.Local.example.postman_environment.json` | Rejestracja, potwierdzenia e-maila, login/refresh/logout, profil, zmiana e-maila, reset hasła i dezaktywacja |
+| `4Money.Notifications.postman_collection.json` | `environments/4Money.Local.example.postman_environment.json` | Inbox z paginacją, wszystkie/nieodczytane/odczytane, oznaczanie jednego lub wszystkich jako odczytane |
 | `4Money.Banking.postman_collection.json` | `environments/4Money.Local.example.postman_environment.json` | Logowanie 4Money, rozpoczęcie próby, odczyt rezultatu, połączeń, zgód i błędy callbacku |
 | `Tink.Diagnostics.postman_collection.json` | `environments/Tink.Sandbox.example.postman_environment.json` | Token aplikacji, token użytkownika, zgody oraz osobne delegowanie Tink Link |
 
@@ -37,7 +38,7 @@ Jeśli wcześniej powiązano konto z Tink, po resecie odtwórz mapowanie przez
 `link-db` z zachowanego manifestu; opisuje to instrukcja CLI Connector.
 
 Wspólny szablon `environments/4Money.Local.example.postman_environment.json`
-zawiera zmienne User i Banking. Aktualizacja pliku w repozytorium nie aktualizuje
+zawiera zmienne User, Banking i Notifications. Aktualizacja pliku w repozytorium nie aktualizuje
 wcześniej zaimportowanego środowiska w aplikacji Postman; zaimportuj aktualny
 plik lub dodaj brakujące zmienne w wybranym środowisku.
 
@@ -85,6 +86,36 @@ Cooldown wysyłek
 na konto to domyślnie 60 s. Tokeny potwierdzenia i zmiany e-maila są ważne 24 h,
 resetu i dezaktywacji 30 min. `forgot-password` zwraca 202 również bez wysyłki
 (np. konto nieaktywne, cooldown lub awaria SMTP).
+
+## Moduł Notifications
+
+1. Zaimportuj kolekcję Notifications oraz aktualny szablon `4Money.Local`.
+   Jeśli używasz już lokalnego środowiska, dodaj `notificationPageNumber=1`,
+   `notificationPageSize=20` i puste `notificationId` bez nadpisywania swoich tokenów.
+2. Zaloguj się przez kolekcję User w tym samym środowisku. Notifications korzysta
+   z `baseUrl` i `fourMoneyAccessToken`; backend musi mieć zastosowaną migrację
+   `AddNotificationsAfterRebase`. Każde żądanie dotyczy użytkownika z JWT.
+3. Pobierz wszystkie, nieodczytane lub odczytane powiadomienia. Zmieniaj numer
+   strony i rozmiar (1–100); sortowanie jest zawsze od najnowszych. Pusta lista
+   jest poprawnym wynikiem. Samo pobranie nie oznacza odczytu.
+4. Skopiuj wybrane `id` z `items` do lokalnego `notificationId` i wyślij oznaczenie
+   pojedynczego powiadomienia. Zwraca 204 również przy ponowieniu, bez zmiany
+   pierwszej daty odczytu. Cudze lub nieistniejące ID zwraca 404 ProblemDetails.
+5. Oznaczenie wszystkich zmienia cały inbox konta, również poza widoczną stroną.
+   Wyślij je ręcznie na koncie testowym. Każde żądanie zatrzymuje Runner,
+   więc uruchomienie całej kolekcji nie wykonuje automatycznie kolejnych operacji.
+
+Kolekcja sprawdza statusy sukcesu, paginację, DTO i filtr odczytu. Brak tokenu,
+niepoprawna paginacja lub brak poprawnego UUID dla pojedynczej aktualizacji
+pomijają żądanie. Oczekiwane błędy 401/404 podczas prób negatywnych dadzą czerwony
+test sukcesu; sprawdź wtedy ProblemDetails. Nie ma publicznego endpointu NotifyAsync;
+do niepustego inboxa potrzebne są wpisy odbiorców z lokalnego seeda albo
+wewnętrznego wywołania serwisu. Samo utworzenie konta nie generuje powiadomień.
+Aktualny seed ustawia wspólne hasło testowe `TestPassword1!` dla kont seedowych.
+Do logowania użyj `seed_anna`, `seed_bartek` lub `seed_celina`; `seed_dawid` jest
+celowo nieaktywny. W środowisku User ustaw odpowiednio userLogin i userPassword.
+Zmiana pliku seed nie aktualizuje istniejącej bazy. Nie uruchamiaj go wyłącznie
+w celu zmiany hasła: zawiera TRUNCATE i usuwa dotychczasowe dane.
 
 ## Banking i diagnostyka Tink
 

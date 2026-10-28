@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ZPI4M.User\ZPI4M.User.csproj" />
+    <ProjectReference Include="..\..\ZPI4M.Shared\ZPI4M.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

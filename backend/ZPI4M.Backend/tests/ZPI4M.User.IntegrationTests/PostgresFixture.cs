@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Npgsql;
 using Xunit;
 using ZPI4M.Database;
+using ZPI4M.Shared.CurrentUser;
 using ZPI4M.User.ApiControllers;
 using ZPI4M.User.Database;
 using ZPI4M.User.Integrations.Smtp;
@@ -29,9 +30,9 @@ public sealed class PostgresFactAttribute : FactAttribute
 {
 	public PostgresFactAttribute()
 	{
-		if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("USER_TEST_POSTGRES")) &&
+		if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("TEST_POSTGRES_CONNECTION_STRING")) &&
 			!string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase))
-			Skip = "Set USER_TEST_POSTGRES to a disposable PostgreSQL server; each test creates and drops its own database.";
+			Skip = "Set TEST_POSTGRES_CONNECTION_STRING to a disposable PostgreSQL server; each test creates and drops its own database.";
 	}
 }
 
@@ -55,9 +56,9 @@ public abstract class PostgresFixture : IAsyncLifetime
 
 	public async Task InitializeAsync()
 	{
-		_maintenance = Environment.GetEnvironmentVariable("USER_TEST_POSTGRES");
+		_maintenance = Environment.GetEnvironmentVariable("TEST_POSTGRES_CONNECTION_STRING");
 		if (string.IsNullOrWhiteSpace(_maintenance))
-			throw new InvalidOperationException("USER_TEST_POSTGRES is required in CI. Integration tests must not silently skip.");
+			throw new InvalidOperationException("TEST_POSTGRES_CONNECTION_STRING is required in CI. Integration tests must not silently skip.");
 		await using var admin = new NpgsqlConnection(_maintenance);
 		await admin.OpenAsync();
 		await using (var command = new NpgsqlCommand($"CREATE DATABASE {_databaseName}", admin))
@@ -114,6 +115,8 @@ public abstract class PostgresFixture : IAsyncLifetime
 		{
 			["UserAuthentication:SigningKey"] = "integration-test-signing-key-at-least-32-bytes"
 		});
+		builder.Services.AddHttpContextAccessor();
+		builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 		builder.Services.AddControllers().AddApplicationPart(typeof(UsersController).Assembly);
 		builder.Services.AddUserAuthentication(builder.Configuration);
 		builder.Services.AddDbContext<UserDbContext>(options => options.UseNpgsql(ConnectionString));

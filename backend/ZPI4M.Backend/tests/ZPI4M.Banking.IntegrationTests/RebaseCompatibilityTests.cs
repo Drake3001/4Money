@@ -5,8 +5,8 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Xunit;
-using ZPI4M.Api.Services;
 using ZPI4M.Database;
+using ZPI4M.Shared.CurrentUser;
 
 namespace ZPI4M.Banking.IntegrationTests;
 
@@ -22,7 +22,7 @@ public sealed class RebaseCompatibilityTests
 		{
 			User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(claimType, userId.ToString())], "Test"))
 		};
-		var currentUser = new HttpBankingCurrentUser(new HttpContextAccessor { HttpContext = context });
+		var currentUser = new HttpCurrentUser(new HttpContextAccessor { HttpContext = context });
 
 		Assert.Equal(userId, currentUser.UserId);
 	}
@@ -34,7 +34,7 @@ public sealed class RebaseCompatibilityTests
 		{
 			User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", Guid.NewGuid().ToString())]))
 		};
-		var currentUser = new HttpBankingCurrentUser(new HttpContextAccessor { HttpContext = context });
+		var currentUser = new HttpCurrentUser(new HttpContextAccessor { HttpContext = context });
 
 		Assert.Null(currentUser.UserId);
 	}

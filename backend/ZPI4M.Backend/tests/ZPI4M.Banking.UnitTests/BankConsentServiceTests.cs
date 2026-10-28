@@ -8,7 +8,7 @@ using ZPI4M.Banking.Services.Contracts;
 using ZPI4M.Banking.Tink;
 using ZPI4M.Banking.Tink.Configuration;
 using ZPI4M.Banking.Tink.Http;
-using ZPI4M.User.Services;
+using ZPI4M.User.Services.BankingProfile;
 
 namespace ZPI4M.Banking.UnitTests;
 

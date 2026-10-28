@@ -1,6 +1,6 @@
 using ZPI4M.Banking.Models;
 using ZPI4M.Banking.Repositories;
-using ZPI4M.User.Services;
+using ZPI4M.User.Services.BankingProfile;
 
 namespace ZPI4M.Banking.Services.Refresh;
 

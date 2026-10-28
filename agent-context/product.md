@@ -6,7 +6,10 @@ kategoryzacją i integracjami. Stan wykonania opisuje [status](implementation-st
 Zakres porównano z tekstami i roadmapą w lokalnym `ZPI/doc` dnia 2026-10-21.
 Tekstowe źródła wymagań, w tym aktualne `Funkcjonalności.txt`, ponownie
 sprawdzono dnia 2026-10-23, uwzględniając aktualizację `Baza danych.txt`
-o dezaktywację konta. Roadmapa i diagramy zachowują datę wcześniejszego przeglądu.
+o dezaktywację konta. `Funkcjonalności.txt` i `Baza danych.txt` ponownie sprawdzono 2026-10-27;
+poniższy zakres uwzględnia aktualne oznaczenia MVP i rozszerzenia.
+Diagramy architektury, modelu konceptualnego, logicznego i podziału encji
+ponownie sprawdzono 2026-10-27. Roadmapa zachowuje datę wcześniejszego przeglądu.
 Katalog ten znajduje się poza repozytorium, pod `../doc` względem jego katalogu
 głównego; poniższe odnośniki są względne względem plików w `agent-context`.
 
@@ -31,23 +34,32 @@ z paragonami, bankowością i udziałami użytkowników stanowi wyróżnik produ
 6. System aktualizuje wykorzystanie limitów, raporty i salda zobowiązań.
 
 To scenariusz docelowy, a nie opis obecnego przepływu działającego end-to-end.
+Automatyczne dopasowanie paragonu do transakcji (kroki 3–4) jest obecnie
+rozszerzeniem poza MVP.
 
-## Zakres MVP
+## Zakres funkcjonalny i MVP
 
-| Obszar | Wymagana możliwość |
-| --- | --- |
-| Konto | Rejestracja, logowanie, wylogowanie, edycja danych i danych uwierzytelniających |
-| Wydatki | Ręczne dodawanie, historia, edycja, kategorie i wspólny model różnych źródeł |
-| Paragony | Zdjęcie w aplikacji mobilnej, upload zdjęcia lub zrzutu ekranu, OCR pozycji i ręczna korekta |
-| Kategoryzacja | Automatyczne propozycje dla wydatków i produktów z możliwością zmiany |
-| Bankowość | Automatyczny import transakcji; dopuszczalny dostawca API, sandbox lub symulator |
-| Dopasowanie | Propozycja powiązania paragonu z transakcją, zatwierdzana lub odrzucana przez użytkownika |
-| Limity | Definiowanie limitów, powiązanie z kategoriami, alerty przed przekroczeniem i po nim |
-| Grupy | Tworzenie, zaproszenia, wiele członkostw, przypisanie wydatku i powiadomienie członków |
-| Podział kosztów | Wskazanie uczestników całego wydatku, obliczenie udziałów i prezentacja wzajemnych zobowiązań |
-| Raporty | Wydatki w czasie, kategorie, wykorzystanie limitów, struktura zakupów, finanse osobiste i grupowe |
+Sekcja 2 `Funkcjonalności.txt` nazywa się obecnie „Zakres funkcjonalny”.
+Tylko podsekcje oznaczone `(MVP)` traktuj jako jawnie wskazany zakres MVP.
 
-MVP obejmuje podział na poziomie całego wydatku (sekcje 1.9 i 2.9
+| Obszar | Wymagana możliwość | Oznaczenie w źródle |
+| --- | --- | --- |
+| Konto | Rejestracja, logowanie, wylogowanie, edycja danych i danych uwierzytelniających | 2.1, MVP |
+| Wydatki | Ręczne dodawanie, historia, edycja, kategorie i wspólny model różnych źródeł | 2.2, MVP |
+| Paragony | Zdjęcie w aplikacji mobilnej, upload zdjęcia lub zrzutu ekranu, OCR pozycji i ręczna korekta | 2.3, MVP |
+| Kategoryzacja | Automatyczne propozycje dla wydatków i produktów z możliwością zmiany | 2.4, MVP |
+| Bankowość | Automatyczny import transakcji; dopuszczalny dostawca API, sandbox lub symulator | 2.5, MVP |
+| Limity | Definiowanie limitów, powiązanie z kategoriami, alerty przed przekroczeniem i po nim | 2.6, bez oznaczenia MVP |
+| Grupy | Tworzenie, zaproszenia, wiele członkostw, przypisanie wydatku i powiadomienie członków o dodaniu wydatku | 2.7, MVP |
+| Podział kosztów | Wskazanie uczestników całego wydatku, obliczenie udziałów i prezentacja wzajemnych zobowiązań | 2.8, MVP |
+| Raporty | Wydatki w czasie, kategorie, wykorzystanie limitów, struktura zakupów, finanse osobiste i grupowe | 2.9, bez oznaczenia MVP |
+| Powiadomienia | Wewnętrzna skrzynka powiadomień dotyczących konta użytkownika | 2.10, MVP |
+
+Limity i raportowanie pozostają w zakresie funkcjonalnym; brak oznaczenia MVP
+nie oznacza usunięcia ich z projektu. Automatyczne dopasowanie przeniesiono
+do sekcji 3, mimo pozostawienia historyjki użytkownika 1.6.
+
+MVP obejmuje podział na poziomie całego wydatku (sekcje 1.9 i 2.8
 `Funkcjonalności.txt`). Przypisywanie uczestników do poszczególnych produktów
 w ramach jednego wydatku jest rozszerzeniem poza MVP (sekcja 3).
 Odczyt pozycji paragonu i kategoryzacja produktów nadal należą do MVP;
@@ -77,21 +89,45 @@ Wysyłanie wiadomości odbywa się przez konfigurowalny adapter SMTP. Serwer mo�
 należeć do zewnętrznego dostawcy, np. o2, albo być utrzymywany samodzielnie.
 Nie zapisuj danych skrzynki w kodzie ani Git.
 E-mail jest wymagany i unikalny; reset przez e-mail wymaga potwierdzonego adresu.
-Nie planujemy historii powiadomień grupowych ani oznaczania ich jako przeczytane.
 Te ustalenia uzupełniają dokumentację funkcjonalną; sama obecność wymagania
 nie oznacza realizacji całego przepływu ani potwierdzonego wdrożenia.
+
+## Powiadomienia
+
+`Funkcjonalności.txt` wymaga powiadomienia członków grupy o dodaniu wydatku
+(2.7, MVP) oraz alertów o zbliżaniu się do limitu i przekroczeniu limitu
+(2.6, bez oznaczenia MVP). Nie określa progów ani częstotliwości alertów.
+Wewnętrzna skrzynka jest wprost wymagana w 2.10 (MVP). Push zamiast samej
+skrzynki oraz interaktywny push po wykryciu transakcji bankowej, z opcją „tak”
+dodającą wydatek, są rozszerzeniami z sekcji 3; nie należą do bieżącego zakresu.
+
+Aktualny zakres uzgodniony z użytkownikiem to inbox w aplikacji webowej
+i mobilnej, ze stanem odczytu per użytkownik. Push odłożono do rozszerzeń;
+nie planuj teraz tokenów urządzeń, integracji dostawcy ani kolejki wysyłki.
+`Baza danych.txt` opisuje już NotificationRecipient z read_at oraz nowe pola
+Notification. Dołączanie do grupy ma odbywać się kodem lub linkiem; uzgodniony
+typ GroupMemberJoined informuje o dołączeniu, a nie stanowi zaproszenia push.
+Serwis NotifyAsync i API inboxa (lista, odczyt pojedynczy i zbiorczy) są już
+w kodzie. Nie są jeszcze podłączone przepływy generujące powiadomienia
+w Grouping/Limits ani aplikacje klienckie; szczegóły opisuje status implementacji.
 
 ## Rozszerzenia i wyłączenia
 
 Rozszerzenia poza MVP, zgodnie z sekcją 3 `Funkcjonalności.txt`:
 
+- automatyczne dopasowanie transakcji bankowej do paragonu;
+- powiadomienia push zamiast jedynie wewnętrznej skrzynki w aplikacji;
+- wykrywanie transakcji bankowej i interaktywny push z pytaniem o dodanie wydatku
+  (odpowiedź „tak” dodaje wydatek);
 - przypisywanie uczestników do poszczególnych produktów w ramach jednego wydatku;
 - przekierowanie do widoku przelewu bankowego z poziomu podziału wydatków;
 - integracje z systemami e-paragonów;
 - wdrożenie MCP.
 
-Prognoza występuje w słowniku pojęć, ale nie stanowi przez to automatycznie
-wymagania MVP.
+Aktualny `Słownik pojęć.txt` (sprawdzony 2026-10-27) nie zawiera już pojęcia
+prognozy. Prognozowanie wydatków nie jest wymienione w obecnym zakresie
+funkcjonalnym ani rozszerzeniach; raportowanie trendów i alerty limitów
+nie oznaczają wymagania przewidywania przyszłych wydatków.
 
 Poza zakresem projektu są wykonywanie przelewów między użytkownikami,
 przechowywanie środków, obsługa kart płatniczych, zastępowanie aplikacji bankowej

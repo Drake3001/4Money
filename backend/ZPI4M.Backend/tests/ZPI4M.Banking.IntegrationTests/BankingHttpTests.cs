@@ -9,10 +9,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Xunit;
-using ZPI4M.Api.Services;
 using ZPI4M.Banking.ApiControllers;
 using ZPI4M.Banking.Services;
 using ZPI4M.Banking.Services.Connections;
+using ZPI4M.Shared.CurrentUser;
 
 namespace ZPI4M.Banking.IntegrationTests;
 
@@ -25,12 +25,11 @@ public sealed partial class BankingHttpTests : PostgresFixture
 		var builder = WebApplication.CreateBuilder();
 		builder.WebHost.UseTestServer();
 		builder.Logging.ClearProviders();
-		builder.Services.AddControllers().AddApplicationPart(typeof(BankingController).Assembly)
-		 .AddApplicationPart(typeof(HttpBankingCurrentUser).Assembly);
+		builder.Services.AddControllers().AddApplicationPart(typeof(BankingController).Assembly);
 		builder.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, TestAuthentication>("Test", _ => { });
 		builder.Services.AddAuthorization();
 		builder.Services.AddHttpContextAccessor();
-		builder.Services.AddScoped<IBankingCurrentUser, HttpBankingCurrentUser>();
+		builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 		builder.Services.AddScoped(_ => OpenSession());
 		builder.Services.AddScoped<IBankingConnectionService>(provider => provider.GetRequiredService<Session>().Service);
 		builder.Services.AddScoped<IBankingCallbackService>(provider => provider.GetRequiredService<Session>().Service);

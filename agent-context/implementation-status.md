@@ -1,21 +1,60 @@
 # Stan implementacji i kwestie otwarte
 
-Kod po rebase zweryfikowano: **2026-10-24**, na podstawie aktualnego kodu, solucji, migracji,
-workflow i tekstów w lokalnym `ZPI/doc` (`../doc` względem katalogu głównego
-repozytorium), z uwzględnieniem aktualizacji `Baza danych.txt` o purpose 5.
-Wcześniejszy przegląd diagramów zachowuje datę 2026-10-21.
-Źródła produktowe zachowują datę przeglądu 2026-10-23. Obecność kodu nie
-potwierdza zastosowania migracji ani wdrożenia; wyniki kontroli podano niżej.
-Weryfikacja po regeneracji migracji (2026-10-24): kompilacja oraz wszystkie
-zestawy testów zaliczone — 223 testy .NET oraz 45 testów Pythona, bez pominięć,
-w tym 18 w projekcie Banking IntegrationTests i 31 w User IntegrationTests. Testy tworzyły własne tymczasowe
-bazy PostgreSQL, stosowały SQL init i pełny łańcuch migracji. Potwierdzono także
-cofnięcie i ponowne zastosowanie ostatniej migracji Banking, zgodność jej
-Designera i snapshotu z modelem oraz brak pending model changes. Wygenerowano
-idempotentny SQL. Nie zmieniano lokalnej bazy projektu ani nie wykonywano
-przepływu Tink Sandbox. Testy adaptera Tink wykorzystują atrapy dostawcy.
+Stan kodu po rebase i zmianach po review sprawdzono statycznie **2026-10-28** na podstawie modeli,
+repozytoriów, serwisów, kontrolerów, solucji, migracji, seeda i workflow.
+Banking i Notifications współistnieją w bieżącej gałęzi. Ostatnie migracje to
+`20261026215244_AddBanking` i `20261027172612_AddNotificationsAfterRebase`;
+stara `AddNotificationRecipient` została zastąpiona, a snapshot zawiera oba moduły.
+To sprawdzenie dokumentacji nie uruchamia testów, migracji ani resetu bazy.
+Zastosowanie aktualnego łańcucha na bazie użytkownika pozostaje do potwierdzenia.
 
 Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
+
+Zakres wymagań ponownie porównano z `Funkcjonalności.txt`, `Baza danych.txt`,
+`Architektura systemu.txt` oraz zaktualizowanymi diagramami 2026-10-27;
+nie jest to nowa weryfikacja implementacji całego backendu. Aktualne oznaczenia
+MVP i rozszerzenia opisuje [produkt](product.md#zakres-funkcjonalny-i-mvp).
+
+Solucja ma obecnie dziewięć projektów testowych: po trzy User, Banking
+i Notifications. Historyczne wyniki z poprzednich rewizji: 152 testy .NET
+(User + Notifications, w tym 45 Notifications, PostgreSQL 17.6) oraz opisane
+w kontekście Banking 223 testy .NET i 45 testów Pythona dla ówczesnego zakresu.
+Nie sumuj tych wyników ani nie przedstawiaj ich jako przebiegu aktualnej solucji
+po rebase, zmianie migracji i seeda. Aktualny zestaw wymaga ponownego uruchomienia.
+CI dostarcza PostgreSQL 15 i jedną zmienną TEST_POSTGRES_CONNECTION_STRING
+dla wszystkich trzech modułów. Ostatnie częściowe przebiegi opisano poniżej;
+nie zastępują pełnego uruchomienia solucji z PostgreSQL.
+
+## Zmiany po review — 2026-10-28
+
+- NotifyAsync zwraca Guid? i tworzy powiadomienie tylko dla aktywnych ID
+  otrzymanych z IUserLookupService.GetActiveUserIdsAsync. Jedno zapytanie User
+  pobiera same ID bez śledzenia encji; Notifications nie zależy od IUserRepository.
+  Konta nieaktywne i nieistniejące są pomijane. Pusta lista lub brak aktywnych
+  odbiorców daje null bez dodania encji i SaveChangesAsync; Guid.Empty nadal
+  jest błędem walidacji. Nie powstaje puste powiadomienie bez odbiorców.
+- Expense, Grouping i Notifications współdzielą scoped połączenie w Program.cs.
+  Nie ma jeszcze koordynatora biznesowego ani testów wspólnej transakcji:
+  samo współdzielenie połączenia nie zapewnia atomowości między modułami.
+- ICurrentUser i HttpCurrentUser są w Shared/CurrentUser. Kontrolery Banking,
+  User i Notifications korzystają z tego kontraktu, a nie z własnego odczytu sub.
+  Stare typy IBankingCurrentUser i HttpBankingCurrentUser usunięto. Niepoprawne ID
+  daje 401; dotychczasowa walidacja JWT i sesji pozostaje w User.
+- Serwisy User Lookup/BankingProfile i Notifications są w osobnych folderach
+  z interfejsami. Szablon API .env.example zawiera SMTP i nazwy wielkimi literami;
+  lokalnego .env nie zmieniano w ramach tych prac.
+- Ujednolicono konfigurację testów bazy do TEST_POSTGRES_CONNECTION_STRING,
+  usuwając zmienne modułowe i fallback Notifications. Wszystkie moduły pomijają
+  testy bazy bez konfiguracji lokalnie, a w CI brak zmiennej kończy się błędem.
+
+Weryfikacja podczas implementacji tych zmian: build całej solucji bez błędów
+i ostrzeżeń; testy HTTP User 64/64, Banking 66/66, Notifications 19/19 po zmianie
+CurrentUser. Wcześniej przy zmianie odbiorców przeszło 17/17 testów jednostkowych
+Notifications. Przebieg projektu Banking.IntegrationTests po zmianie CurrentUser
+zaliczył 16 testów niewymagających bazy i pominął 28 PostgreSQL. Projekty User
+i Notifications również pomijały testy bazy z powodu braku konfiguracji.
+Nie potwierdzono pełnego przebiegu testów z PostgreSQL po tych zmianach.
+Aktualizacja dokumentacji sama nie uruchamiała nowych testów ani operacji na bazie.
 
 ## Potwierdzony stan
 
@@ -24,16 +63,16 @@ Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 | Backend | Solucja .NET 10, host API, projekty ośmiu modułów i Shared | Struktura projektu nie potwierdza realizacji MVP |
 | Baza | Modele i konfiguracje Banking, Expense, Grouping, Limits, Notifications, Receipt i User; wspólny AppDbContext i migracje | Obecność migracji nie potwierdza ich zastosowania na każdej bazie |
 | Expense | Modele wydatku, pozycji, kategorii i udziałów; repozytorium udziałów; osobne unikalne indeksy FK paragonu i transakcji w konfiguracji, snapshocie i migracji AddUniqueExpenseSourceReferences | Brak kontrolera i serwisów tworzenia, edycji oraz dopasowania wydatków |
-| Repozytoria | Banking, Grouping, User, UserToken, ExpenseShare i Notification | BankingConnectionRepository sam zapisuje próby i połączenia; podstawowe repozytoria pozostawiają SaveChangesAsync serwisowi; warunkowe UPDATE/DELETE wykonują się od razu; brak kompletnego API wszystkich encji |
+| Repozytoria | Banking, Grouping, User, UserToken, ExpenseShare, Notification i NotificationRecipient | BankingConnectionRepository sam zapisuje próby i połączenia; podstawowe repozytoria pozostawiają SaveChangesAsync serwisowi; warunkowe UPDATE/DELETE wykonują się od razu; brak kompletnego API wszystkich encji |
 | User | Rejestracja, potwierdzenie i ponowna wysyłka e-maila; login z JWT i hashowanym refresh tokenem, rotacja refresh, logout; jedna sesja na konto i weryfikacja jej aktualności przy uwierzytelnieniu; limity IP; GET/PUT api/users/profile; zmiana e-maila z aktualnym hasłem i potwierdzeniem tokenem; forgot-password/reset-password z unieważnieniem sesji; dezaktywacja po potwierdzeniu e-mailem z usunięciem wszystkich tokenów; login nieaktywnego konta po poprawnym haśle zwraca 403; wspólny IEmailSender/SmtpEmailSender i UserEmailMessages | Brak strony potwierdzenia/resetu, zmiany hasła po podaniu aktualnego hasła; konfiguracja JWT wymaga klucza w środowisku; istnieją projekty testów jednostkowych, HTTP i PostgreSQL; brak potwierdzenia dostarczenia wiadomości do rzeczywistej skrzynki |
 | Banking | Próby/połączenia, adapter Tink, callback, odczyt zgód oraz refresh on demand przez trwały worker PostgreSQL, import kont i BOOKED per rachunek; IBankingReadService oraz HTTP GET list/szczegółów rachunków i transakcji | Nowy import wymaga osobnego potwierdzenia Sandbox i zastosowania migracji AddBanking do właściwej bazy; brak odłączania banku i odnawiania zgód |
 | Receipt / OCR | Model paragonu i konfiguracja EF | Brak pipeline'u OCR, uploadu oraz potwierdzonej integracji magazynu obrazów |
 | Kategoryzacja | Model kategorii | Brak implementacji modelu klasyfikującego i wyników ewaluacji |
 | Limits | Model limitu kategorii i pól limitów grupy | Brak potwierdzonego przepływu alertów i kontroli budżetów |
-| Notifications | Notification, NotificationsDbContext, NotificationsConfiguration, repozytorium Add/GetByIdAsync i DI; konfiguracja uwzględniona w AppDbContext | Brak serwisu wysyłki; nie planujemy historii, paginacji, Update ani Remove |
+| Notifications | Modele, AddNotificationsAfterRebase i snapshot; osobne repozytoria treści i odbiorców; NotifyAsync, GetByUserAsync, MarkAsReadAsync, MarkAllAsReadAsync; DTO; GET /api/notifications, PUT /api/notifications/{id}/read i PUT /api/notifications/read-all; Postman; trzy projekty testów | ID użytkownika dostarcza wspólny ICurrentUser; lista ma paginację i filtr isRead, stałe sortowanie od najnowszych; odczyt zachowuje pierwszą datę. NotifyAsync pomija nieaktywne konta, zwraca null bez odbiorców. Brak podłączenia Grouping/Limits i klientów. Push poza zakresem. Testy jednostkowe i HTTP przeszły częściowo zgodnie z opisem powyżej; pełny przebieg PostgreSQL po review niepotwierdzony |
 | Reports | Projekt modułu | Brak usług raportowania |
 | Web / mobile | Założenia w dokumentacji | Brak projektów aplikacji klienckich w repozytorium |
-| Narzędzia | Hooki, testy hooków, workflow backendu z wykrywaniem zestawów unit/integration | Solucja zawiera sześć projektów testowych; testy PostgreSQL wymagają konfiguracji; CI ustawia ją dla User, ale nie dla Banking |
+| Narzędzia | Hooki, testy hooków, workflow backendu z PostgreSQL i wykrywaniem UnitTests/Tests/IntegrationTests; dziewięć projektów w solucji | Od 2026-10-28 CI ustawia wspólną zmienną TEST_POSTGRES_CONNECTION_STRING dla wszystkich modułów. Runner wybiera tylko śledzone projekty; „not configured” nie oznacza wykonania testów |
 | Infrastruktura | Compose PostgreSQL i Terraform Proxmox z workflow | Brak potwierdzenia uruchomienia infrastruktury i wdrożenia 4M; AWS pozostaje planem |
 
 Źródła: [solucja](../backend/ZPI4M.Backend/ZPI4M.Backend.slnx),
@@ -130,7 +169,7 @@ proces. Starsze rachunki bez mapowania Tink pozostają bez automatycznego scalan
 Kontrakt, konfigurację i ograniczenia opisuje
 [README Banking](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#refresh-on-demand).
 Kolekcja Banking zawiera folder 40 do zlecania i automatycznej walidacji wyniku.
-CI przekazuje `BANKING_TEST_POSTGRES`, aby nie pomijać testów PostgreSQL.
+CI przekazuje `TEST_POSTGRES_CONNECTION_STRING`, aby nie pomijać testów PostgreSQL.
 Lokalna weryfikacja obejmuje adapter przez rzeczywisty HTTP do atrapy na loopback,
 migrację i worker na izolowanym PostgreSQL; nie potwierdza wykonania nowego
 refreshu na rzeczywistym Tink. Migracja nie pozostaje zastosowana do bazy deweloperskiej.
@@ -288,11 +327,18 @@ atrapy Tink: pełny reset, wiele mapowań, świeże ID, rollback SQL, wznowienia
 utrata checkpointów, blokady i zgodność środowiska. Nie wykonano resetu bazy
 deweloperskiej ani nowego runu z rzeczywistym Tink.
 
+Notifications udostępnia również `MarkAllAsReadAsync` w repozytorium i serwisie
+oraz `PUT /api/notifications/read-all`: oznacza wszystkie nieodczytane wpisy
+odbiorcy z JWT, bez ograniczenia do bieżącej strony. Jeden warunkowy UPDATE
+zachowuje wcześniejsze daty; 204 także dla pustego inboxa i przy ponowieniu.
+Operację obejmują testy jednostkowe, HTTP i PostgreSQL (również równoległy
+odczyt pojedynczy/zbiorczy, zachowanie wcześniejszych dat i izolacja użytkowników).
+
 ## Rozbieżności istotne podczas pracy
 
 | Rozbieżność | Znaczenie dla agenta |
 | --- | --- |
-| CI wybiera `.UnitTests.csproj`, `.Tests.csproj` i `.IntegrationTests.csproj`; BANKING_TEST_POSTGRES nie jest ustawione w workflow | Pominięte testy PostgreSQL Banking nie potwierdzają działania persystencji |
+| CI wybiera tylko śledzone `.UnitTests.csproj`, `.Tests.csproj` i `.IntegrationTests.csproj` | Dodanie projektu do solucji nie zastępuje dodania plików do commita. Konfiguracja CI obejmuje już User, Banking i Notifications |
 | SQL inicjalizacyjny tworzy `grouping.expense_share`; obecny model mapuje `expense.expense_share` | Zastosuj istniejącą migrację przenoszącą tabelę; nie traktuj SQL jako końcowego stanu modelu |
 | Pierwsza migracja ma puste Up/Down | Zakłada bazę zainicjalizowaną SQL-em; sam `database update` nie tworzy pełnego schematu od zera |
 | SQL init ma stare pola refresh tokenu, nie zawiera UserToken i używa timestampów bez strefy | Migracje AddUserTokenTable i TimestampTypeChanges rozwijają stan bazowy; nie aktualizuj historycznego SQL init przy zwykłej zmianie modelu |
@@ -303,6 +349,9 @@ deweloperskiej ani nowego runu z rzeczywistym Tink.
 | Produkt obejmuje finanse osobiste, ale Expense wymaga grupy | Sposób reprezentowania osobistej przestrzeni wymaga ustalenia |
 | ExpenseItem ma opcjonalny FkUserId, ale Funkcjonalności.txt (sekcja 3) umieszczają przypisywanie uczestników do produktów poza MVP | MVP obejmuje podział całego wydatku; obecność pola w modelu nie oznacza gotowej funkcji ani obowiązku realizacji rozszerzenia |
 | Dokumentacja stosu wymienia Swagger, mobile i Python OCR | Nie oznacza obecności UI Swagger ani tych aplikacji w kodzie |
+| Baza danych.txt i diagram logiczny Receipt używają unikalnego storage_key, kod nadal S3Link/s3_link | Wymagane osobne dostosowanie modelu, konfiguracji i migracji; nie traktuj opisu jako wykonanej zmiany |
+| AddNotificationsAfterRebase zastępuje starą AddNotificationRecipient; baza sprzed rebase mogła już mieć jej kolumny i tabele | Nie stosuj ponownie tych samych zmian bez sprawdzenia schematu i historii. Seed nie naprawia tego konfliktu; odtworzenie lokalnej bazy usuwa dane i wymaga zgody |
+| Uzgodniono pojedynczy cel: wydatek albo grupa; NotifyAsync i aktualny seed stosują tę regułę, EF nie ma CHECK wyłączności | Walidacja serwisu nie jest ograniczeniem bazy; bezpośredni zapis SQL może nadal podać oba FK |
 
 Źródła: [pomocnik CI](../tools/ci/backend_checks.sh),
 [SQL bazowy](../database/init/02-tables.sql),
@@ -316,9 +365,14 @@ Aktualny diagram logiczny i opis bazy używają `birth_date`, zgodnie z mapowani
 
 ## Otwarte ustalenia
 
-- Wariant mobile: Capacitor czy React Native.
+- Zakres funkcjonalny: inbox jest wprost w 2.10 (MVP), powiadomienie grupy o dodaniu wydatku w 2.7 (MVP); limity (2.6) i raportowanie (2.9) nie mają oznaczenia MVP. Automatyczne dopasowanie, zwykły push oraz interaktywny push bankowy są rozszerzeniami (sekcja 3).
+- Powiadomienia: inbox web/mobile i jego testy są gotowe w backendzie, bez infrastruktury push. Pozostaje integracja modułów źródłowych i klientów. Planowany przepływ Expense → Grouping → Notifications → User nie jest jeszcze podłączony. Od 2026-10-28 Program.cs konfiguruje wspólne scoped połączenie dla Expense, Grouping i Notifications. NotifyAsync nadal zapisuje własny kontekst; atomowość między modułami wymaga jawnego dołączenia kontekstów do transakcji i końcowego commitu przez przyszły serwis koordynujący. Koordynacja, jej testy oraz deduplikacja ponawianych wywołań nie są jeszcze zaimplementowane.
+
+- Mobile: uzgodniono React + Capacitor; plik Stos technologiczny.txt nadal zawiera alternatywę React Native i wymaga ujednolicenia z tą decyzją.
 - Zmiana hasła po podaniu aktualnego hasła oraz uprawnienia między modułami. Dezaktywacja jest już zaimplementowana; reaktywacji i fizycznego usuwania konta nie ma. Uwierzytelnianie używa JWT (`sub` = ID użytkownika, `sid` = ID sesji) i rotowanego refresh tokenu; szczegóły w development.md.
 - Zaplanowanie kontraktu i adaptera oddzielających Banking od User; do tego czasu zachowano istniejącą implementację i mapowanie User w Banking.
+
+- Testy User i Notifications są obecnie w solucji; używają jawnie skonfigurowanych hostów TestServer. Dane połączenia do jednorazowego serwera przekazuj przez TEST_POSTGRES_CONNECTION_STRING, zgodnie z tests/README.md.
 - Konfiguracja skrzynki SMTP; adapter jest zaimplementowany, wybór serwera i faktyczne dostarczenie wiadomości nie są jeszcze potwierdzone.
 - Dostawca lub symulator importu bankowego i szczegóły integracji.
 - Usługa OCR, magazyn obrazów, kontrakt kategoryzacji i sposób pomiaru jakości.

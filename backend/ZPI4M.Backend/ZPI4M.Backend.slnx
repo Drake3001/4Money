@@ -15,6 +15,9 @@
     <Project Path="src/modules/ZPI4M.User/ZPI4M.User.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ZPI4M.Notifications.UnitTests/ZPI4M.Notifications.UnitTests.csproj" />
+    <Project Path="tests/ZPI4M.Notifications.Tests/ZPI4M.Notifications.Tests.csproj" />
+    <Project Path="tests/ZPI4M.Notifications.IntegrationTests/ZPI4M.Notifications.IntegrationTests.csproj" />
     <Project Path="tests/ZPI4M.User.UnitTests/ZPI4M.User.UnitTests.csproj" />
     <Project Path="tests/ZPI4M.User.Tests/ZPI4M.User.Tests.csproj" />
     <Project Path="tests/ZPI4M.User.IntegrationTests/ZPI4M.User.IntegrationTests.csproj" />

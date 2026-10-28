@@ -83,8 +83,7 @@ jobs:
       DOTNET_NOLOGO: "1"
       DOTNET_CLI_HOME: /tmp/dotnet-home
       NUGET_PACKAGES: /tmp/nuget-packages
-      BANKING_TEST_POSTGRES: Host=postgres;Port=5432;Database=postgres;Username=backend_tests;Password=backend_tests_ci
-      USER_TEST_POSTGRES: Host=postgres;Port=5432;Database=postgres;Username=backend_tests;Password=backend_tests_ci
+      TEST_POSTGRES_CONNECTION_STRING: Host=postgres;Port=5432;Database=postgres;Username=backend_tests;Password=backend_tests_ci
 
     steps:
       - name: Prepare writable home
