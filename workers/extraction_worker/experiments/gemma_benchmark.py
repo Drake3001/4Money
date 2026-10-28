@@ -210,6 +210,7 @@ def make_challenges():
         ("abonament internetowy", "rachunki i opłaty", None),
         ("dorabianie kluczy", "usługi", None),
         ("znaczek pocztowy", "inne", None),
+        ("Opust za butelki", "zniżka", None),
         ("piwo bezalkoholowe 0,0% 500ml", "żywność i napoje", None),
         ("szampon dla psa", "zwierzęta", None),
         ("kawa", None, None),

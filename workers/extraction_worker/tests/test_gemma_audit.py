@@ -36,6 +36,8 @@ def test_offline_audit_maps_labels_without_fixing_wrong_classifications(tmp_path
     assert result["cases"][0]["enrichment"]["items"][1]["category"] == "kosmetyki i higiena"
     assert (root / "audit.md").is_file()
     assert report_file.read_bytes() == before
+    assert result["taxonomy_version"] == "1"
+    assert result["source_taxonomy_version"] is None
     review["cases"][0]["items"][0]["name_raw"] = "Different frozen input"
     with pytest.raises(ValueError, match="frozen"):
         evaluate_review(result["cases"], review)
@@ -54,3 +56,15 @@ def test_reviewing_only_confident_items_does_not_hide_abstentions():
     assert metrics["auto_category_accuracy"] == 1
     assert metrics["auto_categories_scored"] == 1
     assert metrics["review_requested"] == 1
+
+
+def test_historical_review_keeps_v1_categories_and_rejects_new_discount_label():
+    cases = [{"source": "a", "status": "prepared", "parser": {"items": [{"name": "Rabat"}]}}]
+    review = {"taxonomy_version": "1", "cases": [{"source": "a", "items": [{
+        "id": 0, "reviewed": True, "category": "inne", "accepted_names": None}]}]}
+    assert evaluate_review(cases, review)["categories_scored"] == 0
+    review["cases"][0]["items"][0]["category"] = "zniżka"
+    with pytest.raises(ValueError, match="Unknown expected category"):
+        evaluate_review(cases, review)
+    review["taxonomy_version"] = "2"
+    assert evaluate_review(cases, review)["categories_scored"] == 0

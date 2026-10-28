@@ -8,7 +8,7 @@ from PIL import Image
 
 from extraction.analysis import ReceiptImageAnalyzer, ReceiptItemClassifier
 from extraction.analysis.receipt_images import GEMINI_MODEL
-from extraction.contracts import SourceFile, SourceFiles
+from extraction.contracts import PreparationConfig, SourceFile, SourceFiles
 from extraction.providers import OpenRouterClient
 from extraction.reporting import to_dict
 from extraction.steps.images import PreparedImagesStep
@@ -79,6 +79,17 @@ def test_warmup_propagates_model_failure(monkeypatch):
     import pytest
     with pytest.raises(RuntimeError, match="warmup failed at orient"):
         warmup_service(pipelines)
+
+
+def test_warmup_does_not_apply_upload_pixel_limits(monkeypatch):
+    pipelines = workflows([])
+    steps = dict(pipelines["vision_ocr"].steps)
+    steps["prepare"].settings = PreparationConfig(max_page_pixels=1)
+    monkeypatch.setattr(steps["orient"], "_predict", lambda image: (0, 0.99))
+    monkeypatch.setattr(steps["ocr"], "initialize", lambda: None)
+    monkeypatch.setattr(steps["ocr"], "recognize", lambda content: [])
+    warmup_service(pipelines)
+    assert steps["prepare"].settings.max_page_pixels == 1
 
 
 def test_hybrid_sends_rotated_images_and_matching_raw_ocr(monkeypatch):

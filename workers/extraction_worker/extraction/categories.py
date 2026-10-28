@@ -1,6 +1,6 @@
 """Shared, versioned product taxonomy for prompts, validation and evaluation."""
 
-TAXONOMY_VERSION = "1"
+TAXONOMY_VERSION = "2"
 
 # Stored values are lowercase; clients can capitalize labels for display.
 CATEGORY_DEFINITIONS = {
@@ -22,6 +22,7 @@ CATEGORY_DEFINITIONS = {
     "rachunki i opłaty": "Media, prąd, gaz, woda, telefon, internet i opłaty administracyjne.",
     "usługi": "Fryzjer, barber, krawiec, naprawa obuwia, dorabianie kluczy; tylko usługi bez trafniejszej kategorii.",
     "inne": "Rozpoznany wydatek, dla którego żadna z pozostałych kategorii nie pasuje; nie służy do oznaczania niepewności.",
+    "zniżka": "Samodzielna pozycja obniżająca wartość zakupów, np. opust za butelki lub rabat na cały paragon. Nie obejmuje zwrotu kaucji ani rabatu przypisanego już do produktu.",
 }
 CATEGORIES = tuple(CATEGORY_DEFINITIONS)
 
@@ -41,6 +42,10 @@ zakupu. Prezenty, inwestycje i nieustalone nie są kategoriami. Gdy brak konteks
 uniemożliwia wybór, zwróć category=null, needs_review=true i
 review_reason=ambiguous_category. Dla nieczytelnej nazwy zwróć name_corrected=null,
 category=null, needs_review=true i review_reason=unreadable_name.
+Samodzielną pozycję rabatową klasyfikuj jako zniżka. Samo słowo butelki nie
+oznacza zniżki: zwrot kaucji należy do deposit_returns, a zakup butelki zachowuje
+kategorię produktu. Przy niejasnej roli rabatu zwróć category=null i
+review_reason=ambiguous_category z needs_review=true.
 """
 
 

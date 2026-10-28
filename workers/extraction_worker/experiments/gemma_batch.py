@@ -35,8 +35,12 @@ def evaluate_review(cases, review):
             or set(review) - {"cases", "taxonomy_version", "reviewer", "review_notes"}
             or not isinstance(review["cases"], list)):
         raise ValueError("Review must contain a cases array")
-    if review.get("taxonomy_version", TAXONOMY_VERSION) != TAXONOMY_VERSION:
-        raise ValueError("Review taxonomy version does not match current taxonomy")
+    version = review.get("taxonomy_version", TAXONOMY_VERSION)
+    # V2 adds one category without renaming V1 categories. Frozen V1 reviews
+    # remain valid under their original labels; they cannot use the new label.
+    if version not in ("1", TAXONOMY_VERSION):
+        raise ValueError("Unsupported review taxonomy version")
+    categories = set(CATEGORIES) - ({"zniżka"} if version == "1" else set())
     known = {case["source"]: case for case in cases}
     metrics = {"names_scored": 0, "names_correct_before": 0, "names_correct_after": 0,
                "names_improved": 0, "names_regressed": 0,
@@ -67,7 +71,7 @@ def evaluate_review(cases, review):
             if (names is not None and (not isinstance(names, list) or not names
                                       or any(not isinstance(n, str) or not n.strip() for n in names))):
                 raise ValueError("Accepted names must be a nonempty string array or null")
-            if category is not None and category not in CATEGORIES:
+            if category is not None and category not in categories:
                 raise ValueError("Unknown expected category")
             if case["status"] != "completed":
                 continue  # No model result means no accuracy claim.

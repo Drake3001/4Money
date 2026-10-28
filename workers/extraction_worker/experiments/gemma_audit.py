@@ -23,7 +23,7 @@ def audit_saved_run(run_dir, review_file, output_dir):
     run_dir, review_file = Path(run_dir), Path(review_file)
     original = json.loads((run_dir / "report.json").read_text(encoding="utf-8"))
     review = json.loads(review_file.read_text(encoding="utf-8"))
-    if original.get("taxonomy_version") not in (None, TAXONOMY_VERSION):
+    if original.get("taxonomy_version") not in (None, "1", TAXONOMY_VERSION):
         raise ValueError("Unsupported saved taxonomy version")
     cases = copy.deepcopy(original["cases"])
     legacy = original.get("taxonomy_version") is None
@@ -36,7 +36,9 @@ def audit_saved_run(run_dir, review_file, output_dir):
                 item.pop("needs_review", None)
                 item.pop("review_reason", None)
     report = {**original, "cases": cases, "execute": False, "paid": False, "api_calls": 0,
-              "source_run": str(run_dir.resolve()), "taxonomy_version": TAXONOMY_VERSION,
+              "source_run": str(run_dir.resolve()),
+              "source_taxonomy_version": original.get("taxonomy_version"),
+              "taxonomy_version": review.get("taxonomy_version", TAXONOMY_VERSION),
               "legacy_category_mapping_applied": legacy, "legacy_category_mapping": LEGACY_CATEGORY_MAP if legacy else {},
               "reviewer": review.get("reviewer", "unspecified"),
               "review_notes": review.get("review_notes", ""),

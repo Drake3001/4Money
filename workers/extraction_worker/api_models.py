@@ -40,6 +40,17 @@ class ExtractionResponse(BaseModel):
     needs_review: bool
 
 
+class ErrorBody(BaseModel):
+    code: str
+    message: str
+    request_id: str
+    details: dict | None = None
+
+
+class ErrorResponse(BaseModel):
+    error: ErrorBody
+
+
 def application_response(result):
     analyzed = result.output
     receipt = to_dict(analyzed.receipt)

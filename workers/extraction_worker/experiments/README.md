@@ -6,7 +6,7 @@ and `.cache/`. Reference fixtures and experiment prompts live in `experiments/`.
 
 ## Local batch processing
 
-Place JPEG, PNG or PDF files in `data/input/`. A subdirectory groups fragments of
+Place [supported images or PDF files](../README.md#extract-a-receipt) in `data/input/`. A subdirectory groups fragments of
 one receipt, ordered by filename. With `EXPERIMENT = None` in `main.py`, run:
 
 ```sh

@@ -42,6 +42,10 @@ Copy [.env.example](.env.example) to `.env`. Docker Compose and the local comman
 | `EXTRACTION_WORKFLOW` | `vision_ocr`: images + OCR → Gemini; `vision`: images → Gemini; `text`: OCR → rules → Gemma classification |
 | `EXTRACTION_VISION_ROUTING` | `throughput`; use `latency` to prioritize time to first token |
 | `EXTRACTION_BIND_ADDRESS` | `127.0.0.1`; Docker Compose host binding |
+| `EXTRACTION_MAX_FILE_BYTES` | `20971520` (20 MiB per file) |
+| `EXTRACTION_MAX_REQUEST_BYTES` | `52428800` (50 MiB including multipart overhead) |
+| `EXTRACTION_MAX_PAGE_PIXELS` | `50000000` (50 MP per page) |
+| `EXTRACTION_MAX_DOCUMENT_PIXELS` | `100000000` (100 MP across the receipt) |
 
 The API image model is `google/gemini-3.1-flash-lite`, configured in `api.py`.
 `OPENROUTER_MODEL` and `OPENROUTER_BASE_URL` in `.env` configure local experiments.
@@ -49,8 +53,11 @@ Restart the service after configuration changes.
 
 ## Extract a receipt
 
-`POST /api/v1/extract` accepts **1–4 JPEG/PNG images of one receipt**, in fragment order.
-Send each image under the multipart field `files`, including for a single image:
+`POST /api/v1/extract` accepts **1–4 files of one receipt**, in fragment order:
+JPEG, PNG, WebP, HEIC/HEIF, TIFF or PDF, and BMP images. PDF/TIFF pages are expanded
+in order, up to **four pages total**. HEIC/HEIF uses the primary photo; animated
+images are rejected. The decoder identifies the format from file contents.
+Send each file under the multipart field `files`, including for a single file:
 
 ```sh
 curl --fail-with-body http://127.0.0.1:8000/api/v1/extract \
@@ -93,15 +100,23 @@ Successful requests return HTTP 200:
 Amounts and quantities are decimal strings, dates use ISO format, and unknown fields are `null`.
 `name` is the extracted name; `name_corrected` is the proposed normalized name.
 `deposits` contains issued deposits; `deposit_returns` contains returned deposits.
+Standalone discounts remain in `items` with category `zniżka` and a negative `total`.
+Product discounts use `discount`; deposit returns remain in `deposit_returns`.
 `needs_review` is true when validation reports a warning or a product requires review.
 Categories are defined in [extraction/categories.py](extraction/categories.py).
 
 | Status | Meaning |
 |---|---|
 | `200` | Extracted receipt, including any review flags and warnings |
-| `415` | Unsupported upload MIME type |
+| `413` | Request, file or decoded image exceeds its limit |
+| `415` | Unsupported file format or animation |
 | `422` | Invalid files, file count or image content |
-| `500` | Pipeline or provider failure |
+| `500` | Internal pipeline failure |
+| `502` / `503` / `504` | Provider failure / unavailable provider / provider timeout |
+
+Errors use `{"error":{"code":"file_too_large","message":"...","request_id":"...","details":null}}`.
+`X-Request-ID` identifies the request in responses and server logs. `details` may
+include the file index or limit. Debug responses use the same error structure.
 
 ## Diagnostics
 

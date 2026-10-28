@@ -1,5 +1,6 @@
 """Analysis workflows composed with configured receipt tasks."""
 
+from dataclasses import asdict
 from typing import Literal
 
 from .pipeline import Pipeline
@@ -15,6 +16,7 @@ def warmup_service(pipelines):
     from io import BytesIO
     from PIL import Image, ImageDraw, ImageFont
     from .contracts import SourceFile, SourceFiles
+    from .steps.prepare import PrepareDocumentStep
 
     with Image.new("RGB", (800, 400), "white") as image:
         draw = ImageDraw.Draw(image)
@@ -24,13 +26,15 @@ def warmup_service(pipelines):
         buffer = BytesIO()
         image.save(buffer, format="PNG")
     steps = dict(pipelines["vision_ocr"].steps)
-    local = Pipeline([(name, steps[name]) for name in ("prepare", "orient", "ocr")])
+    # Upload limits apply to user documents, not the synthetic model warmup.
+    local = Pipeline([("prepare", PrepareDocumentStep()),
+                      ("orient", steps["orient"]), ("ocr", steps["ocr"])])
     result = local.run(SourceFiles((SourceFile(buffer.getvalue(), "image/png", "warmup.png"),)))
     if not result.ok:
         raise RuntimeError(f"Local model warmup failed at {result.error.step}: {result.error.message}")
 
 
-def service_pipelines(classifier, analyzer):
+def service_pipelines(classifier, analyzer, *, preparation_config=None):
     """Full SourceFiles workflows, sharing lazy CPU engines under the API lock.
 
     Add new service variants here; HTTP handlers only select a named pipeline.
@@ -41,7 +45,8 @@ def service_pipelines(classifier, analyzer):
     from .steps.orientation import OrientationStep
     from .steps.ocr import RapidOCRStep
 
-    images = [("prepare", PrepareDocumentStep()), ("orient", OrientationStep())]
+    prepare = PrepareDocumentStep(**asdict(preparation_config)) if preparation_config else PrepareDocumentStep()
+    images = [("prepare", prepare), ("orient", OrientationStep())]
     ocr = [*images, ("ocr", RapidOCRStep())]
     return {
         "vision_ocr": Pipeline([

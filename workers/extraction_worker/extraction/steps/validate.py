@@ -123,7 +123,7 @@ def validate_receipt(data: ReceiptData) -> list[ExtractionWarning]:
 class ValidateReceiptStep:
     input_type = ReceiptData
     output_type = ReceiptData
-    version = "2"
+    version = "3"
     config = {"total_tolerance": "0.01"}
 
     def run(self, input):
@@ -139,4 +139,11 @@ class ValidateAnalyzedReceiptStep:
     config = dict(ValidateReceiptStep.config)
 
     def run(self, input):
-        return StepResult(input, tuple(validate_receipt(input.receipt)))
+        warnings = validate_receipt(input.receipt)
+        for index, (item, annotation) in enumerate(zip(input.receipt.items, input.annotations)):
+            if (annotation.category == "zniżka" and item.total is not None
+                    and item.total.is_finite() and item.total > 0):
+                warnings.append(ExtractionWarning(
+                    "discount_sign_mismatch", "Standalone discounts must have a negative amount",
+                    f"items[{index}].total"))
+        return StepResult(input, tuple(warnings))

@@ -57,7 +57,19 @@ def fiscal_marker(text):
 def discount_marker(text):
     words = re.findall(r"[a-z]+", normalized(text))
     return bool(words) and words[0] not in ("opusty", "rabaty") and any(
-        SequenceMatcher(None, words[0], label).ratio() >= 0.8 for label in ("opust", "rabat"))
+        SequenceMatcher(None, words[0], label).ratio() >= 0.8 for label in ("opust", "rabat", "znizka"))
+
+
+def standalone_discount(row):
+    """Recognize an explicitly independent adjustment, not an unnamed product rebate."""
+    key = normalized(row.text)
+    if not discount_marker(key):
+        return False
+    # Plain OPUST or OPUST <product> belongs to its purchase block. These labels
+    # explicitly name a separate benefit or transaction-wide adjustment.
+    return bool(re.match(
+        r"^(?:opust|rabat|znizka)\s+(?:za\s+butelk\w*|na\s+(?:caly\s+)?paragon\b|"
+        r"lojalnosciow\w*|transakcyjn\w*|kupon\w*|z\s+kupon\w*)", key))
 
 
 def section(text):
@@ -460,6 +472,20 @@ class ReceiptParser:
         entries.append(entry)
         return None
 
+    def discount_item(self, row):
+        values = amounts(row.text)
+        path = f"items[{len(self.data.items)}]"
+        value = self.unique(values, path + ".total")
+        name = re.sub(r"\s+[A-GX]\s*$", "", MONEY.sub("", row.text), flags=re.IGNORECASE)
+        name = " ".join(name.split())
+        self.data.items.append(ReceiptItem(name=name, total=value))
+        self.record(path + ".name", [row])
+        if value is not None:
+            self.record(path + ".total", [row])
+        else:
+            self.warn("missing_discount", "Standalone discount amount is unreadable", path + ".total")
+        self.used_names.update(row.refs)
+
     def run(self):
         start = next((i for i, row in enumerate(self.rows) if fiscal_marker(row.text)), None)
         if start is None:
@@ -514,7 +540,12 @@ class ReceiptParser:
                 saw_deposits |= state in ("deposits", "deposit_returns")
                 continue
             if state == "items":
-                if purchase(row):
+                if standalone_discount(row):
+                    if block:
+                        self.item_block(block, row)
+                        block = []
+                    self.discount_item(row)
+                elif purchase(row):
                     if block:
                         self.item_block(block, row)
                     block = [row]

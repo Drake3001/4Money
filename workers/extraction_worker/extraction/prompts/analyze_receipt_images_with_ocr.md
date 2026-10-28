@@ -6,11 +6,20 @@ nakładających się zdjęć, ale zachowaj osobne powtórzone zakupy wydrukowane
 paragonie. Ignoruj inne paragony w tle, reklamy i elementy interfejsu aplikacji.
 Przepisz nazwy z poprawnymi polskimi literami; zachowaj skróty, markę i gramaturę.
 Nie rozwijaj niejednoznacznych skrótów. Możesz usunąć oddzielny znacznik VAT.
-Oddziel produkty od podsumowań VAT, płatności, rabatów i kaucji. before_discount
+Oddziel pozycje zakupów od podsumowań VAT, płatności i kaucji. before_discount
 to kwota BRUTTO pozycji przed rabatem, discount to podpisany rabat <=0, total
 pozycji to kwota po rabacie. Nie odejmuj rabatu dwa razy. Podsumowanie total
 oznacza sumę towarów po rabatach; amount_due obejmuje dodatnie wydane kaucje
 i ujemne zwroty. deposits mają wartości dodatnie, deposit_returns ujemne.
+Samodzielną pozycję obniżającą wartość zakupów zachowaj w items z kategorią
+zniżka, opisem z dokumentu i ujemnym total, np. Opust za butelki -2.50.
+Nie dopisuj jej ilości, ceny jednostkowej, before_discount ani discount, jeśli
+nie są wydrukowane. Rabat jednoznacznie przypisany do produktu umieść w jego
+discount, bez osobnej pozycji. Nigdy nie licz tego samego rabatu dwa razy.
+Zwrot kaucji należy do deposit_returns. Samo słowo butelki nie rozstrzyga roli
+pozycji; przy niepewnej klasyfikacji zachowaj opis i kwotę, category=null,
+needs_review=true i review_reason=ambiguous_category. Sumuj zakupy i samodzielne
+ujemne zniżki w total. Nie usuwaj zniżki, żeby dopasować sumę.
 W potwierdzeniu transakcji z kolumnami netto/VAT/brutto odczytaj cenę BRUTTO,
 nie dodawaj VAT ponownie. Nie zmieniaj odczytanych liczb, aby rachunek się zgadzał.
 Wartości nieobecne lub nieczytelne to null, puste grupy to []. Ilość i jednostka

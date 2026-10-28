@@ -11,7 +11,25 @@ class ProviderHTTPError(RuntimeError):
 
     def __init__(self, provider, status, hint):
         self.status = status
+        self.code = "provider_unavailable" if status in (429, 503) else "provider_error"
         super().__init__(f"{provider} HTTP {status}; {hint}; transport made no automatic retry")
+
+
+class ProviderTimeoutError(RuntimeError):
+    code = "provider_timeout"
+
+
+class ProviderNetworkError(RuntimeError):
+    code = "provider_network_error"
+
+
+class ProviderResponseError(RuntimeError, ValueError):
+    """A provider response failed decoding; also preserves ValueError compatibility."""
+
+    code = "provider_response_invalid"
+
+    def __init__(self):
+        super().__init__("Provider response is invalid, blocked, truncated or incomplete")
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -35,6 +53,12 @@ def post_json(url, body, headers, *, provider, timeout):
                 "check key, model access and quota")
         raise ProviderHTTPError(provider, exc.code, hint) from None
     except TimeoutError:
-        raise RuntimeError(f"{provider} response timed out after {timeout} seconds; no automatic retry was made") from None
-    except URLError:
-        raise RuntimeError(f"{provider} network request failed; no automatic retry was made") from None
+        raise ProviderTimeoutError("Provider response timed out; no automatic retry was made") from None
+    except URLError as exc:
+        if isinstance(exc.reason, TimeoutError):
+            raise ProviderTimeoutError("Provider response timed out; no automatic retry was made") from None
+        raise ProviderNetworkError("Provider network request failed; no automatic retry was made") from None
+    except OSError:
+        raise ProviderNetworkError("Provider network request failed; no automatic retry was made") from None
+    except (ValueError, UnicodeError):
+        raise ProviderResponseError() from None

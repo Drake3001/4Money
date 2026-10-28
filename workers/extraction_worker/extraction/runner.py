@@ -6,13 +6,7 @@ from pathlib import Path
 
 from .contracts import ExtractionWarning, OCRResult, PipelineError, PipelineResult, SourceFile, SourceFiles
 from .reporting import write_environment, write_result, write_summary
-
-MIME_TYPES = {
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".png": "image/png",
-    ".pdf": "application/pdf",
-}
+from .formats import MIME_TYPES
 
 
 def collect_jobs(folder):

@@ -116,9 +116,9 @@ def test_nonfinite_number_warns():
     "sources,code",
     [
         ([SourceFile(b"", "image/png", "empty.png")], "empty_file"),
-        ([SourceFile(b"broken", "image/png", "broken.png")], "invalid_file"),
-        ([SourceFile(b"broken", "application/pdf", "broken.pdf")], "invalid_file"),
-        ([SourceFile(b"x", "text/plain", "text")], "unsupported_type"),
+        ([SourceFile(b"\x89PNG\r\nbroken", "image/png", "broken.png")], "invalid_file"),
+        ([SourceFile(b"%PDF-1.7 broken", "application/pdf", "broken.pdf")], "invalid_file"),
+        ([SourceFile(b"x", "text/plain", "text")], "unsupported_format"),
     ],
 )
 def test_invalid_sources(sources, code):
@@ -144,14 +144,14 @@ def test_pdf_errors(source, code):
     assert exc.value.code == code
 
 
-def test_empty_input_and_mime_mismatch():
+def test_empty_input_and_content_authority():
     with pytest.raises(ValueError):
         SourceFiles(())
     with pytest.raises(ValueError):
         prepare_document([])
     source = image_source()
-    with pytest.raises(ValueError):
-        prepare_document([SourceFile(source.content, "image/jpeg", source.name)])
+    document = prepare_document([SourceFile(source.content, "image/jpeg", source.name)])
+    assert len(document.pages) == 1
 
 
 def test_mixed_document_and_atomic_failure():

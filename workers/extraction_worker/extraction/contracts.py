@@ -19,10 +19,17 @@ class SourceFile:
 @dataclass(frozen=True)
 class PreparationConfig:
     pdf_dpi: float = 200
+    max_pages: int | None = None
+    max_page_pixels: int | None = None
+    max_document_pixels: int | None = None
 
     def __post_init__(self) -> None:
         if not math.isfinite(self.pdf_dpi) or self.pdf_dpi <= 0:
             raise ValueError("pdf_dpi must be a finite positive number")
+        for name in ("max_pages", "max_page_pixels", "max_document_pixels"):
+            value = getattr(self, name)
+            if value is not None and (type(value) is not int or value <= 0):
+                raise ValueError(f"{name} must be a positive integer or None")
 
 
 @dataclass(frozen=True)
@@ -213,6 +220,8 @@ class PipelineError:
     step: str
     exception_type: str
     message: str
+    code: str | None = None
+    details: dict | None = None
 
 
 @dataclass

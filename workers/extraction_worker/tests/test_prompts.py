@@ -1,7 +1,7 @@
-"""Frozen request fingerprints predate the prompt/resource refactor.
+"""Frozen requests for taxonomy v2 and standalone discount instructions.
 
-These cover the complete serialized requests (including whitespace, schema,
-routing and limits), which must retain the existing cache keys.
+Fingerprints include prompts, schema, routing and limits; prompt edits deliberately
+change cache keys while custom prompt metadata retains its existing contract.
 """
 
 import hashlib
@@ -28,15 +28,15 @@ from test_parsing import at, document, ocr
 PROVIDERS = {"openrouter_free": OpenRouterClient, "openrouter_paid": OpenRouterClient,
              "google": GoogleClient, "nvidia": NvidiaClient}
 REQUEST_HASHES = {
-    "openrouter_free": "a95f46599e7b08583c9e4c1014c9067dc16034acf22e964a50a2f9fe3eca7224",
-    "openrouter_paid": "002835281ea46a7fb1e88ceefe94b7896bd15d4b9539a3c689210c87625d4c68",
-    "google": "1ce6340d9d40857563cf66e2200f44ab959566c81b2c267e4aeec408eae626ac",
-    "nvidia": "084bd763dce8b8ea753ce7fd484b0407f82a589f4dd55730cd5a0f7a2fe2e149",
-    "baseline": "002835281ea46a7fb1e88ceefe94b7896bd15d4b9539a3c689210c87625d4c68",
-    "candidate": "55698d14b4133edb5425a2f25f8128b94cc80674842ca834bf3f29594df18133",
-    "vision": "ad732351d93cdeba8ec1738d84010bd97bc38239028d38566dbe1f821fad175e",
-    "vision_ocr": "20926be98bc73baf3b3d9b895d7d8568ed244dba3cfd92183516b573109f0d6a",
-    "gemini": "b169b828535751958feb17641b1355f493dc4a76e1892f083d9bd32ba4e08510",
+    "openrouter_free": "9f6b18526c56b9072d459d6b09d11a11836c0874780acf7abab91fa3481b7ffc",
+    "openrouter_paid": "05ee973f7fcc2e2c380f1a3e324d78bea059dea67bef11ee26b55a2ed3208e3b",
+    "google": "375949ac27dce7135382bb5e8a50c5635e2c75e8c6123e65426faa8a6131b4ae",
+    "nvidia": "6013669aead6a030b0a3ee7684ede1d76e87fe874862af6811f1168a356b1ae7",
+    "baseline": "05ee973f7fcc2e2c380f1a3e324d78bea059dea67bef11ee26b55a2ed3208e3b",
+    "candidate": "7e59c141c72bcbce1b8538f4d5db8d819e403177e43dc6169cc881658c6d637b",
+    "vision": "9300ed2a707a99a410b941374134e5505c99cf4358d685237a14f77bac35a1f4",
+    "vision_ocr": "b2fe63e0a5059229f34ad6c2b45110d31eab2ce17ad5cc36d3af2c6c38c1be7f",
+    "gemini": "94243e7d966777e84a34b1db2687a58db9278aabb9e8bdc705f0d0035b21b461",
 }
 
 
@@ -53,7 +53,7 @@ def envelope(raw):
 
 
 @pytest.mark.parametrize("name", REQUEST_HASHES)
-def test_default_serialized_requests_match_before_refactor(name):
+def test_default_serialized_requests_match_taxonomy_v2(name):
     receipt, empty = inputs()
     if name in ("vision", "vision_ocr"):
         payload = build_vision_request([source()], context() if name == "vision_ocr" else None)

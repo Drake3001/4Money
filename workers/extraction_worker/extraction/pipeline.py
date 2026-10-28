@@ -66,7 +66,11 @@ class Pipeline:
                 if capture_steps is True or name in captured_names:
                     result.captured_steps[name] = value
             except Exception as exc:
-                result.error = PipelineError(name, type(exc).__name__, str(exc))
+                code = getattr(exc, "code", None)
+                details = getattr(exc, "details", None)
+                result.error = PipelineError(name, type(exc).__name__, str(exc),
+                                             code if isinstance(code, str) else None,
+                                             details if isinstance(details, dict) else None)
             result.steps.append(
                 StepExecution(
                     name,

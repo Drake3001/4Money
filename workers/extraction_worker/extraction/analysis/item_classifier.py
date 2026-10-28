@@ -9,7 +9,7 @@ from pathlib import Path
 from ..categories import CATEGORIES, REVIEW_REASONS
 from ..contracts import ReceiptData
 from ..prompts import classification_prompt, resolve_prompt
-from ..providers import ProviderHTTPError
+from ..providers import ProviderHTTPError, ProviderResponseError
 from ..reporting import write_json
 from ..requests import dispatch_request
 from .models import FREE_MODEL, PAID_MODEL, GOOGLE_MODEL, NVIDIA_MODEL
@@ -189,18 +189,21 @@ class ReceiptItemClassifier:
                 raw = self.client.send(body, model=self.model)
             except ProviderHTTPError as exc:
                 raise ProviderHTTPError("Google Gemma", exc.status, "check key, model access and quota") from None
-            except RuntimeError:
-                raise RuntimeError("Google Gemma network request failed; no automatic retry was made") from None
             # The task consumes the same envelope for every provider. Transport
             # itself returns Google's original response, also usable by Gemini.
-            return {"provider": "Google AI Studio (direct)", "model": raw.get("modelVersion"),
-                    "usage": raw.get("usageMetadata"), "choices": [
-                        {"finish_reason": "stop" if candidate.get("finishReason") == "STOP" else "incomplete",
-                         "message": {"content": "".join(
-                             part.get("text", "") for part in candidate.get("content", {}).get("parts", [])
-                             if not part.get("thought"))}}
-                        for candidate in raw.get("candidates", [])]}
+            try:
+                return {"provider": "Google AI Studio (direct)", "model": raw.get("modelVersion"),
+                        "usage": raw.get("usageMetadata"), "choices": [
+                            {"finish_reason": "stop" if candidate.get("finishReason") == "STOP" else "incomplete",
+                             "message": {"content": "".join(
+                                 part.get("text", "") for part in candidate.get("content", {}).get("parts", [])
+                                 if not part.get("thought"))}}
+                            for candidate in raw.get("candidates", [])]}
+            except (ValueError, TypeError, KeyError, AttributeError):
+                raise ProviderResponseError() from None
         raw = self.client.send(body)
+        if not isinstance(raw, dict):
+            raise ProviderResponseError()
         raw.setdefault("provider", self.client.provider_name)
         return raw
 
@@ -217,16 +220,19 @@ class ReceiptItemClassifier:
             self.cache_hit = True
         else:
             self.response = dispatch_request(body, self._generate, self.request_policy)
-        choices = self.response.get("choices", [])
-        if len(choices) != 1 or choices[0].get("finish_reason") != "stop":
-            raise ValueError("Gemma response was blocked, truncated or incomplete")
-        content = choices[0].get("message", {}).get("content")
-        if not isinstance(content, str):
-            raise ValueError("Gemma returned no text")
-        # Some providers wrap JSON in a code fence even when explicitly asked not to.
-        match = re.fullmatch(r"\s*```(?:json)?\s*\n(.*?)\n```\s*", content, re.DOTALL)
-        decoder = decode_with_review_fallback if self.resilient else decode_enrichment
-        result = decoder(json.loads(match[1] if match else content), receipt)
+        try:
+            choices = self.response.get("choices", [])
+            if len(choices) != 1 or choices[0].get("finish_reason") != "stop":
+                raise ProviderResponseError()
+            content = choices[0].get("message", {}).get("content")
+            if not isinstance(content, str):
+                raise ProviderResponseError()
+            # Some providers wrap JSON in a code fence even when explicitly asked not to.
+            match = re.fullmatch(r"\s*```(?:json)?\s*\n(.*?)\n```\s*", content, re.DOTALL)
+            decoder = decode_with_review_fallback if self.resilient else decode_enrichment
+            result = decoder(json.loads(match[1] if match else content), receipt)
+        except (ValueError, TypeError, KeyError, AttributeError, IndexError):
+            raise ProviderResponseError() from None
         if path is not None and not self.cache_hit:
             path.parent.mkdir(parents=True, exist_ok=True)
             if not path.exists():

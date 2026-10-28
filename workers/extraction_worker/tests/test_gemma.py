@@ -214,7 +214,7 @@ def test_numeric_hallucination_is_replaced_by_raw_name_and_flagged():
 
 def test_all_categories_have_definitions_in_prompt():
     from extraction.categories import CATEGORIES, CATEGORY_DEFINITIONS
-    assert len(CATEGORIES) == len(set(CATEGORIES)) == 18
+    assert len(CATEGORIES) == len(set(CATEGORIES)) == 19
     assert all(CATEGORY_DEFINITIONS.values())
     prompt = build_request(*inputs())["messages"][0]["content"]
     assert all(category in prompt for category in CATEGORIES)

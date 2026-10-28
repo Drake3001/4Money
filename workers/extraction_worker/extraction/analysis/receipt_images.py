@@ -15,7 +15,7 @@ from ..categories import CATEGORIES
 from ..prompts import image_analysis_prompt, load_text, resolve_prompt
 from ..reporting import write_json
 from ..requests import dispatch_request
-from ..providers import ProviderHTTPError
+from ..providers import ProviderHTTPError, ProviderResponseError
 from .models import PAID_MODEL
 from .item_classifier import decode_enrichment
 from ..steps.parsing.common import RECEIPT_SCHEMA, decode_receipt_fields
@@ -173,8 +173,6 @@ class ReceiptImageAnalyzer:
             return self.client.send(body, timeout=180)
         except ProviderHTTPError as exc:
             raise ProviderHTTPError("OpenRouter vision", exc.status, "check image-capable endpoint and quota") from None
-        except RuntimeError:
-            raise RuntimeError("Vision network/timeout failure; no automatic retry") from None
 
     def run(self, sources, ocr=None):
         self.response, self.cache_hit, self.enrichment, self.image_evidence = None, False, None, None
@@ -193,13 +191,16 @@ class ReceiptImageAnalyzer:
                 path.parent.mkdir(exist_ok=True, parents=True)
                 if not path.exists():
                     write_json(path, self.response)
-        choices = self.response.get("choices", [])
-        if len(choices) != 1 or choices[0].get("finish_reason") != "stop":
-            raise ValueError("Vision response incomplete, blocked or truncated")
-        text = choices[0].get("message", {}).get("content")
-        if not isinstance(text, str):
-            raise ValueError("Vision response has no text")
-        match = re.fullmatch(r"\s*```(?:json)?\s*\n(.*?)\n```\s*", text, re.DOTALL)
-        raw = json.loads(match[1] if match else text)
-        result, self.enrichment, self.image_evidence = decode_vision(raw, len(sources))
+        try:
+            choices = self.response.get("choices", [])
+            if len(choices) != 1 or choices[0].get("finish_reason") != "stop":
+                raise ProviderResponseError()
+            text = choices[0].get("message", {}).get("content")
+            if not isinstance(text, str):
+                raise ProviderResponseError()
+            match = re.fullmatch(r"\s*```(?:json)?\s*\n(.*?)\n```\s*", text, re.DOTALL)
+            raw = json.loads(match[1] if match else text)
+            result, self.enrichment, self.image_evidence = decode_vision(raw, len(sources))
+        except (ValueError, TypeError, KeyError, AttributeError, IndexError):
+            raise ProviderResponseError() from None
         return result

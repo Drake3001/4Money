@@ -6,7 +6,7 @@ import re
 from decimal import Decimal
 from pathlib import Path
 
-from ...providers import ProviderHTTPError
+from ...providers import ProviderHTTPError, ProviderResponseError
 from ...prompts import load_text, prompt_metadata, resolve_prompt
 from ...contracts import (
     ExtractionWarning, FieldEvidence, OCRResult, ReceiptData,
@@ -114,10 +114,10 @@ class GeminiParseStep:
             return self.client.send(body, model=self.model, timeout=90)
         except ProviderHTTPError as exc:
             self.api_failed = True
-            raise RuntimeError(f"Gemini HTTP {exc.status}; check key, model access, quota and request schema") from None
+            raise ProviderHTTPError("Gemini", exc.status, "check key, model access and quota") from None
         except RuntimeError:
             self.api_failed = True
-            raise RuntimeError("Gemini network request failed; no automatic retry was made") from None
+            raise
 
     def run(self, ocr):
         self.response, self.cache_hit, self.api_failed = None, False, False
@@ -132,9 +132,12 @@ class GeminiParseStep:
             if path is not None:
                 self.cache_dir.mkdir(parents=True, exist_ok=True)
                 write_json(path, self.response)
-        candidates = self.response.get("candidates", [])
-        if len(candidates) != 1 or candidates[0].get("finishReason") != "STOP":
-            raise ValueError("Gemini response was blocked, truncated, or incomplete")
-        text = "".join(part.get("text", "") for part in candidates[0].get("content", {}).get("parts", [])
-                       if not part.get("thought"))
-        return decode_receipt(json.loads(text), ocr)
+        try:
+            candidates = self.response.get("candidates", [])
+            if len(candidates) != 1 or candidates[0].get("finishReason") != "STOP":
+                raise ProviderResponseError()
+            text = "".join(part.get("text", "") for part in candidates[0].get("content", {}).get("parts", [])
+                           if not part.get("thought"))
+            return decode_receipt(json.loads(text), ocr)
+        except (ValueError, TypeError, KeyError, AttributeError, IndexError):
+            raise ProviderResponseError() from None

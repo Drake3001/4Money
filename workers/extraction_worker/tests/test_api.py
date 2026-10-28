@@ -42,7 +42,7 @@ def no_real_warmup(monkeypatch):
 def client(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test_key")
     monkeypatch.delenv("EXTRACTION_WORKFLOW", raising=False)
-    monkeypatch.setattr(api, "service_pipelines", lambda *args: {
+    monkeypatch.setattr(api, "service_pipelines", lambda *args, **kwargs: {
         name: SimpleNamespace(run=lambda sources, **kwargs: classified_result())
         for name in api.WORKFLOW_NAMES
     })
@@ -62,7 +62,7 @@ def test_startup_uses_paid_classification_without_cache(monkeypatch):
     monkeypatch.delenv("EXTRACTION_VISION_ROUTING", raising=False)
     classifiers = []
 
-    def build(classifier, analyzer):
+    def build(classifier, analyzer, **kwargs):
         classifiers.extend([classifier, analyzer])
         return {name: SimpleNamespace(run=lambda sources, **kwargs: classified_result())
                 for name in api.WORKFLOW_NAMES}
@@ -88,7 +88,7 @@ def test_startup_selects_vision_routing(monkeypatch, routing):
     monkeypatch.setenv("EXTRACTION_VISION_ROUTING", routing)
     captured = []
 
-    def build(classifier, analyzer):
+    def build(classifier, analyzer, **kwargs):
         captured.append(analyzer.routing)
         return {}
 
@@ -162,7 +162,6 @@ def test_upload_keeps_bytes_and_order_and_returns_existing_contract(client):
 @pytest.mark.parametrize("files,status", [
     ([], 422),
     ([("files", ("empty.png", b"", "image/png"))], 422),
-    ([("files", ("receipt.pdf", b"pdf", "application/pdf"))], 415),
 ])
 def test_invalid_uploads(client, files, status):
     assert client.post("/api/v1/extract", files=files).status_code == status
@@ -171,10 +170,10 @@ def test_invalid_uploads(client, files, status):
 def test_real_preparation_rejects_corrupt_image(client):
     api.app.state.pipelines[api.app.state.workflow] = Pipeline([("prepare", PrepareDocumentStep())])
     response = client.post("/api/v1/extract", files={
-        "files": ("broken.png", b"broken", "image/png"),
+        "files": ("broken.png", b"\x89PNG\r\n\x1a\nbroken", "image/png"),
     })
     assert response.status_code == 422
-    assert response.json()["error"]["step"] == "prepare"
+    assert response.json()["error"]["code"] == "invalid_file"
 
 
 @pytest.mark.parametrize("step,kind,status", [
@@ -189,7 +188,9 @@ def test_pipeline_errors_exclude_partial_output(client, step, kind, status):
         "files": ("receipt.png", image_bytes(), "image/png"),
     })
     assert response.status_code == status
-    assert response.json() == {"error": to_dict(error)}
+    assert response.json()["error"]["code"] == ("invalid_file" if kind == "PreparationError" else "internal_error")
+    assert "Cannot process receipt" not in response.text
+    assert set(response.json()) == {"error"}
 
 
 def test_unexpected_error_is_generic_and_lock_is_released(client):
@@ -200,7 +201,8 @@ def test_unexpected_error_is_generic_and_lock_is_released(client):
     upload = {"files": ("receipt.png", image_bytes(), "image/png")}
     response = client.post("/api/v1/extract", files=upload)
     assert response.status_code == 500
-    assert response.json() == {"error": {"message": "Internal server error"}}
+    assert response.json()["error"]["code"] == "internal_error"
+    assert "private exception details" not in response.text
     api.app.state.pipelines[api.app.state.workflow].run = lambda sources, **kwargs: classified_result()
     assert client.post("/api/v1/extract", files=upload).status_code == 200
 
@@ -347,7 +349,7 @@ def test_env_workflow_is_used_by_both_endpoints(monkeypatch):
     def run(*args, **kwargs):
         calls.append("vision")
         return classified_result()
-    monkeypatch.setattr(api, "service_pipelines", lambda *args: {"vision": SimpleNamespace(run=run)})
+    monkeypatch.setattr(api, "service_pipelines", lambda *args, **kwargs: {"vision": SimpleNamespace(run=run)})
     with TestClient(api.app) as client:
         for endpoint in ("/api/v1/extract", "/api/v1/debug/extract"):
             assert client.post(endpoint, files={"files": ("a.png", b"a", "image/png")}).status_code == 200
@@ -360,7 +362,8 @@ def test_debug_failure_omits_partial_receipt(client):
     response = client.post("/api/v1/debug/extract", files={"files": ("a.png", b"a", "image/png")})
     assert response.status_code == 500
     assert "output" not in response.json()
-    assert response.json()["error"] == to_dict(result.error)
+    assert response.json()["error"]["code"] == "internal_error"
+    assert "Bad reply" not in response.text
 
 
 def test_debug_returns_ocr_without_source_bytes(client):
