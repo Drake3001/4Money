@@ -6,8 +6,8 @@ oznacza to potwierdzenia ich wykonania w każdej sesji. Bieżące ograniczenia
 opisuje [status](implementation-status.md).
 
 Stan kodu, migracji i konfiguracji sprawdzono statycznie 2026-10-28 po rebase i review.
-Solucja zawiera User, Banking i Notifications oraz po trzy projekty testowe
-każdego z tych modułów. Starsze wyniki uruchomień opisuje status; nie traktuj
+Solucja zawiera po trzy projekty testowe User, Banking i Notifications
+oraz dwa Receipt — łącznie jedenaście. Starsze wyniki uruchomień opisuje status; nie traktuj
 ich jako nowej weryfikacji obecnej rewizji po rebase.
 
 ## Wymagania
@@ -48,7 +48,8 @@ nie przy każdym restarcie. Nie usuwaj wolumenu w ramach zwykłego uruchomienia.
 
 Kolejność przygotowania pustej bazy: SQL init (automatycznie z Compose na nowym
 wolumenie) → wszystkie migracje EF → `database/seed_local.sql`. Migracje tworzą
-m.in. notification_recipient i nowe kolumny powiadomień, więc seed wykonany
+m.in. notification_recipient, nowe kolumny powiadomień oraz unikalne
+`receipt.receipt.storage_key`, więc seed wykonany
 przed migracjami nie zadziała. Samo `database update` nie odtwarza pustej bazy
 bez baseline SQL. Przy zwykłym starcie istniejącej bazy nie uruchamiaj resetu.
 
@@ -595,6 +596,14 @@ testowe to `TestPassword1!`; seed_dawid jest celowo nieaktywny. Te dane są
 wyłącznie lokalne. Nie zmieniaj hasła bazy PostgreSQL na hasło kont aplikacji.
 Zmiana pliku seed nie modyfikuje istniejących rekordów; aktualizację danych
 wykonuje się osobno, a pełny seed tylko po zaakceptowaniu utraty lokalnych danych.
+
+Aktualizacja seeda z 2026-10-28 wymaga także migracji
+`20261028184348_RenameReceiptS3LinkToStorageKeyAndMakeUnique`.
+Paragon ma unikalny klucz `receipts/{Guid:N}` i wynik w formacie odpowiedzi
+workera (`receipt`, `warnings`, `needs_review`). Klucz jest syntetyczny:
+seed nie wysyła obrazu do storage, więc podpisany URL nie potwierdza istnienia
+zdjęcia. Obciążenia bankowe mają kwoty ujemne, a powiązane wydatki dodatnie.
+Seed nie wywołuje OCR ani Tink; zachowuje stałe ID, konta i przykłady inboxa.
 
 ## Inbox powiadomień
 

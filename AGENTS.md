@@ -99,7 +99,8 @@ analiza poszczególnych produktów, a także podział kosztów między użytkown
 - Banking ma integrację Tink, odczyty i worker importu, a User obsługuje tożsamość,
   sesje oraz operacje konta. Aktualne ograniczenia są w statusie; nie cofaj ich
   opisu do samych modeli na podstawie starszych fragmentów sprzed rebase.
-- Solucja ma dziewięć projektów xUnit: po trzy User, Banking i Notifications.
+- Solucja ma jedenaście projektów xUnit: po trzy User, Banking i Notifications
+  oraz dwa Receipt.
   Starsze wyniki testów dotyczą konkretnych rewizji, nie dowodzą poprawności po rebase.
 - Wszystkie testy .NET z PostgreSQL używają TEST_POSTGRES_CONNECTION_STRING;
   pipeline ustawia ją raz. Brak konfiguracji lokalnie pomija testy bazy, a w CI
@@ -107,6 +108,11 @@ analiza poszczególnych produktów, a także podział kosztów między użytkown
 - Aktualna migracja inboxa to `20261027172612_AddNotificationsAfterRebase`,
   po `20261026215244_AddBanking`. Nie przywracaj usuniętej migracji
   `20261026233657_AddNotificationRecipient` obok jej zamiennika.
+- Po migracji inboxa jest `20261028184348_RenameReceiptS3LinkToStorageKeyAndMakeUnique`:
+  Receipt używa wymaganego, unikalnego `StorageKey` zamiast `S3Link`.
+  Seed wymaga tej migracji i zapisuje odpowiedź OCR w formacie
+  `receipt` / `warnings` / `needs_review`. Klucz storage jest syntetyczny;
+  seed nie uploaduje obrazu. Szczegóły Receipt i ograniczenia opisuje status.
 - Nowa baza wymaga kolejności: SQL init → migracje EF → seed. Seed czyści dane,
   nie naprawia schematu ani historii EF. Rebase nie cofa już zastosowanych zmian bazy;
   odtworzenie lokalnego wolumenu wymaga zgody na usunięcie danych w danym zadaniu.

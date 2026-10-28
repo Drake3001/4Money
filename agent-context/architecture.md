@@ -268,9 +268,9 @@ znajdują się w [instrukcji pracy](development.md#modele-i-migracje).
 | Baza lokalna | PostgreSQL 15 Alpine w Docker Compose |
 | Web | Docelowo React; brak aplikacji frontendowej w obecnym repo |
 | Mobile | Uzgodniono React + Capacitor; Stos technologiczny.txt nadal wymienia alternatywę React Native, brak aplikacji w repo |
-| OCR | Plan Python i integracja OCR; brak implementacji pipeline'u w obecnym repo |
+| OCR i storage | Worker Python w workers/extraction_worker; Receipt wywołuje POST /api/v1/extract i magazyn zgodny z S3; brak potwierdzenia pełnego przepływu w tej weryfikacji |
 | Automatyzacja | GitHub Actions, pre-commit, narzędzia Python zarządzane przez uv |
-| Testy backendu | Dziewięć projektów: po trzy User, Banking i Notifications (UnitTests, Tests, IntegrationTests); CI dostarcza PostgreSQL 15 i zmienne połączeń dla wszystkich trzech modułów |
+| Testy backendu | Jedenaście projektów: po trzy User, Banking i Notifications (UnitTests, Tests, IntegrationTests) oraz dwa Receipt (UnitTests, IntegrationTests); CI dostarcza PostgreSQL 15 dla testów bazy |
 | Infrastruktura | Obecna konfiguracja Terraform dla Proxmox; Linux i Tailscale w środowisku developerskim |
 | Prezentacja | AWS jako założenie docelowe, nie potwierdzone wdrożenie aplikacji |
 
