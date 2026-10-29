@@ -23,7 +23,10 @@ Nie dodajemy obecnie Newman do CI.
 ### API 4Money
 
 Importuj `4Money.Local.example.postman_environment.json` i utwórz własne lokalne
-środowisko. Domyślny `baseUrl` to `https://localhost:7278`, bez końcowego ukośnika.
+środowisko. Domyślny `baseUrl` to `http://localhost:5283`, bez końcowego ukośnika.
+To adres backendu w Compose oraz domyślnego profilu `http` przy `dotnet run`.
+W już zaimportowanym środowisku ustaw ten adres ręcznie; zmiana pliku w repo
+nie aktualizuje istniejącego środowiska w Postmanie.
 Uruchamiaj backend profilem `https` z katalogu projektu API. Zapewnij zaufanie
 Postmana do lokalnego certyfikatu HTTPS.
 

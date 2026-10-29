@@ -1,6 +1,6 @@
 # Local Git hooks
 
-Polska instrukcja dla deweloperów: [konfiguracja pre-commit](../notes/precommit_notes.md).
+Polska instrukcja dla deweloperów: [konfiguracja pre-commit](../notes/PRECOMMIT.md).
 
 uv and Git are required. The tools project requires Python 3.10+; uv can
 download a compatible interpreter if needed. Backend C# changes also require a

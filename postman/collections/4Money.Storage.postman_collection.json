@@ -1,0 +1,216 @@
+{
+  "info": {
+    "name": "4Money - Storage S3",
+    "description": "Local SeaweedFS started by containers/local/docker-compose.yml at http://localhost:8333. Import the 4Money.Storage.Local environment and fill storageAccessKey and storageSecretKey from containers/local/.env. Run all requests in order or use Collection Runner with one iteration. PUT generates a unique _postman/ object; DELETE cleans it up. No backend API is required. See postman/README.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "awsv4",
+    "awsv4": [
+      {
+        "key": "accessKey",
+        "value": "{{storageAccessKey}}",
+        "type": "string"
+      },
+      {
+        "key": "secretKey",
+        "value": "{{storageSecretKey}}",
+        "type": "string"
+      },
+      {
+        "key": "region",
+        "value": "{{storageRegion}}",
+        "type": "string"
+      },
+      {
+        "key": "service",
+        "value": "s3",
+        "type": "string"
+      },
+      {
+        "key": "addAuthDataToQuery",
+        "value": false,
+        "type": "boolean"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const required = ['storageEndpoint', 'storageBucket', 'storageRegion', 'storageAccessKey', 'storageSecretKey'];",
+          "const missing = required.filter(key => !String(pm.environment.get(key) || '').trim());",
+          "if (missing.length) {",
+          "    pm.test('Required environment variables', function () { throw new Error('Fill in: ' + missing.join(', ')); });",
+          "    pm.execution.setNextRequest(null);",
+          "    pm.execution.skipRequest();",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - List objects",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{storageEndpoint}}/{{storageBucket}}?list-type=2",
+        "description": "List up to 1000 objects. KeyCount counts this page, not necessarily the whole bucket. An existing bucket does not have to be empty."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+              "if (pm.response.code !== 200) pm.execution.setNextRequest(null);",
+              "pm.test('S3 object listing', function () { pm.expect(pm.response.text()).to.include('<ListBucketResult'); });"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "02 - Upload test.txt",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "text/plain"
+          }
+        ],
+        "url": "{{storageEndpoint}}/{{storageBucket}}/{{storageTestKey}}",
+        "description": "Creates a uniquely named text object. Saves its key to storageTestKey for subsequent requests. No file selection needed.",
+        "body": {
+          "mode": "raw",
+          "raw": "{{storageTestBody}}",
+          "options": {
+            "raw": {
+              "language": "text"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.environment.set('storageTestKey', '_postman/' + pm.variables.replaceIn('{{$guid}}') + '/test.txt');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+              "if (pm.response.code !== 200) pm.execution.setNextRequest(null);"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "03 - Download and verify test.txt",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{storageEndpoint}}/{{storageBucket}}/{{storageTestKey}}",
+        "description": ""
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+              "if (pm.response.code !== 200) pm.execution.setNextRequest(null);",
+              "pm.test('Downloaded content matches upload', function () { pm.expect(pm.response.text()).to.equal(pm.environment.get('storageTestBody')); });"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "04 - Find uploaded object",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{storageEndpoint}}/{{storageBucket}}?list-type=2&prefix={{storageTestKey}}",
+        "description": ""
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+              "if (pm.response.code !== 200) pm.execution.setNextRequest(null);",
+              "pm.test('S3 object listing', function () { pm.expect(pm.response.text()).to.include('<ListBucketResult'); });",
+              "pm.test('Uploaded object is listed', function () { pm.expect(pm.response.text()).to.include('<Key>' + pm.environment.get('storageTestKey') + '</Key>'); });"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "05 - Delete test.txt",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{storageEndpoint}}/{{storageBucket}}/{{storageTestKey}}",
+        "description": "Deletes only the test object identified by storageTestKey. Does not remove the bucket."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 204', function () { pm.expect(pm.response.code).to.equal(204); });",
+              "if (pm.response.code !== 204) pm.execution.setNextRequest(null);"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "06 - Verify object was deleted",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{storageEndpoint}}/{{storageBucket}}/{{storageTestKey}}",
+        "description": "404 is the expected successful test result after deletion."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 404', function () { pm.expect(pm.response.code).to.equal(404); });",
+              "if (pm.response.code !== 404) pm.execution.setNextRequest(null);",
+              "pm.test('S3 reports NoSuchKey', function () { pm.expect(pm.response.text()).to.include('<Code>NoSuchKey</Code>'); });"
+            ]
+          }
+        }
+      ],
+      "response": []
+    }
+  ]
+}

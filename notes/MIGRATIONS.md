@@ -5,10 +5,12 @@
    `dotnet ef database update --project ZPI4M.Database --startup-project ZPI4M.Api --context AppDbContext`
 
 # lokalna baza danych
-1. musicie dodać swój .env do containers, dodjacie tam dwie zmienne środowiskowe:
+1. Skopiujcie `containers/local/.env.example` do `containers/local/.env`, jeśli plik jeszcze
+   nie istnieje. Konfigurację całego stosu opisuje [instrukcja kontenerów](../containers/local/README.md).
+   Dla bazy ustawcie:
    1. `POSTGRES_USER`
    2. `POSTGRES_PASSWORD`
-2. potem w folderze continers: `docker-compose up - d`
+2. potem w folderze `containers/local`: `docker compose up -d postgres-db`
 3. pgadmin: servers -> register -> wypełniacie to (najlepiej zaznaczyć save password na przyszłość)
 4. potem zainstalujcie sobie (jeśli nie macie) EF globalnie, bo to się przyda do migracji: `dotnet tool install --global dotnet-ef`
 

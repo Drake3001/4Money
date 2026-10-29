@@ -86,7 +86,7 @@ Aktualizacja dokumentacji sama nie uruchamiała nowych testów ani operacji na b
 | Reports | Projekt modułu | Brak usług raportowania |
 | Web / mobile | Założenia w dokumentacji | Brak projektów aplikacji klienckich w repozytorium |
 | Narzędzia | Hooki, testy hooków, workflow backendu z PostgreSQL i wykrywaniem UnitTests/Tests/IntegrationTests; jedenaście projektów w solucji | Od 2026-10-28 CI ustawia wspólną zmienną TEST_POSTGRES_CONNECTION_STRING dla testów bazy User, Banking i Notifications. Runner wybiera tylko śledzone projekty; „not configured” nie oznacza wykonania testów |
-| Infrastruktura | Compose PostgreSQL i Terraform Proxmox z workflow | Brak potwierdzenia uruchomienia infrastruktury i wdrożenia 4M; AWS pozostaje planem |
+| Infrastruktura | Wspólny Compose PostgreSQL, backendu, SeaweedFS i OCR z jednym containers/local/.env; Terraform Proxmox z workflow | Po przeniesieniu do containers/local konfiguracja Compose sprawdzona 2026-10-29 dla lokalnego .env i szablonu; containers/deploy zawiera tylko .gitkeep; bez budowania obrazów, uruchamiania usług ani migracji w tej weryfikacji; AWS pozostaje planem |
 
 Źródła: [solucja](../backend/ZPI4M.Backend/ZPI4M.Backend.slnx),
 [moduły](../backend/ZPI4M.Backend/src/modules/),
@@ -237,7 +237,7 @@ Postman CLI wykonał cztery nowe żądania na rzeczywistym lokalnym backendzie
 z osobną syntetyczną bazą PostgreSQL: 14 asercji zaliczone. Generowany OpenAPI
 potwierdził cztery GET oraz string `amount`. Nie wykonywano wywołań Tink ani
 operacji na bazie deweloperskiej. Kontrakt i instrukcje opisują README Banking
-oraz notes/POSTMAN.md.
+oraz notes/TINK_POSTMAN.md.
 
 ## Automatyczne scenariusze Postmana dla refreshu
 
@@ -261,7 +261,7 @@ nadpisać zmienną środowiskową połączenia; odmawia resetu istniejącego sch
 ## Ręczna weryfikacja Tink w Postmanie
 
 Dodano **2026-10-22**: kolekcje Banking i Tink w [postman/](../postman/) i polską
-[instrukcję zespołową](../notes/POSTMAN.md). Pokrywają backendowy flow połączenia,
+[instrukcję zespołową](../notes/TINK_POSTMAN.md). Pokrywają backendowy flow połączenia,
 odczyt zgód i błędy callbacku oraz osobną diagnostykę tokenów i Link dla
 istniejącego użytkownika Tink. Osobna kolekcja User obejmuje login i pozostałe operacje konta; wspólne środowisko
 przekazuje token do Banking.

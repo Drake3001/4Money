@@ -43,7 +43,8 @@ analiza poszczególnych produktów, a także podział kosztów między użytkown
 | `backend/ZPI4M.Backend/` | Solucja .NET, moduły, host API, migracje i testy |
 | `agent-context/` | Kontekst tematyczny i bieżący status implementacji |
 | `../doc/` (lokalne `ZPI/doc`) | Źródłowe wymagania TXT i diagramy poza repozytorium |
-| `containers/` | Compose lokalnej bazy PostgreSQL |
+| `containers/local/` | Jeden Compose PostgreSQL, backendu, SeaweedFS i OCR; wspólny .env i .env.example; instrukcja uruchomienia |
+| `containers/deploy/` | Miejsce na przyszłą konfigurację wdrożenia; obecnie tylko .gitkeep |
 | `database/init/` | SQL inicjalizujący bazę przed zastosowaniem migracji |
 | `database/seed_local.sql` | Reset i syntetyczne dane lokalne; uruchamiaj po migracjach |
 | `postman/` | Kolekcje User, Banking, Notifications i diagnostyka Tink; wspólne szablony środowisk |
@@ -116,11 +117,15 @@ analiza poszczególnych produktów, a także podział kosztów między użytkown
 - Nowa baza wymaga kolejności: SQL init → migracje EF → seed. Seed czyści dane,
   nie naprawia schematu ani historii EF. Rebase nie cofa już zastosowanych zmian bazy;
   odtworzenie lokalnego wolumenu wymaga zgody na usunięcie danych w danym zadaniu.
-- Dla uruchomienia lokalnego używaj właściwych plików `.env`: Compose w `containers/`,
-  API w katalogu `ZPI4M.Api`. Domyślny profil API to HTTP na 5283;
+- Docker używa wyłącznie `containers/local/.env` dla wszystkich czterech usług;
+  szablon i instrukcja są w `containers/local/`. Pliki `.env` API i workera służą
+  uruchomieniu bez Dockera. Compose ustawia adresy zależności po nazwach usług;
+  nie podawaj localhost jako adresu zależności wewnątrz kontenera.
+  Domyślny profil lokalnego API to HTTP na 5283;
   Postman `baseUrl` musi odpowiadać rzeczywiście uruchomionemu profilowi.
-- Szablon ZPI4M.Api/.env.example zawiera także SMTP i nazwy zmiennych wielkimi
-  literami. Sekrety uzupełniaj wyłącznie lokalnie; nie kopiuj .env do dokumentacji.
+- Szablon ZPI4M.Api/.env.example zawiera tylko poświadczenia (baza, JWT,
+  storage, Tink i SMTP). Niesekretne wartości domyślne są w appsettings.json;
+  zmienne środowiskowe je nadpisują. Sekrety uzupełniaj wyłącznie lokalnie.
 
 ## Utrzymanie kontekstu
 

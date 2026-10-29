@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "Tink — diagnostyka Sandbox",
-    "description": "Wyłącznie diagnostyka istniejącego użytkownika aplikacji Tink Sandbox: provider-consents, credentials, konta i transakcje wskazanego konta (z testami uprawnień). Nie testuje pełnego backendu 4Money. Nie tworzy użytkowników, nie importuje danych i nie odnawia zgód. Tokeny, kody i URL-e wyłącznie lokalnie. Instrukcja: notes/POSTMAN.md.",
+    "name": "Tink - diagnostyka Sandbox",
+    "description": "Wyłącznie diagnostyka istniejącego użytkownika aplikacji Tink Sandbox: provider-consents, credentials, konta i transakcje wskazanego konta (z testami uprawnień). Nie testuje pełnego backendu 4Money. Nie tworzy użytkowników, nie importuje danych i nie odnawia zgód. Tokeny, kody i URL-e wyłącznie lokalnie. Instrukcja: notes/TINK_POSTMAN.md.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {

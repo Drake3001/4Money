@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "4Money — Banking / Tink",
-    "description": "Wyłącznie flow integracji Tink. Uruchamiaj etapami według notes/POSTMAN.md. Zawiera logowanie 4Money zapisujące accessToken do środowiska; nie testuje pozostałych funkcji User. Chronione żądania wymagają ważnego JWT z logowania User; wspólne środowisko przechowuje fourMoneyAccessToken. Sekrety i dane procesu wyłącznie w lokalnym środowisku.",
+    "name": "4Money - Banking / Tink",
+    "description": "Wyłącznie flow integracji Tink. Uruchamiaj etapami według notes/TINK_POSTMAN.md. Zawiera logowanie 4Money zapisujące accessToken do środowiska; nie testuje pozostałych funkcji User. Chronione żądania wymagają ważnego JWT z logowania User; wspólne środowisko przechowuje fourMoneyAccessToken. Sekrety i dane procesu wyłącznie w lokalnym środowisku.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {

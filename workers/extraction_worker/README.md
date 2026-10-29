@@ -7,17 +7,19 @@ Images use full-resolution JPEG 95 when smaller than PNG; OCR uses the prepared 
 
 ## Run with Docker
 
-From `workers/extraction_worker`, copy the configuration and fill in `OPENROUTER_API_KEY`:
+Use the shared [Compose setup](../../containers/local/README.md). From the repository
+root, create `containers/local/.env` from `containers/local/.env.example` if it does not
+exist, fill in the credentials and `OPENROUTER_API_KEY`, then run:
 
 ```sh
-cp .env.example .env
-docker compose up --build -d
-docker compose logs -f extraction-worker
+docker compose --env-file containers/local/.env -f containers/local/docker-compose.yml up --build -d extraction-worker
+docker compose --env-file containers/local/.env -f containers/local/docker-compose.yml logs -f extraction-worker
 ```
 
 The API is available at `http://127.0.0.1:8000`; Swagger UI is at `/docs`.
 Startup downloads missing local models and warms up OCR before accepting requests.
-Docker preserves downloaded models in the `model-cache` volume.
+Docker preserves downloaded models in the `extraction_worker_model-cache` volume
+(configurable through `EXTRACTION_VOLUME_NAME`).
 
 ## Run locally
 
@@ -34,7 +36,8 @@ A backend on the same Docker network can use `http://extraction-worker:8000`.
 
 ## Configuration
 
-Copy [.env.example](.env.example) to `.env`. Docker Compose and the local command above load it.
+For local execution, copy [.env.example](.env.example) to `.env`; the local
+command above loads it. Docker uses only `containers/local/.env`.
 
 | Variable | Default / purpose |
 |---|---|

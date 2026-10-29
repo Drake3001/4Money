@@ -74,6 +74,8 @@
 │       │       └── Pagination/
 │       └── tests/
 ├── containers/
+│   ├── local/
+│   └── deploy/
 ├── database/
 |   └── init/
 ├── notes/
@@ -86,18 +88,25 @@
         └── tests/
 ```
 
-### Proxmox infrastructure
+### Docker
+Shared PostgreSQL, backend, S3 storage and OCR local ports: [containers/local/README.md](containers/local/README.md).
 
+Docker uses one Compose file and `containers/local/.env`, based on [containers/local/.env.example](containers/local/.env.example).
+
+### Proxmox infrastructure
 Terraform configuration and GitHub Actions setup: [proxmox-infra/README.md](proxmox-infra/README.md).
 
 ### Local Git hooks
-
-Polska instrukcja konfiguracji: [notes/precommit_notes.md](notes/precommit_notes.md).
-
 Hook installation, formatting checks, and ClickUp integration: [tools/README.md](tools/README.md).
 
-[Extraction worker](workers/extraction_worker/README.md) · [Polska notatka zespołu](notes/extraction-worker.md)
-### Postman — Tink
+Polska instrukcja konfiguracji: [notes/PRECOMMIT.md](notes/PRECOMMIT.md).
 
-Kolekcje flow Banking/Tink i diagnostyki dostawcy: [postman/](postman/).
-Polska instrukcja konfiguracji, uruchamiania i rozbudowy: [notes/POSTMAN.md](notes/POSTMAN.md).
+### Extracion worker
+Extraction worker info: [workers/extraction_worker/README.md](workers/extraction_worker/README.md).
+
+Polska notatka dla zespołu: [notes/ocr/extraction-worker.md](notes/ocr/extraction-worker.md).
+
+### Postman - Tink
+Collections Banking/Tink i diagnostyki dostawcy: [postman/collections/](postman/collections/).
+
+Polska instrukcja konfiguracji, uruchamiania i rozbudowy: [notes/TINK_POSTMAN.md](notes/TINK_POSTMAN.md).

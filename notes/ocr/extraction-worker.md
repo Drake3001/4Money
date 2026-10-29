@@ -2,7 +2,7 @@
 
 Moduł rozwijamy jako pipeline: przygotowanie → OCR → parser → klasyfikacja.
 Obecnie działają przygotowanie, OCR, parser regułowy i walidacja; klasyfikacja jest kolejnym etapem.
-Krótki opis modułu: [README](../workers/extraction_worker/README.md).
+Krótki opis modułu: [README](../../workers/extraction_worker/README.md).
 
 ## 1. Środowisko i pierwszy start
 
