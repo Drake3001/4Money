@@ -18,7 +18,7 @@ analiza poszczególnych produktów, a także podział kosztów między użytkown
 | Backend i kontrakty API | [Domena](agent-context/domain.md), [architektura](agent-context/architecture.md), [praca w repo](agent-context/development.md), właściwy obszar [statusu](agent-context/implementation-status.md) |
 | Banking i import transakcji | Dokumenty backendowe powyżej oraz [kontrakt Banking](backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md) |
 | Notifications i inbox | Dokumenty backendowe powyżej oraz [kolekcje Postman](postman/README.md) i [testy backendu](backend/ZPI4M.Backend/tests/README.md) |
-| OCR i kategoryzacja | [Produkt](agent-context/product.md), [domena](agent-context/domain.md), [architektura](agent-context/architecture.md), [status](agent-context/implementation-status.md) |
+| OCR i kategoryzacja | [Produkt](agent-context/product.md), [domena](agent-context/domain.md), [architektura](agent-context/architecture.md), [status](agent-context/implementation-status.md), [worker](workers/extraction_worker/README.md) i w razie ewaluacji [eksperymenty](workers/extraction_worker/experiments/README.md) |
 | Modele i migracje | [Domena](agent-context/domain.md), [architektura](agent-context/architecture.md), [praca w repo](agent-context/development.md), [status](agent-context/implementation-status.md) |
 | Testy, hooki i CI backendu | [Praca w repo](agent-context/development.md), [status](agent-context/implementation-status.md), [narzędzia](tools/README.md) |
 | Infrastruktura | [Architektura](agent-context/architecture.md), [instrukcja Proxmox](proxmox-infra/README.md) i workflow dotyczący zadania |
@@ -47,10 +47,11 @@ analiza poszczególnych produktów, a także podział kosztów między użytkown
 | `containers/deploy/` | Miejsce na przyszłą konfigurację wdrożenia; obecnie tylko .gitkeep |
 | `database/init/` | SQL inicjalizujący bazę przed zastosowaniem migracji |
 | `database/seed_local.sql` | Reset i syntetyczne dane lokalne; uruchamiaj po migracjach |
-| `postman/` | Kolekcje User, Banking, Notifications i diagnostyka Tink; wspólne szablony środowisk |
+| `postman/` | Kolekcje User, Banking, Notifications, bezpośredniego dostępu S3 i diagnostyki Tink; szablony środowisk |
+| `workers/extraction_worker/` | Osobny projekt Python/uv: API FastAPI, OCR i kategoryzacja pozycji; testy i eksperymenty |
 | `tools/` | Narzędzia Python/uv, hooki i pomocnicze kontrole backendu |
 | `.github/workflows/` | CI backendu oraz planowanie i wdrażanie infrastruktury |
-| `notes/` | Szczegółowe instrukcje migracji i hooków |
+| `notes/` | Instrukcje migracji, hooków i Tink; w `notes/ocr/` opis pipeline i historyczne wyniki eksperymentów |
 | `proxmox-infra/` | Terraform dla środowiska Proxmox |
 
 ## Zasady pracy
@@ -78,7 +79,10 @@ analiza poszczególnych produktów, a także podział kosztów między użytkown
 - Zachowuj konwencje z `backend/.editorconfig` i istniejących hooków.
   Konwencje gałęzi i commitów ClickUp opisuje [instrukcja narzędzi](tools/README.md#clickup-branch-and-commit-conventions).
 
-## Orientacja w implementacji — 2026-10-28
+## Orientacja w implementacji — 2026-10-29
+
+Przegląd statyczny kodu i konfiguracji; nie oznacza nowego przebiegu testów ani
+potwierdzenia działania usług zewnętrznych.
 
 - Notifications ma wewnętrzne `NotifyAsync`, autoryzowane pobieranie inboxa,
   odczyt pojedynczy i zbiorczy. Operacje odbiorców należą do osobnego
@@ -100,12 +104,29 @@ analiza poszczególnych produktów, a także podział kosztów między użytkown
 - Banking ma integrację Tink, odczyty i worker importu, a User obsługuje tożsamość,
   sesje oraz operacje konta. Aktualne ograniczenia są w statusie; nie cofaj ich
   opisu do samych modeli na podstawie starszych fragmentów sprzed rebase.
+- Expense ma repozytoria Category, Expense, ExpenseItem i ExpenseShare, Grouping
+  repozytoria Group/GroupMember, a Limits repozytorium CategoryGroupLimit.
+  Są rejestrowane w DI, ale te moduły nadal nie mają serwisów biznesowych ani API.
+- Receipt ma serwis OCR → upload S3 → zapis paragonu oraz odczyt, podpisany URL
+  i usuwanie. Nie ma kontrolera Receipt/Storage ani integracji z Expense.
+  Kolekcja Storage w Postmanie testuje bezpośrednio S3. Nie zakładaj atomowości
+  zapisu bazy i pliku; szczegóły kompensacji opisuje status implementacji.
+- Worker OCR ma własne API FastAPI. Domyślny `vision_ocr` łączy RapidOCR z modelem
+  `google/gemini-3.1-flash-lite` przez OpenRouter; wynik zawiera także propozycje
+  nazw i kategorii produktów. Kategoryzacja jest zaimplementowana w Pythonie,
+  ale nie zapisuje automatycznie Category/ExpenseItem w .NET.
+- OCR i S3 mają walidację konfiguracji przy starcie API. Do startu hosta
+  wymagane są poprawne opcje storage, w tym lokalne poświadczenia, oprócz JWT.
+  `STORAGE_PUBLIC_ENDPOINT` służy podpisanym URL-om dostępnym dla klienta;
+  w Compose jest oddzielony od wewnętrznego `STORAGE_ENDPOINT`.
 - Solucja ma jedenaście projektów xUnit: po trzy User, Banking i Notifications
   oraz dwa Receipt.
   Starsze wyniki testów dotyczą konkretnych rewizji, nie dowodzą poprawności po rebase.
 - Wszystkie testy .NET z PostgreSQL używają TEST_POSTGRES_CONNECTION_STRING;
   pipeline ustawia ją raz. Brak konfiguracji lokalnie pomija testy bazy, a w CI
-  jest błędem. Ostatnie wyniki częściowych przebiegów opisuje status implementacji.
+  jest błędem. Receipt.IntegrationTests ma osobny, ręczny test S3 uruchamiany przez
+  STORAGE_INTEGRATION_TESTS=1; PostgreSQL w CI go nie włącza. Testy workera Python
+  nie są uruchamiane przez obecny workflow backendu. Wyniki opisuje status implementacji.
 - Aktualna migracja inboxa to `20261027172612_AddNotificationsAfterRebase`,
   po `20261026215244_AddBanking`. Nie przywracaj usuniętej migracji
   `20261026233657_AddNotificationRecipient` obok jej zamiennika.

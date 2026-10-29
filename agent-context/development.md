@@ -5,7 +5,8 @@ Polecenia poniżej są zweryfikowane względem konfiguracji repozytorium; nie
 oznacza to potwierdzenia ich wykonania w każdej sesji. Bieżące ograniczenia
 opisuje [status](implementation-status.md).
 
-Stan kodu, migracji i konfiguracji sprawdzono statycznie 2026-10-28 po rebase i review.
+Rejestracje hosta, łańcuch migracji, konfigurację i polecenia ponownie sprawdzono
+statycznie 2026-10-29; bez uruchamiania aplikacji, testów ani migracji.
 Solucja zawiera po trzy projekty testowe User, Banking i Notifications
 oraz dwa Receipt — łącznie jedenaście. Starsze wyniki uruchomień opisuje status; nie traktuj
 ich jako nowej weryfikacji obecnej rewizji po rebase.
@@ -76,8 +77,9 @@ JWT User, nie sekretu aplikacji Tink. Integracja Tink pozostaje wyłączona prze
 `Tink__ContinuousAccessVerified=false` na etapie przygotowania bazy.
 Od 2026-10-29 szablon API zawiera tylko poświadczenia. Domyślne adresy OCR
 i storage, bucket, region, timeouty, callback Tink oraz niesekretne ustawienia
-SMTP są w `appsettings.json`. SMTP używa przykładowego serwera i nadawcy;
-dopasuj je przed wysyłką. Callback Tink musi odpowiadać rejestracji w Tink
+SMTP są w `appsettings.json`. SMTP ma domyślny host i tryb połączenia;
+adres nadawcy i poświadczenia uzupełnij lokalnie oraz dopasuj serwer przed wysyłką.
+Callback Tink musi odpowiadać rejestracji w Tink
 i uruchomionemu profilowi (domyślny w JSON zachowuje HTTPS na 7278).
 Klucze OCR i storage w JSON pozostają płaskie (`OCR_BASE_URL`, `STORAGE_ENDPOINT`
 itd.), zgodnie z istniejącym odczytem przez IConfiguration. Zmienne środowiskowe
@@ -768,13 +770,54 @@ bash tools/ci/backend_checks.sh integration --results .cache/backend-results
 Użyj świeżego katalogu wyników przy kolejnych uruchomieniach. Pomocnik wybiera
 śledzone projekty `.UnitTests.csproj` i `.Tests.csproj` dla zestawu unit oraz
 `.IntegrationTests.csproj` dla integration. Solucja zawiera po trzy projekty
-User, Banking i Notifications (łącznie dziewięć projektów). Komunikat
+User, Banking i Notifications oraz dwa Receipt (łącznie jedenaście projektów). Komunikat
 „not configured” nie oznacza wykonania testów.
 
 Workflow backendu uruchamia PostgreSQL i ustawia `TEST_POSTGRES_CONNECTION_STRING`
 dla integracyjnych testów User, Banking i Notifications. Wszystkie zestawy tworzą
 własne bazy o losowych nazwach na serwerze testowym.
 Host nadal ładuje `.env` przez `Env.Load()`; testy HTTP używają własnych hostów.
+
+Receipt.IntegrationTests zawiera ręczny test rzeczywistego S3, niezależny od
+PostgreSQL. Wymaga działającego magazynu i `STORAGE_INTEGRATION_TESTS=1`;
+odczytuje ustawienia `STORAGE_*` z lokalnego `.env` API oraz zmiennych środowiskowych.
+Tworzy i usuwa syntetyczny obiekt. Nie włączaj go przy samej kontroli dokumentacji.
+Obecny workflow backendu nie uruchamia SeaweedFS, workera ani testów pytest.
+
+## Worker OCR i magazyn obrazów
+
+Do uruchomienia workera poza Dockerem potrzebne są Python 3.12, uv co najmniej
+0.12.23 (wymaganie `workers/extraction_worker/pyproject.toml`) oraz lokalny
+`OPENROUTER_API_KEY`. Instrukcja i kontrakt znajdują się w
+[README workera](../workers/extraction_worker/README.md); eksperymenty i ewaluacja
+w [osobnej instrukcji](../workers/extraction_worker/experiments/README.md).
+Z katalogu `workers/extraction_worker`:
+
+```bash
+uv sync --locked
+uv run --env-file .env uvicorn api:app --host 127.0.0.1 --port 8000 --workers 1
+```
+
+Start rozgrzewa OCR i może pobierać brakujące modele. Wywołania ekstrakcji korzystają
+z dostawcy zewnętrznego; `/health` nie potwierdza jakości OCR ani dostępu do modelu.
+Testy korzystają z atrap OCR i dostawców; z tego samego katalogu:
+
+```bash
+uv run --extra test pytest -q --basetemp .cache/test-temp/pytest
+```
+
+Host .NET waliduje opcje OCR i S3 przez `ValidateOnStart`. Oprócz JWT wymaga
+poprawnych `STORAGE_ACCESS_KEY` i `STORAGE_SECRET_KEY` oraz pozostałych opcji S3.
+Domyślne opcje są w `appsettings.json`; API `.env` zawiera poświadczenia.
+W Compose używane jest wyłącznie `containers/local/.env` i adresy usług wewnętrznych.
+`STORAGE_PUBLIC_ENDPOINT` musi być dostępny dla odbiorcy podpisanego URL;
+domyślne `http://localhost:8333` odpowiada lokalnemu mapowaniu portu S3.
+Po zmianie portu lub przy dostępie z innego urządzenia dopasuj ten adres.
+
+Kolekcja Storage w Postmanie sprawdza bezpośrednio S3; nie wymaga backendu ani JWT
+i nie potwierdza integracji Receipt. Backend nie ma endpointów Receipt/Storage.
+Pełny przepływ OCR → storage → baza oraz połączenie z Expense pozostają
+osobnym zakresem weryfikacji i implementacji zgodnie ze [statusem](implementation-status.md).
 
 ## Integracyjne testy procesu Banking
 

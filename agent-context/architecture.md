@@ -36,8 +36,8 @@ pobiera transakcje do wyboru lub dopasowania. Expense odpowiada za utworzenie
 wydatku i zapisanie powiązań. Receipt korzysta wyłącznie z modelu OCR,
 a docelowo Banking korzysta z modułu/integracji OpenBanking. Receipt i Banking nie
 zależą od Expense ani od siebie nawzajem. Są to ustalenia dotyczące współpracy
-modułów i integracji; nie oznaczają, że projekty OCR lub OpenBanking już istnieją
-w solucji.
+modułów i integracji. OCR działa jako osobny projekt Python poza solucją .NET,
+a adapter Tink znajduje się w Banking; nie ma osobnych projektów .NET OCR/OpenBanking.
 
 Aktualizacja zakresu z `Funkcjonalności.txt` sprawdzona 2026-10-27:
 automatyczne dopasowanie paragonu do transakcji jest rozszerzeniem (sekcja 3).
@@ -187,9 +187,37 @@ Od 2026-10-28 pary interfejs/implementacja UserLookupService i
 UserBankingProfileService znajdują się odpowiednio w User `Services/Lookup`
 i `Services/BankingProfile`. NotificationService i INotificationService są
 w Notifications `Services/Notifications`. Namespace’y odpowiadają katalogom.
-Szablon API `.env.example` używa nazw zmiennych wielkimi literami i zawiera
-ustawienia SMTP z przykładowymi wartościami; lokalny `.env` nie jest szablonem
-do kopiowania sekretów do repozytorium.
+Szablon API `.env.example` zawiera tylko poświadczenia, także SMTP. Niesekretne
+wartości domyślne znajdują się w `appsettings.json`, a zmienne środowiskowe
+je nadpisują. Lokalny `.env` nie jest szablonem do kopiowania sekretów do repozytorium.
+
+## Obecna integracja Receipt i workera OCR
+
+Stan rejestracji DI i kontraktów sprawdzono statycznie 2026-10-29. Receipt ma
+`IReceiptService`, `IReceiptAnalysisService` (HTTP) i `IFileStorageService` (S3).
+Ich pliki są pogrupowane w `Services/ReceiptService`, `Services/ReceiptAnalysisService`
+i `Services/FileStorageService`; współdzielą namespace `ZPI4M.Receipt.Services`.
+Nie ma kontrolera Receipt/Storage ani wywołań z Expense.
+
+`ReceiptService` wykonuje kolejno OCR → upload S3 → zapis własnego kontekstu.
+Nie jest to transakcja obejmująca magazyn i bazę. Po błędzie zapisu pozostawia
+przesłany plik; przy usuwaniu najpierw usuwa rekord, potem próbuje usunąć plik.
+Uprawnienia dostępu do paragonu nie są egzekwowane przez ten serwis.
+Ograniczenia i zachowanie przy błędach opisuje [status](implementation-status.md#receipt-ocr-i-kategoryzacja--przegląd-2026-10-29).
+
+Worker FastAPI w `workers/extraction_worker` ma osobne zależności Python/uv
+i udostępnia `POST /api/v1/extract`. Domyślny pipeline łączy RapidOCR z analizą
+obrazów i OCR przez Gemini w OpenRouter. Odpowiedź obejmuje propozycje kategorii
+produktów; nie powstają z niej automatycznie encje ExpenseItem ani Category.
+Worker nie ma własnego auth, działa w prywatnej sieci i wykonuje pipeline kolejno.
+Opis API, wariantów pipeline i limitów ma główne miejsce w [README workera](../workers/extraction_worker/README.md).
+
+Klient .NET wysyła pojedynczy plik jako multipart `files` i sprawdza strukturę
+`receipt` / `warnings` / `needs_review`. Adapter S3 zapisuje prywatne obiekty,
+a dostęp udostępnia przez podpisany GET. `STORAGE_ENDPOINT` służy operacjom
+backendu, `STORAGE_PUBLIC_ENDPOINT` opcjonalnie adresowi podpisanych URL-ów dla
+klienta. W Compose są to odpowiednio `http://seaweedfs:8333` i domyślnie
+`http://localhost:8333`. Obie integracje mają walidację opcji przy starcie hosta.
 
 ## Obecny podział kontrolerów User
 
@@ -269,7 +297,7 @@ znajdują się w [instrukcji pracy](development.md#modele-i-migracje).
 | Kontenery aplikacji | Jeden containers/local/docker-compose.yml: PostgreSQL, backend .NET, SeaweedFS 4.48 i worker OCR; jedna konfiguracja containers/local/.env; wewnętrzna komunikacja po nazwach usług |
 | Web | Docelowo React; brak aplikacji frontendowej w obecnym repo |
 | Mobile | Uzgodniono React + Capacitor; Stos technologiczny.txt nadal wymienia alternatywę React Native, brak aplikacji w repo |
-| OCR i storage | Worker Python w workers/extraction_worker; Receipt wywołuje POST /api/v1/extract i magazyn zgodny z S3; brak potwierdzenia pełnego przepływu w tej weryfikacji |
+| OCR i storage | Worker FastAPI z OCR i kategoryzacją produktów; Receipt wywołuje POST /api/v1/extract i magazyn zgodny z S3; brak endpointów Receipt i potwierdzenia pełnego przepływu w tej weryfikacji |
 | Automatyzacja | GitHub Actions, pre-commit, narzędzia Python zarządzane przez uv |
 | Testy backendu | Jedenaście projektów: po trzy User, Banking i Notifications (UnitTests, Tests, IntegrationTests) oraz dwa Receipt (UnitTests, IntegrationTests); CI dostarcza PostgreSQL 15 dla testów bazy |
 | Infrastruktura | Obecna konfiguracja Terraform dla Proxmox; Linux i Tailscale w środowisku developerskim |

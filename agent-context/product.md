@@ -141,9 +141,13 @@ i doradztwo finansowe.
 | OCR | Poprawna kwota do zapłaty i data zakupu dla co najmniej 95% paragonów |
 | Kategoryzacja | Macro F1 co najmniej 0,8 dla zdefiniowanych kategorii |
 
-Są to wymagania, a nie potwierdzone wyniki. Dokumentacja nie dostarcza tu
-protokołu ewaluacji ani zbioru referencyjnego; należy je ustalić przy pracach
-nad oceną modeli.
+Są to wymagania, a nie potwierdzone wyniki aktualnego pipeline. Repozytorium ma
+już narzędzia ewaluacji, fixture'y i historyczne analizy eksperymentów
+([instrukcja](../workers/extraction_worker/experiments/README.md),
+[notatki](../notes/ocr/)). Przegląd statyczny z 2026-10-29 potwierdza implementację
+OCR i propozycji kategorii w workerze Python; nie dowodzi spełnienia powyższych
+progów przez aktualny domyślny model ani realizacji korekt użytkownika w aplikacji.
+Przy ocenie jakości wskaż konkretny model, pipeline, zbiór i protokół pomiaru.
 
 ## Plan etapów
 

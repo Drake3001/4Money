@@ -1,7 +1,9 @@
 # Stan implementacji i kwestie otwarte
 
-Stan kodu po rebase i zmianach po review sprawdzono statycznie **2026-10-28** na podstawie modeli,
-repozytoriów, serwisów, kontrolerów, solucji, migracji, seeda i workflow.
+Stan implementacji ponownie sprawdzono statycznie **2026-10-29** na podstawie
+rejestracji DI, repozytoriów, serwisów i kontrolerów, solucji, łańcucha migracji,
+API i kontraktów workera Python oraz konfiguracji Compose i CI. Wyniki uruchomień
+poniżej zachowują daty wcześniejszych weryfikacji; nie są nowym przebiegiem.
 Banking i Notifications współistnieją w bieżącej gałęzi. Ostatnie migracje to
 `20261026215244_AddBanking`, `20261027172612_AddNotificationsAfterRebase`
 i `20261028184348_RenameReceiptS3LinkToStorageKeyAndMakeUnique`;
@@ -69,19 +71,67 @@ i Notifications również pomijały testy bazy z powodu braku konfiguracji.
 Nie potwierdzono pełnego przebiegu testów z PostgreSQL po tych zmianach.
 Aktualizacja dokumentacji sama nie uruchamiała nowych testów ani operacji na bazie.
 
+## Receipt, OCR i kategoryzacja — przegląd 2026-10-29
+
+Host rejestruje `IReceiptService`, klienta HTTP OCR i adapter S3. `CreateAsync`
+kopiuje pojedynczy strumień do pliku tymczasowego, wykonuje OCR, upload, a następnie
+zapisuje Receipt z surowym JSON-em i StorageKey. Błąd OCR przerywa proces przed
+uploadem. Po błędzie zapisu bazy przesłany plik pozostaje w storage, ponieważ
+niepewne potwierdzenie nie dowodzi rollbacku. Usuwanie najpierw zapisuje usunięcie
+rekordu, potem podejmuje próbę usunięcia pliku z limitem 10 sekund; błąd sprzątania
+jest logowany. Brak wspólnej transakcji bazy i S3 oraz automatycznego sprzątania
+osieroconych obiektów. Serwis nie sprawdza właściciela paragonu; przed udostępnieniem
+przez Expense/API trzeba określić i egzekwować uprawnienia.
+
+Worker `workers/extraction_worker` ma FastAPI: `/health`, `/docs`,
+`POST /api/v1/extract` i diagnostyczny `POST /api/v1/debug/extract`.
+Domyślny `vision_ocr` przygotowuje obrazy, koryguje orientację, wykonuje RapidOCR
+oraz analizę obrazów z OCR modelem `google/gemini-3.1-flash-lite` przez OpenRouter.
+Alternatywy to `vision` i `text` (OCR, parser regułowy, klasyfikacja Gemma).
+API przyjmuje 1–4 pliki jednego paragonu w polu multipart `files`, maksymalnie
+cztery strony po rozwinięciu PDF/TIFF. Obsługuje także JPEG, PNG, WebP, HEIC/HEIF
+oraz BMP; odrzuca animacje. Domyślne limity to 20 MiB na plik, 50 MiB na żądanie,
+50 MP na stronę i 100 MP na dokument. Backendowy klient Receipt wysyła jeden plik.
+Worker wykonuje pipeline kolejno i nie ma własnego uwierzytelniania; przeznaczono
+go do prywatnej komunikacji z backendem.
+
+Wynik zawiera propozycje nazw i kategorii pozycji, rabaty i kaucje, ostrzeżenia
+oraz flagi ręcznej kontroli. Taksonomia v2 obejmuje 19 kategorii, w tym `zniżka`.
+Są testy oraz narzędzia ewaluacji i fixture'y w `experiments/`; historyczne analizy
+w `notes/ocr/` nie potwierdzają celów jakościowych dla aktualnego domyślnego modelu.
+Brak mapowania tych propozycji na encje Category/ExpenseItem i przepływu korekt
+użytkownika. Nie ma endpointów Receipt/Storage w backendzie; kolekcja Postman
+Storage wywołuje bezpośrednio SeaweedFS S3.
+
+Opcje OCR i S3 mają `ValidateOnStart`. `STORAGE_PUBLIC_ENDPOINT` pozwala podpisywać
+URL dla klienta innym adresem niż wewnętrzny endpoint S3. Receipt.IntegrationTests
+zawiera ręczny test upload → podpisany GET → odmowa anonimowego GET → delete,
+włączany przez `STORAGE_INTEGRATION_TESTS=1`. Obecny CI nie uruchamia SeaweedFS,
+workera ani testów pytest. PostgreSQL CI obejmuje User, Banking i Notifications.
+W tej aktualizacji wykonano kontrolę statyczną, bez nowych testów aplikacji,
+wywołań dostawców, migracji ani resetów.
+
+Źródła: [ReceiptService](../backend/ZPI4M.Backend/src/modules/ZPI4M.Receipt/Services/ReceiptService/ReceiptService.cs),
+[klient OCR](../backend/ZPI4M.Backend/src/modules/ZPI4M.Receipt/Services/ReceiptAnalysisService/HttpReceiptAnalysisService.cs),
+[API workera](../workers/extraction_worker/api.py), [kontrakt odpowiedzi](../workers/extraction_worker/api_models.py),
+[taksonomia](../workers/extraction_worker/extraction/categories.py),
+[testy S3](../backend/ZPI4M.Backend/tests/ZPI4M.Receipt.IntegrationTests/S3FileStorageIntegrationTests.cs),
+[workflow](../.github/workflows/backend.yml).
+
 ## Potwierdzony stan
 
 | Obszar | Co istnieje | Ograniczenie |
 | --- | --- | --- |
 | Backend | Solucja .NET 10, host API, projekty ośmiu modułów i Shared | Struktura projektu nie potwierdza realizacji MVP |
 | Baza | Modele i konfiguracje Banking, Expense, Grouping, Limits, Notifications, Receipt i User; wspólny AppDbContext i migracje | Obecność migracji nie potwierdza ich zastosowania na każdej bazie |
-| Expense | Modele wydatku, pozycji, kategorii i udziałów; repozytorium udziałów; osobne unikalne indeksy FK paragonu i transakcji w konfiguracji, snapshocie i migracji AddUniqueExpenseSourceReferences | Brak kontrolera i serwisów tworzenia, edycji oraz dopasowania wydatków |
-| Repozytoria | Banking, Grouping, User, UserToken, ExpenseShare, Notification i NotificationRecipient | BankingConnectionRepository sam zapisuje próby i połączenia; podstawowe repozytoria pozostawiają SaveChangesAsync serwisowi; warunkowe UPDATE/DELETE wykonują się od razu; brak kompletnego API wszystkich encji |
+| Expense | Modele i repozytoria wydatku, pozycji, kategorii i udziałów, rejestrowane w DI; osobne unikalne indeksy FK paragonu i transakcji w konfiguracji, snapshocie i migracji AddUniqueExpenseSourceReferences | Brak kontrolera i serwisów tworzenia, edycji oraz dopasowania wydatków |
+| Repozytoria | Banking; Group/GroupMember; User/UserToken; Category/Expense/ExpenseItem/ExpenseShare; CategoryGroupLimit; Receipt; Notification/NotificationRecipient | BankingConnectionRepository sam zapisuje próby i połączenia; podstawowe repozytoria pozostawiają SaveChangesAsync serwisowi; warunkowe UPDATE/DELETE wykonują się od razu; brak kompletnego API wszystkich encji |
 | User | Rejestracja, potwierdzenie i ponowna wysyłka e-maila; login z JWT i hashowanym refresh tokenem, rotacja refresh, logout; jedna sesja na konto i weryfikacja jej aktualności przy uwierzytelnieniu; limity IP; GET/PUT api/users/profile; zmiana e-maila z aktualnym hasłem i potwierdzeniem tokenem; forgot-password/reset-password z unieważnieniem sesji; dezaktywacja po potwierdzeniu e-mailem z usunięciem wszystkich tokenów; login nieaktywnego konta po poprawnym haśle zwraca 403; wspólny IEmailSender/SmtpEmailSender i UserEmailMessages | Brak strony potwierdzenia/resetu, zmiany hasła po podaniu aktualnego hasła; konfiguracja JWT wymaga klucza w środowisku; istnieją projekty testów jednostkowych, HTTP i PostgreSQL; brak potwierdzenia dostarczenia wiadomości do rzeczywistej skrzynki |
 | Banking | Próby/połączenia, adapter Tink, callback, odczyt zgód oraz refresh on demand przez trwały worker PostgreSQL, import kont i BOOKED per rachunek; IBankingReadService oraz HTTP GET list/szczegółów rachunków i transakcji | Nowy import wymaga osobnego potwierdzenia Sandbox i zastosowania migracji AddBanking do właściwej bazy; brak odłączania banku i odnawiania zgód |
 | Receipt / OCR | StorageKey z unikalnym indeksem i migracją; IReceiptService koordynuje OCR HTTP, upload S3 i zapis paragonu; odczyt rekordu, podpisanego URL i usuwanie; dwa projekty testowe | Brak podłączenia do Expense i własnych endpointów Receipt; brak potwierdzenia pełnego przepływu OCR → storage → baza w tej weryfikacji; seed zawiera syntetyczny klucz bez pliku |
-| Kategoryzacja | Model kategorii | Brak implementacji modelu klasyfikującego i wyników ewaluacji |
-| Limits | Model limitu kategorii i pól limitów grupy | Brak potwierdzonego przepływu alertów i kontroli budżetów |
+| Kategoryzacja | Klasyfikacja i propozycje nazw produktów w workerze Python, taksonomia v2, flagi review, testy i narzędzia ewaluacji; model i repozytorium Category w .NET | Brak mapowania kategorii workera na encje wydatku i korekt użytkownika; historyczne eksperymenty nie potwierdzają celów jakościowych aktualnego pipeline |
+| Grouping | Modele i repozytoria Group oraz GroupMember, rejestracja DI | Brak serwisów i API tworzenia/dołączania do grup, podziału kosztów i integracji Notifications |
+| Limits | Model i repozytorium CategoryGroupLimit oraz pola limitów grupy | Brak serwisów i API budżetów oraz przepływu alertów |
 | Notifications | Modele, AddNotificationsAfterRebase i snapshot; osobne repozytoria treści i odbiorców; NotifyAsync, GetByUserAsync, MarkAsReadAsync, MarkAllAsReadAsync; DTO; GET /api/notifications, PUT /api/notifications/{id}/read i PUT /api/notifications/read-all; Postman; trzy projekty testów | ID użytkownika dostarcza wspólny ICurrentUser; lista ma paginację i filtr isRead, stałe sortowanie od najnowszych; odczyt zachowuje pierwszą datę. NotifyAsync pomija nieaktywne konta, zwraca null bez odbiorców. Brak podłączenia Grouping/Limits i klientów. Push poza zakresem. Testy jednostkowe i HTTP przeszły częściowo zgodnie z opisem powyżej; pełny przebieg PostgreSQL po review niepotwierdzony |
 | Reports | Projekt modułu | Brak usług raportowania |
 | Web / mobile | Założenia w dokumentacji | Brak projektów aplikacji klienckich w repozytorium |
@@ -134,7 +184,7 @@ nie tworzy użytkownika i nie uruchamia synchronizacji. Brak mapowania lub
 połączeń daje pustą listę bez kontaktu z Tink. Callback pozostaje niezależny.
 
 Host korzysta z rzeczywistego JWT modułu User oraz middleware uwierzytelniania
-i autoryzacji. Adapter Banking odczytuje `sub`, z obsługą `ClaimTypes.NameIdentifier`.
+i autoryzacji. Wspólny `HttpCurrentUser` odczytuje `sub`, z obsługą `ClaimTypes.NameIdentifier`.
 Nie ma zastępczego guarda dla brakującego auth. Oddzielenie zależności Banking
 od User pozostaje do zaplanowania; referencję Banking do Expense usunięto.
 
@@ -361,7 +411,7 @@ odczyt pojedynczy/zbiorczy, zachowanie wcześniejszych dat i izolacja użytkowni
 | Nie wszystkie FK między modułami i domyślne ograniczenia z SQL init są odwzorowane w EF | Przy zmianie schematu porównuj SQL, migracje i snapshot; szczegóły opisuje domain.md |
 | Produkt obejmuje finanse osobiste, ale Expense wymaga grupy | Sposób reprezentowania osobistej przestrzeni wymaga ustalenia |
 | ExpenseItem ma opcjonalny FkUserId, ale Funkcjonalności.txt (sekcja 3) umieszczają przypisywanie uczestników do produktów poza MVP | MVP obejmuje podział całego wydatku; obecność pola w modelu nie oznacza gotowej funkcji ani obowiązku realizacji rozszerzenia |
-| Dokumentacja stosu wymienia Swagger, mobile i Python OCR | Nie oznacza obecności UI Swagger ani tych aplikacji w kodzie |
+| Dokumentacja stosu wymienia Swagger, mobile i Python OCR | Backend .NET udostępnia OpenAPI w Development; worker FastAPI ma UI /docs i zaimplementowany OCR. Aplikacji web/mobile nadal nie ma |
 | SQL init Receipt nadal używa s3_link; model i seed używają unikalnego storage_key | Migracja 20261028184348_RenameReceiptS3LinkToStorageKeyAndMakeUnique zmienia nazwę kolumny i dodaje indeks; seed wymaga jej zastosowania. Migracja nie konwertuje historycznych URL-i na klucze i wymaga braku duplikatów |
 | AddNotificationsAfterRebase zastępuje starą AddNotificationRecipient; baza sprzed rebase mogła już mieć jej kolumny i tabele | Nie stosuj ponownie tych samych zmian bez sprawdzenia schematu i historii. Seed nie naprawia tego konfliktu; odtworzenie lokalnej bazy usuwa dane i wymaga zgody |
 | Uzgodniono pojedynczy cel: wydatek albo grupa; NotifyAsync i aktualny seed stosują tę regułę, EF nie ma CHECK wyłączności | Walidacja serwisu nie jest ograniczeniem bazy; bezpośredni zapis SQL może nadal podać oba FK |
@@ -389,7 +439,8 @@ Aktualny diagram logiczny i opis bazy używają `birth_date`, zgodnie z mapowani
 - Konfiguracja skrzynki SMTP; adapter jest zaimplementowany, wybór serwera i faktyczne dostarczenie wiadomości nie są jeszcze potwierdzone.
 - Dostawca lub symulator importu bankowego i szczegóły integracji.
 - Potwierdzenie pełnej integracji istniejących klientów OCR i magazynu obrazów,
-  podłączenie Receipt do Expense oraz kontrakt kategoryzacji i pomiar jakości.
+  podłączenie Receipt do Expense, mapowanie kategorii workera na encje .NET,
+  uprawnienia do paragonów, obsługa korekt i pomiar jakości aktualnego pipeline.
 - Reguły podziału kosztów, sald i limitów, wskazane w [domenie](domain.md#kwestie-wymagające-ustalenia-przy-zadaniu).
 
 Nie są to automatyczne blokery wszystkich prac. Ustalaj tylko decyzje potrzebne

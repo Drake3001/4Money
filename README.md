@@ -4,6 +4,7 @@
 .
 ├── .github/
 │   └── workflows/
+├── .vscode/
 ├── agent-context/
 ├── backend/
 │   └── ZPI4M.Backend/
@@ -11,43 +12,44 @@
 │       │   ├── modules/
 │       │   │   ├── ZPI4M.Banking/
 │       │   │   │   ├── ApiControllers/
-│       │   │   │   ├── Database/
 │       │   │   │   ├── DTOs/
+│       │   │   │   ├── Database/
 │       │   │   │   ├── Models/
 │       │   │   │   ├── Repositories/
-│       │   │   │   └── Services/
+│       │   │   │   ├── Services/
+│       │   │   │   └── Tink/
 │       │   │   ├── ZPI4M.Expense/
 │       │   │   │   ├── ApiControllers/
-│       │   │   │   ├── Database/
 │       │   │   │   ├── DTOs/
+│       │   │   │   ├── Database/
 │       │   │   │   ├── Models/
 │       │   │   │   ├── Repositories/
 │       │   │   │   └── Services/
 │       │   │   ├── ZPI4M.Grouping/
 │       │   │   │   ├── ApiControllers/
-│       │   │   │   ├── Database/
 │       │   │   │   ├── DTOs/
+│       │   │   │   ├── Database/
 │       │   │   │   ├── Models/
 │       │   │   │   ├── Repositories/
 │       │   │   │   └── Services/
 │       │   │   ├── ZPI4M.Limits/
 │       │   │   │   ├── ApiControllers/
-│       │   │   │   ├── Database/
 │       │   │   │   ├── DTOs/
+│       │   │   │   ├── Database/
 │       │   │   │   ├── Models/
 │       │   │   │   ├── Repositories/
 │       │   │   │   └── Services/
 │       │   │   ├── ZPI4M.Notifications/
 │       │   │   │   ├── ApiControllers/
-│       │   │   │   ├── Database/
 │       │   │   │   ├── DTOs/
+│       │   │   │   ├── Database/
 │       │   │   │   ├── Models/
 │       │   │   │   ├── Repositories/
 │       │   │   │   └── Services/
 │       │   │   ├── ZPI4M.Receipt/
 │       │   │   │   ├── ApiControllers/
-│       │   │   │   ├── Database/
 │       │   │   │   ├── DTOs/
+│       │   │   │   ├── Database/
 │       │   │   │   ├── Models/
 │       │   │   │   ├── Repositories/
 │       │   │   │   └── Services/
@@ -58,8 +60,9 @@
 │       │   │   │   └── Services/
 │       │   │   └── ZPI4M.User/
 │       │   │       ├── ApiControllers/
-│       │   │       ├── Database/
 │       │   │       ├── DTOs/
+│       │   │       ├── Database/
+│       │   │       ├── Integrations/
 │       │   │       ├── Models/
 │       │   │       ├── Repositories/
 │       │   │       └── Services/
@@ -71,21 +74,76 @@
 │       │   │   ├── Migrations/
 │       │   │   └── AppDbContext.cs
 │       │   └── ZPI4M.Shared/
+│       │       ├── CurrentUser/
 │       │       └── Pagination/
-│       └── tests/
+│       ├── tests/
+│       │   ├── ZPI4M.Banking.IntegrationTests/
+│       │   ├── ZPI4M.Banking.Tests/
+│       │   ├── ZPI4M.Banking.UnitTests/
+│       │   ├── ZPI4M.Notifications.IntegrationTests/
+│       │   ├── ZPI4M.Notifications.Tests/
+│       │   ├── ZPI4M.Notifications.UnitTests/
+│       │   ├── ZPI4M.Receipt.IntegrationTests/
+│       │   ├── ZPI4M.Receipt.UnitTests/
+│       │   ├── ZPI4M.User.IntegrationTests/
+│       │   ├── ZPI4M.User.Tests/
+│       │   └── ZPI4M.User.UnitTests/
+│       └── ZPI4M.Backend.slnx
 ├── containers/
-│   ├── local/
-│   └── deploy/
+│   ├── deploy/
+│   └── local/
+│       └── docker-compose.yml
 ├── database/
-|   └── init/
+│   ├── init/
+│   └── seed_local.sql
+├── diagrams/
+│   ├── backend/
+│   │   └── open_banking/
+│   └── ci-cd/
 ├── notes/
+│   └── ocr/
+├── postman/
+│   ├── collections/
+│   ├── environments/
+│   ├── mocks/
+│   │   └── tink-refresh/
+│   ├── simulations/
+│   │   └── banking-refresh/
+│   └── support/
 ├── proxmox-infra/
 │   ├── scripts/
-│   └── tests/
-└── tools/
-    ├── ci/
-    └── hooks/
-        └── tests/
+│   ├── tests/
+│   └── main.tf
+├── tools/
+│   ├── ci/
+│   ├── hooks/
+│   │   └── tests/
+│   └── scripts/
+│       ├── reset_state/
+│       ├── tests/
+│       └── tink_connector/
+│           └── presets/
+└── workers/
+    └── extraction_worker/
+        ├── experiments/
+        │   ├── fixtures/
+        │   │   ├── gemma-benchmark-v2/
+        │   │   ├── gemma-hard-v1/
+        │   │   ├── gemma-vision-v1/
+        │   │   └── gemma-vision-v2/
+        │   │       ├── development/
+        │   │       └── holdout/
+        │   └── prompts/
+        ├── extraction/
+        │   ├── analysis/
+        │   ├── prompts/
+        │   ├── providers/
+        │   └── steps/
+        │       ├── ocr/
+        │       └── parsing/
+        ├── tests/
+        ├── api.py
+        └── main.py
 ```
 
 ### Docker

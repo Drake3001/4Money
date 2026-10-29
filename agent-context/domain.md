@@ -269,6 +269,18 @@ obiektów. StorageKey przechowuje klucz pliku, nie pełny adres URL.
 ani powiązań kategorii. Seed stosuje ten format i syntetyczny klucz storage,
 ale nie tworzy odpowiadającego mu pliku w magazynie.
 
+Kontrakt workera sprawdzono statycznie 2026-10-29. Kwoty i ilości w JSON są
+tekstami dziesiętnymi, data ma format ISO, a nieznane wartości są `null`.
+Pozycja zachowuje odczytaną `name` i osobną propozycję `name_corrected`, kategorię
+oraz `needs_review` / `review_reason`. Nazwy kategorii pochodzą z taksonomii v2
+w [workerze](../workers/extraction_worker/extraction/categories.py), a nie z ID
+tabeli Category. Nie ma jeszcze mapowania tych etykiet na kategorie bazy .NET.
+Rabaty produktów opisuje `discount`; samodzielna zniżka pozostaje pozycją
+z kategorią `zniżka` i ujemną kwotą. Wydane kaucje i ich zwroty są osobno
+w `deposits` i `deposit_returns`. `amount_due` jest osobnym polem od `total`.
+Główna flaga `needs_review` wynika z ostrzeżeń lub flag przeglądu pozycji;
+odpowiedź HTTP 200 może nadal wymagać ręcznej korekty.
+
 ## Kwestie wymagające ustalenia przy zadaniu
 
 Dokumentacja nie rozstrzyga sposobu reprezentowania wydatków osobistych przy
