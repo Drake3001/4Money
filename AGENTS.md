@@ -43,7 +43,8 @@ analiza poszczególnych produktów, a także podział kosztów między użytkown
 | `backend/ZPI4M.Backend/` | Solucja .NET, moduły, host API, migracje i testy |
 | `agent-context/` | Kontekst tematyczny i bieżący status implementacji |
 | `../doc/` (lokalne `ZPI/doc`) | Źródłowe wymagania TXT i diagramy poza repozytorium |
-| `containers/` | Compose lokalnej bazy PostgreSQL |
+| `containers/local/` | Jeden Compose PostgreSQL, backendu, SeaweedFS i OCR; wspólny .env i .env.example; instrukcja uruchomienia |
+| `containers/deploy/` | Miejsce na przyszłą konfigurację wdrożenia; obecnie tylko .gitkeep |
 | `database/init/` | SQL inicjalizujący bazę przed zastosowaniem migracji |
 | `database/seed_local.sql` | Reset i syntetyczne dane lokalne; uruchamiaj po migracjach |
 | `postman/` | Kolekcje User, Banking, Notifications i diagnostyka Tink; wspólne szablony środowisk |
@@ -99,7 +100,8 @@ analiza poszczególnych produktów, a także podział kosztów między użytkown
 - Banking ma integrację Tink, odczyty i worker importu, a User obsługuje tożsamość,
   sesje oraz operacje konta. Aktualne ograniczenia są w statusie; nie cofaj ich
   opisu do samych modeli na podstawie starszych fragmentów sprzed rebase.
-- Solucja ma dziewięć projektów xUnit: po trzy User, Banking i Notifications.
+- Solucja ma jedenaście projektów xUnit: po trzy User, Banking i Notifications
+  oraz dwa Receipt.
   Starsze wyniki testów dotyczą konkretnych rewizji, nie dowodzą poprawności po rebase.
 - Wszystkie testy .NET z PostgreSQL używają TEST_POSTGRES_CONNECTION_STRING;
   pipeline ustawia ją raz. Brak konfiguracji lokalnie pomija testy bazy, a w CI
@@ -107,14 +109,23 @@ analiza poszczególnych produktów, a także podział kosztów między użytkown
 - Aktualna migracja inboxa to `20261027172612_AddNotificationsAfterRebase`,
   po `20261026215244_AddBanking`. Nie przywracaj usuniętej migracji
   `20261026233657_AddNotificationRecipient` obok jej zamiennika.
+- Po migracji inboxa jest `20261028184348_RenameReceiptS3LinkToStorageKeyAndMakeUnique`:
+  Receipt używa wymaganego, unikalnego `StorageKey` zamiast `S3Link`.
+  Seed wymaga tej migracji i zapisuje odpowiedź OCR w formacie
+  `receipt` / `warnings` / `needs_review`. Klucz storage jest syntetyczny;
+  seed nie uploaduje obrazu. Szczegóły Receipt i ograniczenia opisuje status.
 - Nowa baza wymaga kolejności: SQL init → migracje EF → seed. Seed czyści dane,
   nie naprawia schematu ani historii EF. Rebase nie cofa już zastosowanych zmian bazy;
   odtworzenie lokalnego wolumenu wymaga zgody na usunięcie danych w danym zadaniu.
-- Dla uruchomienia lokalnego używaj właściwych plików `.env`: Compose w `containers/`,
-  API w katalogu `ZPI4M.Api`. Domyślny profil API to HTTP na 5283;
+- Docker używa wyłącznie `containers/local/.env` dla wszystkich czterech usług;
+  szablon i instrukcja są w `containers/local/`. Pliki `.env` API i workera służą
+  uruchomieniu bez Dockera. Compose ustawia adresy zależności po nazwach usług;
+  nie podawaj localhost jako adresu zależności wewnątrz kontenera.
+  Domyślny profil lokalnego API to HTTP na 5283;
   Postman `baseUrl` musi odpowiadać rzeczywiście uruchomionemu profilowi.
-- Szablon ZPI4M.Api/.env.example zawiera także SMTP i nazwy zmiennych wielkimi
-  literami. Sekrety uzupełniaj wyłącznie lokalnie; nie kopiuj .env do dokumentacji.
+- Szablon ZPI4M.Api/.env.example zawiera tylko poświadczenia (baza, JWT,
+  storage, Tink i SMTP). Niesekretne wartości domyślne są w appsettings.json;
+  zmienne środowiskowe je nadpisują. Sekrety uzupełniaj wyłącznie lokalnie.
 
 ## Utrzymanie kontekstu
 

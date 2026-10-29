@@ -1,0 +1,50 @@
+{
+  "source": "IMG_6886.JPEG",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "transcription_scope": "partial",
+  "store": "ZAHIR KEBAB",
+  "receipt_number": "467167",
+  "date": "2026-10-14",
+  "time": "20:46",
+  "currency": "PLN",
+  "total": "19.79",
+  "amount_due": "19.79",
+  "items": [
+    {
+      "name": "ROLLO KEBAB (MAŁE)",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "21.99",
+      "before_discount": "21.99",
+      "discount": "-2.20",
+      "total": "19.79",
+      "tax_code": "B",
+      "printed_marker": null,
+      "category": "restauracje i kawiarnie"
+    }
+  ],
+  "deposits": [],
+  "payment": {
+    "label": "KARTA",
+    "amount": "19.79"
+  },
+  "tax_summary": [
+    {
+      "code": "B",
+      "rate_percent": "8",
+      "sales": "19.79",
+      "tax": "1.47"
+    }
+  ],
+  "tax_total": "1.47",
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia; oczekuje na sprawdzenie użytkownika.",
+    "Zachowano skróty i powtórzone wiersze produktów; pominięto reklamy, identyfikatory techniczne i obce wydruki w tle.",
+    "gemma-vision-v2: Visually checked original image(s); item count, quantities, unit prices, before-discount gross amounts, signed discounts, after-discount totals, goods total, amount due, deposits and date confirmed. No numerical or date corrections were necessary. Current assistant_verified_not_human status supersedes historical pending-review wording in retained notes. These are silver references, not human gold."
+  ],
+  "uncertain_fields": [],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "verification_method": "Source-image review of complete purchase rows, numeric fields, date and deposits before new gemma-vision-v2 predictions. Existing reference retained except added metadata/category labels."
+}

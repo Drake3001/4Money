@@ -1,0 +1,64 @@
+{
+  "source": "20261018_090713.jpg",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "transcription_scope": "partial",
+  "store": "HYPEROIL Sp. z o.o.",
+  "receipt_number": "000704779",
+  "date": "2026-10-12",
+  "time": "11:04",
+  "currency": "PLN",
+  "total": "249.95",
+  "amount_due": "249.95",
+  "items": [
+    {
+      "name": "B_Benzyna PB95",
+      "quantity": "36.87",
+      "unit": "LTR",
+      "unit_price": "6.78",
+      "before_discount": "249.98",
+      "discount": "-0.03",
+      "total": "249.95",
+      "tax_code": "B",
+      "printed_marker": null,
+      "total_is_printed": false,
+      "category": "transport i samochód"
+    }
+  ],
+  "deposits": [],
+  "deposit_returns": [],
+  "tax_summary": [
+    {
+      "code": "B",
+      "rate_percent": "8.00",
+      "sales": "249.95",
+      "tax": "18.51"
+    }
+  ],
+  "tax_total": "18.51",
+  "payment": {
+    "label": "ZAPŁACONO KARTA",
+    "amount": "249.95"
+  },
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia i powiększeń, bez używania OCR; oczekuje na sprawdzenie użytkownika.",
+    "Zakres: główny paragon bez reklam, kodów kreskowych i identyfikatorów technicznych. Zgodność rachunkowa nie potwierdza niezależnie każdego znaku transkrypcji.",
+    "OPUST NADPŁATA -0.03 jest rabatem całego paragonu. Dla jedynej pozycji przypisano go do discount; kwota pozycji po rabacie jest obliczona, a nie osobno wydrukowana przy produkcie.",
+    "Stawkę B 8,00% zachowano dokładnie według zdjęcia.",
+    "gemma-vision-v2: assistant visually checked source images before new predictions; not human gold. Existing transcription fields were retained. No numerical or name corrections were required. Historical pending-user-review notes remain as provenance; current review_status describes this review.",
+    "Fuel quantity 36.87 LTR x 6.78 gives rounded gross 249.98. OPUST NADPŁATA -0.03 applies to the only purchase; final goods total and payment 249.95. Preserve the actual printed VAT B 8.00% / 18.51. Printed date is 2026-10-12, NOT the date embedded in the image filename. Time 11:04. Product prefix is printed B_Benzyna, preserved.",
+    "Monetary fields represent gross amounts. Item total is after signed discount; tax_summary.sales and document total already include VAT. Do not add VAT again or invent unprinted net values."
+  ],
+  "uncertain_fields": [],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "reference_review": {
+    "method": "visual_check_against_original_source_images_before_new_predictions",
+    "verified_scope": "all_main_receipt_purchase_rows_financial_fields_date_and_deposits",
+    "source_images": [
+      "data/input/20261018_090713.jpg"
+    ],
+    "numerical_corrections": 0,
+    "other_transcription_corrections": 0
+  }
+}

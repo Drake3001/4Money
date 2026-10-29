@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const collection = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../postman/4Money.Banking.postman_collection.json'), 'utf8'));
+const collection = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../postman/collections/4Money.Banking.postman_collection.json'), 'utf8'));
 const folder = collection.item.find(x => x.name.startsWith('80 —'));
 const id = '10000000-0000-0000-0000-000000000010';
 function run(request, phase, body, values = {}, status = 200) {

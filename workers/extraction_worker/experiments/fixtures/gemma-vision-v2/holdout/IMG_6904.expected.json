@@ -1,0 +1,133 @@
+{
+  "source": "IMG_6904.JPEG",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "transcription_scope": "partial",
+  "store": "ŻABKA",
+  "receipt_number": "47193",
+  "date": "2026-10-15",
+  "time": "10:03",
+  "currency": "PLN",
+  "total": "44.96",
+  "amount_due": "45.96",
+  "items": [
+    {
+      "name": "NAPOJ ENERG MONSTER 500ml-A",
+      "quantity": "1",
+      "unit": "szt.",
+      "unit_price": "7.70",
+      "before_discount": "7.70",
+      "discount": "-1.20",
+      "total": "6.50",
+      "tax_code": "A",
+      "printed_marker": null,
+      "total_is_printed": false,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "NAP MONST RUBY 500ml-A",
+      "quantity": "1",
+      "unit": "szt.",
+      "unit_price": "7.70",
+      "before_discount": "7.70",
+      "discount": "-1.20",
+      "total": "6.50",
+      "tax_code": "A",
+      "printed_marker": null,
+      "total_is_printed": false,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "SZMAAMM PIER GRUZ 320g-C",
+      "quantity": "1",
+      "unit": "szt.",
+      "unit_price": "11.99",
+      "before_discount": "11.99",
+      "discount": "-4.00",
+      "total": "7.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "total_is_printed": false,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "SZAMAMM LASAGNE BOL Z KUR-C",
+      "quantity": "1",
+      "unit": "szt.",
+      "unit_price": "11.99",
+      "before_discount": "11.99",
+      "discount": "-4.00",
+      "total": "7.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "total_is_printed": false,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "SZAMAMM MAKARON Z KURCZ,-C",
+      "quantity": "1",
+      "unit": "szt.",
+      "unit_price": "17.99",
+      "before_discount": "17.99",
+      "discount": "-10.00",
+      "total": "7.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "total_is_printed": false,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "MAKARON BUC CACIO E PEPE-C",
+      "quantity": "1",
+      "unit": "szt.",
+      "unit_price": "19.99",
+      "before_discount": "19.99",
+      "discount": "-12.00",
+      "total": "7.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "total_is_printed": false,
+      "category": "żywność i napoje"
+    }
+  ],
+  "deposits": [
+    {
+      "name": "KAUCJA ZA PUSZKĘ",
+      "quantity": "2",
+      "unit_price": "0.50",
+      "total": "1.00"
+    }
+  ],
+  "deposit_returns": [],
+  "tax_summary": [
+    {
+      "code": "A",
+      "rate_percent": "23",
+      "sales": "13.00",
+      "tax": "2.43"
+    },
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "31.96",
+      "tax": "1.52"
+    }
+  ],
+  "tax_total": "3.95",
+  "payment": {
+    "label": "INNA Karta kred.",
+    "amount": "45.96"
+  },
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia i powiększeń bez używania OCR; oczekuje na sprawdzenie użytkownika.",
+    "Zakres obejmuje główny paragon; reklamy, kody kreskowe, identyfikatory techniczne i obce paragony w tle pominięto.",
+    "Zgodność rachunkowa jest kontrolą pomocniczą i nie potwierdza niezależnie każdego znaku transkrypcji.",
+    "Kwoty produktów po rabacie są obliczone z wydrukowanej ceny i opustu; nie wydrukowano ich osobno przy produktach.",
+    "gemma-vision-v2: Visually checked original image(s); item count, quantities, unit prices, before-discount gross amounts, signed discounts, after-discount totals, goods total, amount due, deposits and date confirmed. No numerical or date corrections were necessary. Current assistant_verified_not_human status supersedes historical pending-review wording in retained notes. These are silver references, not human gold.",
+    "Six purchase lines, with OPUST repetitions excluded. Signed discounts total -32.40; goods 44.96 plus can deposits 1.00 yields 45.96 due. Preserve printed SZMAAMM abbreviation in the transcription rather than silently correcting the brand spelling."
+  ],
+  "uncertain_fields": [],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "verification_method": "Source-image review of complete purchase rows, numeric fields, date and deposits before new gemma-vision-v2 predictions. Existing reference retained except added metadata/category labels."
+}

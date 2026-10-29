@@ -5,7 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const collection = JSON.parse(fs.readFileSync(path.resolve(__dirname,
-  '../../../postman/4Money.Banking.postman_collection.json'), 'utf8'));
+  '../../../postman/collections/4Money.Banking.postman_collection.json'), 'utf8'));
 const login = collection.item[0].item[0];
 const pre = login.event.find(event => event.listen === 'prerequest').script.exec.join('\n');
 const post = login.event.find(event => event.listen === 'test').script.exec.join('\n');

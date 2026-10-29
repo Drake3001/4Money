@@ -1,0 +1,59 @@
+{
+  "source": "20261011_130126.jpg",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "store": "McDonald's",
+  "receipt_number": "524415",
+  "date": "2026-10-07",
+  "time": "14:24",
+  "currency": "PLN",
+  "total": "7.50",
+  "amount_due": "7.50",
+  "items": [
+    {
+      "name": "Snack.Wrap",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "7.50",
+      "before_discount": "7.50",
+      "discount": "0.00",
+      "total": "7.50",
+      "tax_code": "B",
+      "printed_marker": null,
+      "category": "restauracje i kawiarnie"
+    }
+  ],
+  "deposits": [],
+  "payment": {
+    "label": "KARTA Visa",
+    "amount": "7.50"
+  },
+  "tax_summary": [
+    {
+      "code": "B",
+      "rate_percent": "8",
+      "sales": "7.50",
+      "tax": "0.56"
+    }
+  ],
+  "tax_total": "0.56",
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia, bez kopiowania wyniku OCR; oczekuje na sprawdzenie użytkownika.",
+    "Zachowano nazwy i skróty z wydruku; reklamy, identyfikatory techniczne i obce paragony w tle pominięto.",
+    "gemma-vision-v2: assistant visually checked source images before new predictions; not human gold. Existing transcription fields were retained. No numerical or name corrections were required. Historical pending-user-review notes remain as provenance; current review_status describes this review.",
+    "Single McDonald's Snack.Wrap, quantity 1, price 7.50 and total 7.50. No explicit quantity unit token is printed, so unit stays null. Restaurant context is explicit. Date 2026-10-07, time 14:24.",
+    "Monetary fields represent gross amounts. Item total is after signed discount; tax_summary.sales and document total already include VAT. Do not add VAT again or invent unprinted net values."
+  ],
+  "uncertain_fields": [],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "reference_review": {
+    "method": "visual_check_against_original_source_images_before_new_predictions",
+    "verified_scope": "all_main_receipt_purchase_rows_financial_fields_date_and_deposits",
+    "source_images": [
+      "data/input/20261011_130126.jpg"
+    ],
+    "numerical_corrections": 0,
+    "other_transcription_corrections": 0
+  }
+}

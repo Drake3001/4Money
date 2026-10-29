@@ -1,0 +1,28 @@
+{
+  "taxonomy_version": "1",
+  "reviewer": "assistant_visual_review",
+  "review_notes": "Ocena na podstawie obejrzanych trzech obrazów źródłowych i uzgodnionej taksonomii. To mała próbka rozwojowa, nie niezależna ocena człowieka ani zbiór testowy. Dopuszczono zachowanie lub usunięcie osobnego znacznika VAT, ale wymagane są czytelne polskie znaki. Nie wymagano rozwijania skrótów.",
+  "cases": [
+    {
+      "source": "Screenshot_20261011_140209_appka.jpg",
+      "items": [
+        {"id": 0, "name_raw": "KRAKERSY TUC BACON 100g-C", "accepted_names": ["KRAKERSY TUC BACON 100g-C", "KRAKERSY TUC BACON 100g"], "category": "żywność i napoje", "reviewed": true},
+        {"id": 1, "name_raw": "LAYS KRAKERSY 80g-C", "accepted_names": ["LAYS KRAKERSY 80g-C", "LAYS KRAKERSY 80g"], "category": "żywność i napoje", "reviewed": true},
+        {"id": 2, "name_raw": "CHIPSY D0RITO 180g-C", "accepted_names": ["CHIPSY DORITO 180g-C", "CHIPSY DORITO 180g"], "category": "żywność i napoje", "reviewed": true}
+      ]
+    },
+    {
+      "source": "IMG_6796.JPEG",
+      "items": [
+        {"id": 0, "name_raw": "PIERS PIECZ KURCZ 100G", "accepted_names": ["PIERŚ PIECZ KURCZ 100G"], "category": "żywność i napoje", "reviewed": true},
+        {"id": 1, "name_raw": "RECZNIK PAPIER FOXY TOR", "accepted_names": ["RĘCZNIK PAPIER FOXY TOR"], "category": "dom i ogród", "reviewed": true}
+      ]
+    },
+    {
+      "source": "20261011_130153.jpg",
+      "items": [
+        {"id": 0, "name_raw": "PIWO TYSKIE GRONIE-A", "accepted_names": ["PIWO TYSKIE GRONIE-A", "PIWO TYSKIE GRONIE"], "category": "alkohol i tytoń", "reviewed": true}
+      ]
+    }
+  ]
+}

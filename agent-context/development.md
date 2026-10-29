@@ -6,8 +6,8 @@ oznacza to potwierdzenia ich wykonania w każdej sesji. Bieżące ograniczenia
 opisuje [status](implementation-status.md).
 
 Stan kodu, migracji i konfiguracji sprawdzono statycznie 2026-10-28 po rebase i review.
-Solucja zawiera User, Banking i Notifications oraz po trzy projekty testowe
-każdego z tych modułów. Starsze wyniki uruchomień opisuje status; nie traktuj
+Solucja zawiera po trzy projekty testowe User, Banking i Notifications
+oraz dwa Receipt — łącznie jedenaście. Starsze wyniki uruchomień opisuje status; nie traktuj
 ich jako nowej weryfikacji obecnej rewizji po rebase.
 
 ## Wymagania
@@ -19,25 +19,31 @@ Restore i instalacja narzędzi mogą pobierać zależności.
 
 ## Lokalna baza i API
 
-W `containers/.env` ustaw własne `POSTGRES_USER` i `POSTGRES_PASSWORD`.
-Szablon znajduje się w `containers/.env.example`. Skopiuj go do `.env`, jeśli
+Docker uruchamia cztery usługi przez jeden `containers/local/docker-compose.yml`
+i jeden `containers/local/.env`: PostgreSQL, backend, SeaweedFS i OCR. Pełna
+konfiguracja, porty i przejście ze starych Compose są w
+[instrukcji kontenerów](../containers/local/README.md). Pliki `.env` w katalogach
+API i workera są potrzebne tylko do uruchamiania tych aplikacji bez Dockera.
+
+W `containers/local/.env` ustaw własne `POSTGRES_USER` i `POSTGRES_PASSWORD`.
+Szablon znajduje się w `containers/local/.env.example`. Skopiuj go do `.env`, jeśli
 plik lokalny jeszcze nie istnieje. Istniejący wolumen PostgreSQL zachowuje
 pierwotne dane logowania — zmiana `.env` ich nie zmienia.
 Nie zapisuj rzeczywistych wartości w dokumentacji ani w Git.
-Z katalogu `containers/` uruchom:
+Z katalogu `containers/local/` uruchom:
 
 ```bash
-docker compose up -d
+docker compose up -d postgres-db
 ```
 
 Równoważne uruchomienie z katalogu głównego repo z jawnym plikiem środowiska:
 
 ```bash
-docker compose --env-file containers/.env --project-directory containers up -d
+docker compose --env-file containers/local/.env -f containers/local/docker-compose.yml up -d postgres-db
 ```
 
 Ostrzeżenia o brakujących POSTGRES_USER/POSTGRES_PASSWORD oznaczają, że Compose
-nie dostał tych wartości. Uzupełnij containers/.env przed inicjalizacją nowego
+nie dostał tych wartości. Uzupełnij containers/local/.env przed inicjalizacją nowego
 wolumenu; nie zakładaj domyślnego loginu PostgreSQL. Poświadczenia bazy są inne
 niż loginy i hasło kont aplikacji z seeda.
 
@@ -48,7 +54,8 @@ nie przy każdym restarcie. Nie usuwaj wolumenu w ramach zwykłego uruchomienia.
 
 Kolejność przygotowania pustej bazy: SQL init (automatycznie z Compose na nowym
 wolumenie) → wszystkie migracje EF → `database/seed_local.sql`. Migracje tworzą
-m.in. notification_recipient i nowe kolumny powiadomień, więc seed wykonany
+m.in. notification_recipient, nowe kolumny powiadomień oraz unikalne
+`receipt.receipt.storage_key`, więc seed wykonany
 przed migracjami nie zadziała. Samo `database update` nie odtwarza pustej bazy
 bez baseline SQL. Przy zwykłym starcie istniejącej bazy nie uruchamiaj resetu.
 
@@ -67,7 +74,18 @@ Tink wpisuj wyłącznie lokalnie jako `Tink__ClientSecret`; nie umieszczaj ich
 w `appsettings.json` ani szablonach. Żądania Banking w Postmanie potrzebują
 JWT User, nie sekretu aplikacji Tink. Integracja Tink pozostaje wyłączona przez
 `Tink__ContinuousAccessVerified=false` na etapie przygotowania bazy.
-Po przygotowaniu bazy i migracji uruchom z katalogu `ZPI4M.Api`:
+Od 2026-10-29 szablon API zawiera tylko poświadczenia. Domyślne adresy OCR
+i storage, bucket, region, timeouty, callback Tink oraz niesekretne ustawienia
+SMTP są w `appsettings.json`. SMTP używa przykładowego serwera i nadawcy;
+dopasuj je przed wysyłką. Callback Tink musi odpowiadać rejestracji w Tink
+i uruchomionemu profilowi (domyślny w JSON zachowuje HTTPS na 7278).
+Klucze OCR i storage w JSON pozostają płaskie (`OCR_BASE_URL`, `STORAGE_ENDPOINT`
+itd.), zgodnie z istniejącym odczytem przez IConfiguration. Zmienne środowiskowe
+mogą nadpisywać wszystkie te ustawienia; istniejący lokalny `.env` zachowuje
+pierwszeństwo i nie jest automatycznie przepisywany.
+Po przygotowaniu bazy i migracji możesz uruchomić cały stos przez
+`docker compose --env-file containers/local/.env -f containers/local/docker-compose.yml up --build -d`
+z głównego katalogu repo. Przy uruchamianiu API bez Dockera, z katalogu `ZPI4M.Api`:
 
 ```bash
 dotnet run --launch-profile http
@@ -208,7 +226,7 @@ i testy HTTP przez AddUserRateLimiting. Polityka user-email pozostaje wspólna,
 z limitem 5/min/IP.
 Wywołania można wykonywać ręcznie w Postmanie.
 
-Kolekcja [4Money.User](../postman/4Money.User.postman_collection.json) zawiera
+Kolekcja [4Money.User](../postman/collections/4Money.User.postman_collection.json) zawiera
 14 żądań obejmujących obecne API User. Korzysta ze wspólnego środowiska
 `postman/environments/4Money.Local.example.postman_environment.json`.
 Login zapisuje tokeny, a tokeny z maili wklejamy ręcznie. Każde żądanie
@@ -494,9 +512,10 @@ resend-confirmation, zmiana e-maila i dezaktywacja zachowują 503, a forgot-pass
 Projekt User przypina zależność `System.Security.Cryptography.Pkcs` do 10.0.13,
 aby użyć poprawionej wersji zależności pobieranej przez MailKit/MimeKit
 ([advisory Microsoft](https://github.com/advisories/GHSA-846f-f764-76mx)).
-`appsettings.json` nie zawiera sekcji SMTP ani EmailConfirmation.
-Domyślne ustawienia SMTP znajdują się w `SmtpOptions`; host i adres nadawcy
-trzeba dostarczyć przez konfigurację, np. zmienne `SMTP__...` w `.env`.
+`appsettings.json` zawiera niesekretne ustawienia SMTP: przykładowy host i adres
+nadawcy oraz domyślne port, tryb TLS, kontrolę odwołania certyfikatu, nazwę
+nadawcy i timeout. Host i adres nadawcy trzeba dopasować do wybranego serwera.
+Sekcja EmailConfirmation pozostaje bez konfiguracji w JSON.
 Konfiguracja jest walidowana przy pierwszej
 wysyłce, więc samo uruchomienie API nie wymaga skonfigurowanej skrzynki.
 
@@ -515,8 +534,9 @@ SMTP__TIMEOUTSECONDS=30
 ```
 
 To placeholdery; wartości muszą odpowiadać konfiguracji wybranego dostawcy.
-Aktualny ZPI4M.Api/.env.example zawiera te ustawienia SMTP i stosuje wielkie
-litery we wszystkich nazwach zmiennych. Nie przenoś sekretów z lokalnego .env
+Aktualny ZPI4M.Api/.env.example zawiera tylko poświadczenia, w tym login
+i hasło SMTP. Powyższe zmienne mogą opcjonalnie nadpisywać wartości JSON.
+Nie przenoś sekretów z lokalnego .env
 do szablonu. Konfiguracja ASP.NET Core dopasowuje klucze bez rozróżniania
 wielkości liter; podwójny podkreślnik oddziela sekcję od nazwy ustawienia.
 `StartTls` wymaga obsługi STARTTLS przez serwer (zwykle port 587).
@@ -543,7 +563,7 @@ a Runner kontynuuje do rozpoczęcia próby. Błędy logowania zatrzymują run i 
 pozostawiają poprzedniego tokenu. Można też używać osobnej kolekcji User. Adapter Banking odczytuje `sub`
 ze zweryfikowanego JWT; wspiera również `ClaimTypes.NameIdentifier`.
 Przepływ bankowy wymaga ręcznego przejścia przez Tink Link.
-Instrukcja: [postman/README.md](../postman/README.md) i [notes/POSTMAN.md](../notes/POSTMAN.md).
+Instrukcja: [postman/README.md](../postman/README.md) i [notes/TINK_POSTMAN.md](../notes/TINK_POSTMAN.md).
 
 ## Syntetyczne transakcje Tink Connector
 
@@ -596,6 +616,14 @@ wyłącznie lokalne. Nie zmieniaj hasła bazy PostgreSQL na hasło kont aplikacj
 Zmiana pliku seed nie modyfikuje istniejących rekordów; aktualizację danych
 wykonuje się osobno, a pełny seed tylko po zaakceptowaniu utraty lokalnych danych.
 
+Aktualizacja seeda z 2026-10-28 wymaga także migracji
+`20261028184348_RenameReceiptS3LinkToStorageKeyAndMakeUnique`.
+Paragon ma unikalny klucz `receipts/{Guid:N}` i wynik w formacie odpowiedzi
+workera (`receipt`, `warnings`, `needs_review`). Klucz jest syntetyczny:
+seed nie wysyła obrazu do storage, więc podpisany URL nie potwierdza istnienia
+zdjęcia. Obciążenia bankowe mają kwoty ujemne, a powiązane wydatki dodatnie.
+Seed nie wywołuje OCR ani Tink; zachowuje stałe ID, konta i przykłady inboxa.
+
 ## Inbox powiadomień
 
 Wewnętrzny NotifyAsync zwraca Task<Guid?>. Wywołujący przekazuje kandydatów
@@ -644,7 +672,7 @@ ustawia wspólny czas UTC bez pobierania listy i bez nadpisywania wcześniejszyc
 Nowe wpisy dodane po wykonaniu UPDATE pozostają nieodczytane.
 Testy Notifications są już dodane na życzenie użytkownika: UnitTests, Tests
 (HTTP z atrapą serwisu) oraz IntegrationTests (PostgreSQL i prawdziwe JWT).
-Do ręcznej weryfikacji służy kolekcja `postman/4Money.Notifications.postman_collection.json`
+Do ręcznej weryfikacji służy kolekcja `postman/collections/4Money.Notifications.postman_collection.json`
 ze wspólnym środowiskiem 4Money.Local i tokenem z loginu User. Zmienne
 notificationPageNumber, notificationPageSize i notificationId opisuje postman/README.md.
 
@@ -814,9 +842,9 @@ autoryzacyjnych URL-i ani rzeczywistych danych użytkowników.
 
 ## Źródła
 
-- [Compose](../containers/docker-compose.yml), [host API](../backend/ZPI4M.Backend/src/ZPI4M.Api/Program.cs) i [profile uruchomienia](../backend/ZPI4M.Backend/src/ZPI4M.Api/Properties/launchSettings.json)
+- [Compose](../containers/local/docker-compose.yml), [host API](../backend/ZPI4M.Backend/src/ZPI4M.Api/Program.cs) i [profile uruchomienia](../backend/ZPI4M.Backend/src/ZPI4M.Api/Properties/launchSettings.json)
 - [Migracje](../notes/MIGRATIONS.md)
-- [Narzędzia, hooki i CI](../tools/README.md), [polska instrukcja hooków](../notes/precommit_notes.md)
+- [Narzędzia, hooki i CI](../tools/README.md), [polska instrukcja hooków](../notes/PRECOMMIT.md)
 - [Workflow backendu](../.github/workflows/backend.yml) i [pomocnik CI](../tools/ci/backend_checks.sh)
 
 ## Uruchomienie refresh on demand
@@ -826,6 +854,6 @@ oraz dostęp aplikacji do scope’ów `accounts:read,transactions:read`.
 Worker startuje z hostem API i czyta dane już dostępne w Tink.
 Konfiguracja `Banking:Refresh` i procedura testów ręcznych są opisane
 w [kontrakcie Banking](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#refresh-on-demand)
-i [instrukcji Postmana](../notes/POSTMAN.md#refresh-danych-przez-backend-4money).
+i [instrukcji Postmana](../notes/TINK_POSTMAN.md#refresh-danych-przez-backend-4money).
 Testy PostgreSQL muszą wskazywać izolowany serwer przez `TEST_POSTGRES_CONNECTION_STRING`;
 nie stosuj migracji na bazie deweloperskiej w ramach weryfikacji.

@@ -1,0 +1,91 @@
+{
+  "source": "IMG_6882.JPEG",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "transcription_scope": "partial",
+  "store": "Biedronka",
+  "receipt_number": "515438",
+  "date": "2026-10-14",
+  "time": "16:30",
+  "currency": "PLN",
+  "total": "15.45",
+  "amount_due": "15.45",
+  "items": [
+    {
+      "name": "MLEKO POLSK3,2 1l",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "4.39",
+      "before_discount": "4.39",
+      "discount": "0.00",
+      "total": "4.39",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "JogurtFruWyśTrus150g",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "0.99",
+      "before_discount": "0.99",
+      "discount": "0.00",
+      "total": "0.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Banan Luz",
+      "quantity": "1.190",
+      "unit": null,
+      "unit_price": "6.99",
+      "before_discount": "8.32",
+      "discount": "0.00",
+      "total": "8.32",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Ziemniaki Jad Luz",
+      "quantity": "1.765",
+      "unit": null,
+      "unit_price": "1.99",
+      "before_discount": "3.51",
+      "discount": "-1.76",
+      "total": "1.75",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    }
+  ],
+  "deposits": [],
+  "payment": {
+    "label": "KARTA DEBIT MASTERCARD 07 1",
+    "amount": "15.45"
+  },
+  "tax_summary": [
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "15.45",
+      "tax": "0.74"
+    }
+  ],
+  "tax_total": "0.74",
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia; oczekuje na sprawdzenie użytkownika.",
+    "Zachowano skróty i powtórzone wiersze produktów; pominięto reklamy, identyfikatory techniczne i obce wydruki w tle.",
+    "gemma-vision-v2: Visually checked original image(s); item count, quantities, unit prices, before-discount gross amounts, signed discounts, after-discount totals, goods total, amount due, deposits and date confirmed. No numerical or date corrections were necessary. Current assistant_verified_not_human status supersedes historical pending-review wording in retained notes. These are silver references, not human gold."
+  ],
+  "uncertain_fields": [
+    {
+      "field": "items[1].name",
+      "detail": "Zbity skrót nazwy jogurtu odczytany JogurtFruWyśTrus150g; ś/wiśniowy fragment wymaga przeglądu."
+    }
+  ],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "verification_method": "Source-image review of complete purchase rows, numeric fields, date and deposits before new gemma-vision-v2 predictions. Existing reference retained except added metadata/category labels."
+}

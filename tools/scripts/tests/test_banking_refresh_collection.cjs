@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const collection = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../postman/4Money.Banking.postman_collection.json')));
+const collection = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../postman/collections/4Money.Banking.postman_collection.json')));
 const requests = collection.item.flatMap(folder => folder.item || []);
 const find = name => requests.find(request => request.name === name);
 const start = find('41 — Zleć refresh danych użytkownika');

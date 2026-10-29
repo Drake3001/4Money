@@ -64,7 +64,7 @@ function accountSnapshot() {
     FROM banking.bank_account WHERE tink_user_id='refresh-fixture-owner' AND fk_user_id='10000000-0000-0000-0000-000000000010'`));
 }
 async function run(prefix) {
-  const collection = JSON.parse(fs.readFileSync(path.join(root,'postman/4Money.Banking.postman_collection.json')));
+  const collection = JSON.parse(fs.readFileSync(path.join(root,'postman/collections/4Money.Banking.postman_collection.json')));
   const folder = collection.item.find(x=>x.name.startsWith(prefix+' —'));
   if (!folder) throw new Error('Unknown refresh folder prefix: '+prefix);
   const template = JSON.parse(fs.readFileSync(path.join(root,'postman/environments/4Money.Local.example.postman_environment.json')));
@@ -81,7 +81,7 @@ async function run(prefix) {
   const before = prefix === '50' ? snapshot() : null;
   const accountsBefore = ['70','72','73','74'].includes(prefix) ? accountSnapshot() : null;
   const log = fs.openSync(path.join(directory,'runner-'+prefix+'.log'),'w',0o600);
-  const result=spawnSync(cli(),['collection','run','postman/4Money.Banking.postman_collection.json','-i',folder.name,'-e',environmentFile,
+  const result=spawnSync(cli(),['collection','run','postman/collections/4Money.Banking.postman_collection.json','-i',folder.name,'-e',environmentFile,
     '--delay-request',process.env.REFRESH_RUNNER_DELAY_MS || '2000','--timeout','2500000','--timeout-request','15000','--timeout-script','5000',
     '--ssl-extra-ca-certs',path.join(directory,'localhost.crt'),'--no-report-events'],{cwd:root,stdio:['ignore',log,log]});
   fs.closeSync(log);

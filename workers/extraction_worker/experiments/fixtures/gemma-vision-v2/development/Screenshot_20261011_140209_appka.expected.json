@@ -1,0 +1,84 @@
+{
+  "source": "Screenshot_20261011_140209_appka.jpg",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "store": "Żabka",
+  "receipt_number": "38996",
+  "date": "2026-10-07",
+  "time": "19:56",
+  "currency": "PLN",
+  "total": "29.58",
+  "amount_due": "29.58",
+  "items": [
+    {
+      "name": "KRAKERSY TUC BACON 100g-C",
+      "quantity": "2",
+      "unit": "szt.",
+      "unit_price": "4.99",
+      "before_discount": "9.98",
+      "discount": "0.00",
+      "total": "9.98",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "LAYS KRAKERSY 80g-C",
+      "quantity": "1",
+      "unit": "szt.",
+      "unit_price": "6.80",
+      "before_discount": "6.80",
+      "discount": "0.00",
+      "total": "6.80",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "CHIPSY DORITO 180g-C",
+      "quantity": "1",
+      "unit": "szt.",
+      "unit_price": "12.80",
+      "before_discount": "12.80",
+      "discount": "0.00",
+      "total": "12.80",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    }
+  ],
+  "deposits": [],
+  "payment": {
+    "label": "INNA Karta kred.",
+    "amount": "29.58"
+  },
+  "tax_summary": [
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "29.58",
+      "tax": "1.41"
+    }
+  ],
+  "tax_total": "1.41",
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia, bez kopiowania wyniku OCR; oczekuje na sprawdzenie użytkownika.",
+    "Zachowano nazwy i skróty z wydruku; reklamy, identyfikatory techniczne i obce paragony w tle pominięto.",
+    "gemma-vision-v2: assistant visually checked source images before new predictions; not human gold. Existing transcription fields were retained. No numerical or name corrections were required. Historical pending-user-review notes remain as provenance; current review_status describes this review.",
+    "Exactly three purchase rows; quantities 2, 1, 1. Totals 9.98 + 6.80 + 12.80 = 29.58; no deposits or discounts. Date 2026-10-07 and time 19:56 are visible.",
+    "Monetary fields represent gross amounts. Item total is after signed discount; tax_summary.sales and document total already include VAT. Do not add VAT again or invent unprinted net values."
+  ],
+  "uncertain_fields": [],
+  "document_type": "e_receipt_screenshot",
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "reference_review": {
+    "method": "visual_check_against_original_source_images_before_new_predictions",
+    "verified_scope": "all_main_receipt_purchase_rows_financial_fields_date_and_deposits",
+    "source_images": [
+      "data/input/Screenshot_20261011_140209_appka.jpg"
+    ],
+    "numerical_corrections": 0,
+    "other_transcription_corrections": 0
+  }
+}

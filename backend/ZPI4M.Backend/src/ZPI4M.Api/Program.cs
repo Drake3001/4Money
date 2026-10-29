@@ -7,7 +7,6 @@ using ZPI4M.Banking.Database;
 using ZPI4M.Banking.Repositories;
 using ZPI4M.Banking.Repositories.BankAccountRepository;
 using ZPI4M.Banking.Repositories.BankTransactionRepository;
-using ZPI4M.Banking.Services;
 using ZPI4M.Banking.Services.Connections;
 using ZPI4M.Banking.Services.Reads;
 using ZPI4M.Banking.Services.Refresh;
@@ -29,6 +28,7 @@ using ZPI4M.Notifications.Repositories.NotificationRepository;
 using ZPI4M.Notifications.Services.Notifications;
 using ZPI4M.Receipt.Database;
 using ZPI4M.Receipt.Repositories.ReceiptRepository;
+using ZPI4M.Receipt.Services;
 using ZPI4M.Shared.CurrentUser;
 using ZPI4M.User.ApiControllers;
 using ZPI4M.User.Database;
@@ -116,6 +116,9 @@ builder.Services.AddScoped<ICategoryGroupLimitRepository, CategoryGroupLimitRepo
 // Receipt module
 builder.Services.AddDbContext<ReceiptDbContext>(options => options.UseNpgsql(dbConnectionString));
 builder.Services.AddScoped<IReceiptRepository, ReceiptRepository>();
+builder.Services.AddScoped<IReceiptService, ReceiptService>();
+builder.Services.AddReceiptAnalysis(builder.Configuration);
+builder.Services.AddReceiptFileStorage(builder.Configuration);
 
 // User module
 builder.Services.AddUserAuthentication(builder.Configuration);

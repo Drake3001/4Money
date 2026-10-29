@@ -1,0 +1,99 @@
+{
+  "dataset": "gemma-hard-v1",
+  "physical_transactions": 7,
+  "unique_full_purchases": 140,
+  "cases": [
+    {
+      "source": "20261018_090700.jpg",
+      "image_paths": [
+        "data/input/20261018_090700.jpg"
+      ],
+      "ocr_source": "20261018_090700.jpg",
+      "cohort": "full_primary_transactions",
+      "difficulty": "faint_31_many_discounts",
+      "transaction_id": "20261018_090700.jpg"
+    },
+    {
+      "source": "20261019_181829.jpg",
+      "image_paths": [
+        "data/input/20261019_181829.jpg"
+      ],
+      "ocr_source": "20261019_181829.jpg",
+      "cohort": "same_receipt_single_capture_control",
+      "difficulty": "long_30_single_capture",
+      "transaction_id": "biedronka-20260516-63488"
+    },
+    {
+      "source": "biedronka-20260516-63488-parts",
+      "image_paths": [
+        "data/input/biedronka-20260516-63488-parts/20261019_181833.jpg",
+        "data/input/biedronka-20260516-63488-parts/20261019_181837.jpg"
+      ],
+      "ocr_source": "biedronka-20260516-63488-parts",
+      "cohort": "full_primary_transactions",
+      "difficulty": "long_30_two_overlapping_captures",
+      "transaction_id": "biedronka-20260516-63488"
+    },
+    {
+      "source": "20261019_181904.jpg",
+      "image_paths": [
+        "data/input/20261019_181904.jpg"
+      ],
+      "ocr_source": "20261019_181904.jpg",
+      "cohort": "full_primary_transactions",
+      "difficulty": "long_29_creased",
+      "transaction_id": "20261019_181904.jpg"
+    },
+    {
+      "source": "20261010_201603.jpg",
+      "image_paths": [
+        "data/input/20261010_201603.jpg"
+      ],
+      "ocr_source": "20261010_201603.jpg",
+      "cohort": "full_primary_transactions",
+      "difficulty": "23_discounts_for_23_items",
+      "transaction_id": "20261010_201603.jpg"
+    },
+    {
+      "source": "20261019_182028.jpg",
+      "image_paths": [
+        "data/input/20261019_182028.jpg"
+      ],
+      "ocr_source": "20261019_182028.jpg",
+      "cohort": "full_primary_transactions",
+      "difficulty": "20_discounts_weighted_items",
+      "transaction_id": "20261019_182028.jpg"
+    },
+    {
+      "source": "IMG_6881.JPEG",
+      "image_paths": [
+        "data/input/IMG_6881.JPEG"
+      ],
+      "ocr_source": "IMG_6881.JPEG",
+      "cohort": "full_primary_transactions",
+      "difficulty": "repeated_weighted_product",
+      "transaction_id": "IMG_6881.JPEG"
+    },
+    {
+      "source": "20261010_201656.jpg",
+      "image_paths": [
+        "data/input/20261010_201656.jpg"
+      ],
+      "ocr_source": "20261010_201656.jpg",
+      "cohort": "full_primary_transactions",
+      "difficulty": "foreign_receipt_background",
+      "transaction_id": "20261010_201656.jpg"
+    },
+    {
+      "source": "biedronka-63488-top-only",
+      "image_paths": [
+        "data/input/biedronka-20260516-63488-parts/20261019_181833.jpg"
+      ],
+      "ocr_source": "biedronka-20260516-63488-parts",
+      "ocr_page": 1,
+      "cohort": "partial_document_control",
+      "difficulty": "natural_truncation_19_complete_and_one_clipped",
+      "transaction_id": "biedronka-20260516-63488"
+    }
+  ]
+}

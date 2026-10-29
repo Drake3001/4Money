@@ -1,0 +1,87 @@
+{
+  "source": "IMG_6885.JPEG",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "transcription_scope": "partial",
+  "store": "Biedronka",
+  "receipt_number": "515450",
+  "date": "2026-10-14",
+  "time": "16:43",
+  "currency": "PLN",
+  "total": "26.39",
+  "amount_due": "26.89",
+  "items": [
+    {
+      "name": "PiwoGarageBerr8 0,4l",
+      "quantity": "3",
+      "unit": null,
+      "unit_price": "7.49",
+      "before_discount": "22.47",
+      "discount": "-3.76",
+      "total": "18.71",
+      "tax_code": "A",
+      "printed_marker": null,
+      "category": "alkohol i tytoń"
+    },
+    {
+      "name": "NapLiptonMix0,5l",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "4.79",
+      "before_discount": "4.79",
+      "discount": "0.00",
+      "total": "4.79",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "Donut Cookies 75g",
+      "quantity": "1",
+      "unit": null,
+      "unit_price": "2.89",
+      "before_discount": "2.89",
+      "discount": "0.00",
+      "total": "2.89",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    }
+  ],
+  "deposits": [
+    {
+      "name": "But Plastik kaucja",
+      "quantity": "1",
+      "unit_price": "0.50",
+      "total": "0.50"
+    }
+  ],
+  "payment": {
+    "label": "KARTA DEBIT MASTERCARD 07 1",
+    "amount": "26.89"
+  },
+  "tax_summary": [
+    {
+      "code": "A",
+      "rate_percent": "23",
+      "sales": "18.71",
+      "tax": "3.50"
+    },
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "7.68",
+      "tax": "0.37"
+    }
+  ],
+  "tax_total": "3.87",
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia; oczekuje na sprawdzenie użytkownika.",
+    "Zachowano skróty i powtórzone wiersze produktów; pominięto reklamy, identyfikatory techniczne i obce wydruki w tle.",
+    "gemma-vision-v2: Visually checked original image(s); item count, quantities, unit prices, before-discount gross amounts, signed discounts, after-discount totals, goods total, amount due, deposits and date confirmed. No numerical or date corrections were necessary. Current assistant_verified_not_human status supersedes historical pending-review wording in retained notes. These are silver references, not human gold."
+  ],
+  "uncertain_fields": [],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "verification_method": "Source-image review of complete purchase rows, numeric fields, date and deposits before new gemma-vision-v2 predictions. Existing reference retained except added metadata/category labels."
+}

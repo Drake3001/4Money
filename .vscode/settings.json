@@ -1,5 +1,6 @@
 {
-    "sqltools.connections": [
+  "python.defaultInterpreterPath": "${workspaceFolder}/workers/extraction_worker/.venv/Scripts/python.exe",
+  "sqltools.connections": [
         {
             "ssh": "Disabled",
             "previewLimit": 50,

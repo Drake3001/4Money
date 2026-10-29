@@ -1,0 +1,64 @@
+{
+  "source": "20261019_181950.jpg",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "transcription_scope": "partial",
+  "store": "ORLEN",
+  "receipt_number": "F 28151/0648/26",
+  "date": "2026-05-16",
+  "time": null,
+  "currency": "PLN",
+  "total": "219.34",
+  "amount_due": "219.34",
+  "items": [
+    {
+      "name": "EFECTA 95 CN27101245",
+      "quantity": "35.55",
+      "unit": "L",
+      "unit_price": "6.37",
+      "before_discount": "226.45",
+      "discount": "-7.11",
+      "total": "219.34",
+      "tax_code": null,
+      "printed_marker": null,
+      "before_discount_is_printed": false,
+      "category": "transport i samochód"
+    }
+  ],
+  "deposits": [],
+  "deposit_returns": [],
+  "tax_summary": [
+    {
+      "code": "8%",
+      "rate_percent": "8",
+      "sales": "219.34",
+      "net": "203.09",
+      "tax": "16.25"
+    }
+  ],
+  "tax_total": "16.25",
+  "payment": {
+    "label": "Karta",
+    "amount": "219.34"
+  },
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia i powiększeń; oczekuje na sprawdzenie użytkownika.",
+    "Dokument niefiskalny POTWIERDZENIE TRANSAKCJI. Stawka 8% jest dosłownym odczytem wydruku, nie interpretacją podatkową.",
+    "Kod w tax_summary to wydrukowana stawka 8%; dokument nie nadaje literowego kodu PTU.",
+    "Kwota przed rabatem nie jest osobno wydrukowana: 35.55 × 6.37 = 226.45 po zaokrągleniu; 226.45 - 7.11 = 219.34.",
+    "gemma-vision-v2: Visually checked original image(s); item count, quantities, unit prices, before-discount gross amounts, signed discounts, after-discount totals, goods total, amount due, deposits and date confirmed. No numerical or date corrections were necessary. Current assistant_verified_not_human status supersedes historical pending-review wording in retained notes. These are silver references, not human gold.",
+    "ORLEN non-fiscal transaction confirmation: quantity 35.55 L at gross unit price 6.37 yields derived gross before_discount 226.45; printed rebate -7.11 gives gross 219.34. Printed net 203.09 and tax 16.25 are not item gross totals. Preserve the printed 8% tax summary rather than substituting an assumed fuel rate; this is transcription, not tax advice. Time remains null because it is not printed."
+  ],
+  "uncertain_fields": [
+    {
+      "field": "time",
+      "detail": "Godzina nie jest wydrukowana na dokumencie; brak wartości zachowano jako null."
+    }
+  ],
+  "unprinted_fields": [
+    "time"
+  ],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "verification_method": "Source-image review of complete purchase rows, numeric fields, date and deposits before new gemma-vision-v2 predictions. Existing reference retained except added metadata/category labels."
+}

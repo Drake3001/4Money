@@ -749,13 +749,17 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("extraction_result");
 
-                    b.Property<string>("S3Link")
+                    b.Property<string>("StorageKey")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasColumnName("s3_link");
+                        .HasColumnName("storage_key");
 
                     b.HasKey("Id")
                         .HasName("receipt_pkey");
+
+                    b.HasIndex("StorageKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_receipt_storage_key");
 
                     b.ToTable("receipt", "receipt");
                 });

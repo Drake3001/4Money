@@ -1,4 +1,7 @@
+-- Destructive local reset: run only after SQL init and all EF migrations, including
+-- 20261028184348_RenameReceiptS3LinkToStorageKeyAndMakeUnique.
 -- Shared password for all seeded test accounts: TestPassword1!
+-- Storage keys are synthetic; this script does not upload images or call OCR/Tink.
 BEGIN;
 SET LOCAL timezone = 'UTC';
 
@@ -63,14 +66,31 @@ VALUES
 INSERT INTO banking.bank_transaction
     (_id, fk_bank_account_id, amount, status, description, date, currency_code, tink_transaction_id)
 VALUES
-    ('50000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', 120.00, 'Booked', 'Zakupy spozywcze', CURRENT_DATE - 2, 'PLN', 'seed-transaction-001'),
-    ('50000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000002', 60.00, 'Booked', 'Bilety na wyjazd', CURRENT_DATE - 1, 'PLN', 'seed-transaction-002'),
-    ('50000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000001', 45.00, 'Pending', 'Platnosc oczekujaca', CURRENT_DATE, 'PLN', 'seed-transaction-003'),
-    ('50000000-0000-0000-0000-000000000004', '40000000-0000-0000-0000-000000000002', 30.00, 'Cancelled', 'Platnosc anulowana', CURRENT_DATE - 3, 'PLN', 'seed-transaction-004');
+    ('50000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', -120.00, 'Booked', 'Zakupy spozywcze', CURRENT_DATE - 2, 'PLN', 'seed-transaction-001'),
+    ('50000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000002', -60.00, 'Booked', 'Bilety na wyjazd', CURRENT_DATE - 1, 'PLN', 'seed-transaction-002'),
+    ('50000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000001', -45.00, 'Pending', 'Platnosc oczekujaca', CURRENT_DATE, 'PLN', 'seed-transaction-003'),
+    ('50000000-0000-0000-0000-000000000004', '40000000-0000-0000-0000-000000000002', -30.00, 'Cancelled', 'Platnosc anulowana', CURRENT_DATE - 3, 'PLN', 'seed-transaction-004');
 
-INSERT INTO receipt.receipt (_id, s3_link, extraction_result) VALUES
-    ('60000000-0000-0000-0000-000000000001', 'https://example.test/receipts/seed-001.jpg',
-     '{"merchant":"Sklep testowy","total":120.00,"currency":"PLN","items":[{"name":"Chleb","unit_price":10.00,"quantity":2},{"name":"Mleko","unit_price":5.00,"quantity":4},{"name":"Warzywa","unit_price":20.00,"quantity":4}]}'::jsonb);
+INSERT INTO receipt.receipt (_id, storage_key, extraction_result) VALUES
+    ('60000000-0000-0000-0000-000000000001', 'receipts/60000000000000000000000000000001',
+     '{
+       "receipt": {
+         "store": "Sklep testowy",
+         "date": null,
+         "currency": "PLN",
+         "total": "120.00",
+         "amount_due": "120.00",
+         "items": [
+           {"name":"Chleb","quantity":"2.000","unit":"szt","unit_price":"10.00","total":"20.00","before_discount":null,"discount":null,"name_corrected":null,"category":"Zakupy spozywcze","needs_review":false,"review_reason":null},
+           {"name":"Mleko","quantity":"4.000","unit":"szt","unit_price":"5.00","total":"20.00","before_discount":null,"discount":null,"name_corrected":null,"category":"Zakupy spozywcze","needs_review":false,"review_reason":null},
+           {"name":"Warzywa","quantity":"4.000","unit":"kg","unit_price":"20.00","total":"80.00","before_discount":null,"discount":null,"name_corrected":null,"category":"Zakupy spozywcze","needs_review":false,"review_reason":null}
+         ],
+         "deposits": [],
+         "deposit_returns": []
+       },
+       "warnings": [],
+       "needs_review": false
+     }'::jsonb);
 
 INSERT INTO expense.expense
     (_id, fk_group_id, fk_bank_transaction_id, fk_receipt_id, name, merchant, amount, transaction_time)

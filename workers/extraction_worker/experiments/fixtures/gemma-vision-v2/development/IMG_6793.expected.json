@@ -1,0 +1,109 @@
+{
+  "source": "IMG_6793.JPEG",
+  "annotation_method": "assistant_visual_transcription_from_photo",
+  "review_status": "assistant_verified_not_human",
+  "store": "ALDI",
+  "receipt_number": "152671/0403",
+  "date": "2026-10-08",
+  "time": "10:24",
+  "currency": "PLN",
+  "total": "23.53",
+  "amount_due": "23.53",
+  "items": [
+    {
+      "name": "KIEŁBASA GŁOGOWSKA 400G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "12.59",
+      "before_discount": "12.59",
+      "discount": "0.00",
+      "total": "12.59",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "WŁOSZCZYZNA 450G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "3.29",
+      "before_discount": "3.29",
+      "discount": "0.00",
+      "total": "3.29",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "WŁOSZCZYZNA 450G",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "3.29",
+      "before_discount": "3.29",
+      "discount": "0.00",
+      "total": "3.29",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "SOK POM/PIKP./BUR 0,3L",
+      "quantity": "1",
+      "unit": "SZT",
+      "unit_price": "1.99",
+      "before_discount": "1.99",
+      "discount": "0.00",
+      "total": "1.99",
+      "tax_code": "C",
+      "printed_marker": null,
+      "category": "żywność i napoje"
+    },
+    {
+      "name": "BUŁKA POZNAŃSKA 95G",
+      "quantity": "3",
+      "unit": "SZT",
+      "unit_price": "0.90",
+      "before_discount": "2.70",
+      "discount": "-0.33",
+      "total": "2.37",
+      "tax_code": "C",
+      "printed_marker": null,
+      "total_is_printed": false,
+      "category": "żywność i napoje"
+    }
+  ],
+  "deposits": [],
+  "payment": {
+    "label": "Karta",
+    "amount": "23.53"
+  },
+  "tax_summary": [
+    {
+      "code": "C",
+      "rate_percent": "5",
+      "sales": "23.53",
+      "tax": "1.12"
+    }
+  ],
+  "tax_total": "1.12",
+  "notes": [
+    "Przepisano wizualnie ze zdjęcia, bez kopiowania wyniku OCR; oczekuje na sprawdzenie użytkownika.",
+    "Zachowano nazwy i skróty z wydruku; reklamy, identyfikatory techniczne i obce paragony w tle pominięto.",
+    "Dwie osobne pozycje WŁOSZCZYZNA zachowano w kolejności wydruku. Kwota bułek po rabacie 2.37 jest obliczona z 2.70 - 0.33.",
+    "gemma-vision-v2: assistant visually checked source images before new predictions; not human gold. Existing transcription fields were retained. No numerical or name corrections were required. Historical pending-user-review notes remain as provenance; current review_status describes this review.",
+    "Five purchase rows; preserve two separate WŁOSZCZYZNA rows at 3.29 each. Bułka quantity 3 x 0.90 = 2.70, discount -0.33, derived final 2.37. Sum 12.59 + 3.29 + 3.29 + 1.99 + 2.37 = 23.53. Date 2026-10-08, time 10:24.",
+    "Monetary fields represent gross amounts. Item total is after signed discount; tax_summary.sales and document total already include VAT. Do not add VAT again or invent unprinted net values."
+  ],
+  "uncertain_fields": [],
+  "reviewer": "assistant_visual_review",
+  "taxonomy_version": "1",
+  "reference_review": {
+    "method": "visual_check_against_original_source_images_before_new_predictions",
+    "verified_scope": "all_main_receipt_purchase_rows_financial_fields_date_and_deposits",
+    "source_images": [
+      "data/input/IMG_6793.JPEG"
+    ],
+    "numerical_corrections": 0,
+    "other_transcription_corrections": 0
+  }
+}

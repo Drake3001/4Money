@@ -266,11 +266,12 @@ znajdują się w [instrukcji pracy](development.md#modele-i-migracje).
 | Backend | C#, .NET 10, ASP.NET Core, EF Core, Npgsql |
 | API | Obecnie OpenAPI w Development; Swagger i Postman wymieniono w planie narzędzi |
 | Baza lokalna | PostgreSQL 15 Alpine w Docker Compose |
+| Kontenery aplikacji | Jeden containers/local/docker-compose.yml: PostgreSQL, backend .NET, SeaweedFS 4.48 i worker OCR; jedna konfiguracja containers/local/.env; wewnętrzna komunikacja po nazwach usług |
 | Web | Docelowo React; brak aplikacji frontendowej w obecnym repo |
 | Mobile | Uzgodniono React + Capacitor; Stos technologiczny.txt nadal wymienia alternatywę React Native, brak aplikacji w repo |
-| OCR | Plan Python i integracja OCR; brak implementacji pipeline'u w obecnym repo |
+| OCR i storage | Worker Python w workers/extraction_worker; Receipt wywołuje POST /api/v1/extract i magazyn zgodny z S3; brak potwierdzenia pełnego przepływu w tej weryfikacji |
 | Automatyzacja | GitHub Actions, pre-commit, narzędzia Python zarządzane przez uv |
-| Testy backendu | Dziewięć projektów: po trzy User, Banking i Notifications (UnitTests, Tests, IntegrationTests); CI dostarcza PostgreSQL 15 i zmienne połączeń dla wszystkich trzech modułów |
+| Testy backendu | Jedenaście projektów: po trzy User, Banking i Notifications (UnitTests, Tests, IntegrationTests) oraz dwa Receipt (UnitTests, IntegrationTests); CI dostarcza PostgreSQL 15 dla testów bazy |
 | Infrastruktura | Obecna konfiguracja Terraform dla Proxmox; Linux i Tailscale w środowisku developerskim |
 | Prezentacja | AWS jako założenie docelowe, nie potwierdzone wdrożenie aplikacji |
 
@@ -294,7 +295,7 @@ Implementacja nie potwierdza rzeczywistego przepływu Sandbox.
 - [Plan stosu technologicznego](../../doc/Stos%20technologiczny.txt)
 - [Host API](../backend/ZPI4M.Backend/src/ZPI4M.Api/Program.cs)
 - [Wspólny kontekst migracji](../backend/ZPI4M.Backend/src/ZPI4M.Database/AppDbContext.cs)
-- [Compose](../containers/docker-compose.yml)
+- [Compose](../containers/local/docker-compose.yml)
 - [Infrastruktura Proxmox i jej proces wdrożenia](../proxmox-infra/README.md)
 
 ## Worker synchronizacji Banking

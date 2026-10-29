@@ -7,7 +7,7 @@ public partial class Receipt
 {
 	public Guid Id { get; set; }
 
-	public string S3Link { get; set; } = null!;
+	public string StorageKey { get; set; } = null!;
 
 	public string? ExtractionResult { get; set; }
 }

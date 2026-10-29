@@ -147,6 +147,11 @@ crash.*.log
 .terraform.tfvars
 credentials.tfrc.json
 
+.ruff_cache/
+
+# Worker local inputs, outputs, history, models and interpreter
+/workers/extraction_worker/data/
+/workers/extraction_worker/.cache/
 # Postman: local credentials and run results
 postman/**/*.local.postman_environment.json
 postman/results/

@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Extraction API (FastAPI)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["api:app", "--host", "127.0.0.1", "--port", "8000", "--reload"],
+      "python": "${workspaceFolder}/workers/extraction_worker/.venv/Scripts/python.exe",
+      "cwd": "${workspaceFolder}/workers/extraction_worker",
+      "envFile": "${workspaceFolder}/workers/extraction_worker/.env",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Extraction worker (CLI)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/workers/extraction_worker/main.py",
+      "python": "${workspaceFolder}/workers/extraction_worker/.venv/Scripts/python.exe",
+      "cwd": "${workspaceFolder}/workers/extraction_worker",
+      "console": "integratedTerminal"
+    }
+  ]
+}

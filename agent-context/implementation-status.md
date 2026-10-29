@@ -3,8 +3,10 @@
 Stan kodu po rebase i zmianach po review sprawdzono statycznie **2026-10-28** na podstawie modeli,
 repozytoriów, serwisów, kontrolerów, solucji, migracji, seeda i workflow.
 Banking i Notifications współistnieją w bieżącej gałęzi. Ostatnie migracje to
-`20261026215244_AddBanking` i `20261027172612_AddNotificationsAfterRebase`;
-stara `AddNotificationRecipient` została zastąpiona, a snapshot zawiera oba moduły.
+`20261026215244_AddBanking`, `20261027172612_AddNotificationsAfterRebase`
+i `20261028184348_RenameReceiptS3LinkToStorageKeyAndMakeUnique`;
+stara `AddNotificationRecipient` została zastąpiona, a snapshot zawiera również
+`Receipt.StorageKey` i jego unikalny indeks.
 To sprawdzenie dokumentacji nie uruchamia testów, migracji ani resetu bazy.
 Zastosowanie aktualnego łańcucha na bazie użytkownika pozostaje do potwierdzenia.
 
@@ -15,8 +17,8 @@ Zakres wymagań ponownie porównano z `Funkcjonalności.txt`, `Baza danych.txt`,
 nie jest to nowa weryfikacja implementacji całego backendu. Aktualne oznaczenia
 MVP i rozszerzenia opisuje [produkt](product.md#zakres-funkcjonalny-i-mvp).
 
-Solucja ma obecnie dziewięć projektów testowych: po trzy User, Banking
-i Notifications. Historyczne wyniki z poprzednich rewizji: 152 testy .NET
+Solucja ma obecnie jedenaście projektów testowych: po trzy User, Banking
+i Notifications oraz dwa Receipt. Historyczne wyniki z poprzednich rewizji: 152 testy .NET
 (User + Notifications, w tym 45 Notifications, PostgreSQL 17.6) oraz opisane
 w kontekście Banking 223 testy .NET i 45 testów Pythona dla ówczesnego zakresu.
 Nie sumuj tych wyników ani nie przedstawiaj ich jako przebiegu aktualnej solucji
@@ -27,6 +29,17 @@ nie zastępują pełnego uruchomienia solucji z PostgreSQL.
 
 ## Zmiany po review — 2026-10-28
 
+- Seed dostosowano do migracji Receipt z 2026-10-28: zapisuje `storage_key`
+  zamiast `s3_link` i odpowiedź OCR z `receipt`, `warnings`, `needs_review`.
+  Obciążenia bankowe mają znak ujemny, wydatki pozostają dodatnie. Zachowano
+  stałe ID, pięć kont i przykłady odczytu inboxa. Klucz storage jest syntetyczny,
+  bez uploadu pliku. Kontrola statyczna potwierdziła zgodność kolumn 13 INSERT-ów
+  ze snapshotem EF, objęcie resetem wszystkich 18 tabel modelu, zgodność pól
+  JSON z modelami workera i sumę pozycji paragonu. Kompilacja API z `--no-restore`
+  przeszła bez ostrzeżeń i błędów; wygenerowano SQL aktualnego łańcucha migracji.
+  Nie wykonano seeda ani migracji na PostgreSQL: inicjalizację osobnego serwera
+  zablokował sandbox, a zgoda na uruchomienie poza nim została odrzucona.
+  Te kontrole nie potwierdzają wykonania seeda na bazie użytkownika.
 - NotifyAsync zwraca Guid? i tworzy powiadomienie tylko dla aktywnych ID
   otrzymanych z IUserLookupService.GetActiveUserIdsAsync. Jedno zapytanie User
   pobiera same ID bez śledzenia encji; Notifications nie zależy od IUserRepository.
@@ -66,14 +79,14 @@ Aktualizacja dokumentacji sama nie uruchamiała nowych testów ani operacji na b
 | Repozytoria | Banking, Grouping, User, UserToken, ExpenseShare, Notification i NotificationRecipient | BankingConnectionRepository sam zapisuje próby i połączenia; podstawowe repozytoria pozostawiają SaveChangesAsync serwisowi; warunkowe UPDATE/DELETE wykonują się od razu; brak kompletnego API wszystkich encji |
 | User | Rejestracja, potwierdzenie i ponowna wysyłka e-maila; login z JWT i hashowanym refresh tokenem, rotacja refresh, logout; jedna sesja na konto i weryfikacja jej aktualności przy uwierzytelnieniu; limity IP; GET/PUT api/users/profile; zmiana e-maila z aktualnym hasłem i potwierdzeniem tokenem; forgot-password/reset-password z unieważnieniem sesji; dezaktywacja po potwierdzeniu e-mailem z usunięciem wszystkich tokenów; login nieaktywnego konta po poprawnym haśle zwraca 403; wspólny IEmailSender/SmtpEmailSender i UserEmailMessages | Brak strony potwierdzenia/resetu, zmiany hasła po podaniu aktualnego hasła; konfiguracja JWT wymaga klucza w środowisku; istnieją projekty testów jednostkowych, HTTP i PostgreSQL; brak potwierdzenia dostarczenia wiadomości do rzeczywistej skrzynki |
 | Banking | Próby/połączenia, adapter Tink, callback, odczyt zgód oraz refresh on demand przez trwały worker PostgreSQL, import kont i BOOKED per rachunek; IBankingReadService oraz HTTP GET list/szczegółów rachunków i transakcji | Nowy import wymaga osobnego potwierdzenia Sandbox i zastosowania migracji AddBanking do właściwej bazy; brak odłączania banku i odnawiania zgód |
-| Receipt / OCR | Model paragonu i konfiguracja EF | Brak pipeline'u OCR, uploadu oraz potwierdzonej integracji magazynu obrazów |
+| Receipt / OCR | StorageKey z unikalnym indeksem i migracją; IReceiptService koordynuje OCR HTTP, upload S3 i zapis paragonu; odczyt rekordu, podpisanego URL i usuwanie; dwa projekty testowe | Brak podłączenia do Expense i własnych endpointów Receipt; brak potwierdzenia pełnego przepływu OCR → storage → baza w tej weryfikacji; seed zawiera syntetyczny klucz bez pliku |
 | Kategoryzacja | Model kategorii | Brak implementacji modelu klasyfikującego i wyników ewaluacji |
 | Limits | Model limitu kategorii i pól limitów grupy | Brak potwierdzonego przepływu alertów i kontroli budżetów |
 | Notifications | Modele, AddNotificationsAfterRebase i snapshot; osobne repozytoria treści i odbiorców; NotifyAsync, GetByUserAsync, MarkAsReadAsync, MarkAllAsReadAsync; DTO; GET /api/notifications, PUT /api/notifications/{id}/read i PUT /api/notifications/read-all; Postman; trzy projekty testów | ID użytkownika dostarcza wspólny ICurrentUser; lista ma paginację i filtr isRead, stałe sortowanie od najnowszych; odczyt zachowuje pierwszą datę. NotifyAsync pomija nieaktywne konta, zwraca null bez odbiorców. Brak podłączenia Grouping/Limits i klientów. Push poza zakresem. Testy jednostkowe i HTTP przeszły częściowo zgodnie z opisem powyżej; pełny przebieg PostgreSQL po review niepotwierdzony |
 | Reports | Projekt modułu | Brak usług raportowania |
 | Web / mobile | Założenia w dokumentacji | Brak projektów aplikacji klienckich w repozytorium |
-| Narzędzia | Hooki, testy hooków, workflow backendu z PostgreSQL i wykrywaniem UnitTests/Tests/IntegrationTests; dziewięć projektów w solucji | Od 2026-10-28 CI ustawia wspólną zmienną TEST_POSTGRES_CONNECTION_STRING dla wszystkich modułów. Runner wybiera tylko śledzone projekty; „not configured” nie oznacza wykonania testów |
-| Infrastruktura | Compose PostgreSQL i Terraform Proxmox z workflow | Brak potwierdzenia uruchomienia infrastruktury i wdrożenia 4M; AWS pozostaje planem |
+| Narzędzia | Hooki, testy hooków, workflow backendu z PostgreSQL i wykrywaniem UnitTests/Tests/IntegrationTests; jedenaście projektów w solucji | Od 2026-10-28 CI ustawia wspólną zmienną TEST_POSTGRES_CONNECTION_STRING dla testów bazy User, Banking i Notifications. Runner wybiera tylko śledzone projekty; „not configured” nie oznacza wykonania testów |
+| Infrastruktura | Wspólny Compose PostgreSQL, backendu, SeaweedFS i OCR z jednym containers/local/.env; Terraform Proxmox z workflow | Po przeniesieniu do containers/local konfiguracja Compose sprawdzona 2026-10-29 dla lokalnego .env i szablonu; containers/deploy zawiera tylko .gitkeep; bez budowania obrazów, uruchamiania usług ani migracji w tej weryfikacji; AWS pozostaje planem |
 
 Źródła: [solucja](../backend/ZPI4M.Backend/ZPI4M.Backend.slnx),
 [moduły](../backend/ZPI4M.Backend/src/modules/),
@@ -224,7 +237,7 @@ Postman CLI wykonał cztery nowe żądania na rzeczywistym lokalnym backendzie
 z osobną syntetyczną bazą PostgreSQL: 14 asercji zaliczone. Generowany OpenAPI
 potwierdził cztery GET oraz string `amount`. Nie wykonywano wywołań Tink ani
 operacji na bazie deweloperskiej. Kontrakt i instrukcje opisują README Banking
-oraz notes/POSTMAN.md.
+oraz notes/TINK_POSTMAN.md.
 
 ## Automatyczne scenariusze Postmana dla refreshu
 
@@ -248,7 +261,7 @@ nadpisać zmienną środowiskową połączenia; odmawia resetu istniejącego sch
 ## Ręczna weryfikacja Tink w Postmanie
 
 Dodano **2026-10-22**: kolekcje Banking i Tink w [postman/](../postman/) i polską
-[instrukcję zespołową](../notes/POSTMAN.md). Pokrywają backendowy flow połączenia,
+[instrukcję zespołową](../notes/TINK_POSTMAN.md). Pokrywają backendowy flow połączenia,
 odczyt zgód i błędy callbacku oraz osobną diagnostykę tokenów i Link dla
 istniejącego użytkownika Tink. Osobna kolekcja User obejmuje login i pozostałe operacje konta; wspólne środowisko
 przekazuje token do Banking.
@@ -349,7 +362,7 @@ odczyt pojedynczy/zbiorczy, zachowanie wcześniejszych dat i izolacja użytkowni
 | Produkt obejmuje finanse osobiste, ale Expense wymaga grupy | Sposób reprezentowania osobistej przestrzeni wymaga ustalenia |
 | ExpenseItem ma opcjonalny FkUserId, ale Funkcjonalności.txt (sekcja 3) umieszczają przypisywanie uczestników do produktów poza MVP | MVP obejmuje podział całego wydatku; obecność pola w modelu nie oznacza gotowej funkcji ani obowiązku realizacji rozszerzenia |
 | Dokumentacja stosu wymienia Swagger, mobile i Python OCR | Nie oznacza obecności UI Swagger ani tych aplikacji w kodzie |
-| Baza danych.txt i diagram logiczny Receipt używają unikalnego storage_key, kod nadal S3Link/s3_link | Wymagane osobne dostosowanie modelu, konfiguracji i migracji; nie traktuj opisu jako wykonanej zmiany |
+| SQL init Receipt nadal używa s3_link; model i seed używają unikalnego storage_key | Migracja 20261028184348_RenameReceiptS3LinkToStorageKeyAndMakeUnique zmienia nazwę kolumny i dodaje indeks; seed wymaga jej zastosowania. Migracja nie konwertuje historycznych URL-i na klucze i wymaga braku duplikatów |
 | AddNotificationsAfterRebase zastępuje starą AddNotificationRecipient; baza sprzed rebase mogła już mieć jej kolumny i tabele | Nie stosuj ponownie tych samych zmian bez sprawdzenia schematu i historii. Seed nie naprawia tego konfliktu; odtworzenie lokalnej bazy usuwa dane i wymaga zgody |
 | Uzgodniono pojedynczy cel: wydatek albo grupa; NotifyAsync i aktualny seed stosują tę regułę, EF nie ma CHECK wyłączności | Walidacja serwisu nie jest ograniczeniem bazy; bezpośredni zapis SQL może nadal podać oba FK |
 
@@ -375,7 +388,8 @@ Aktualny diagram logiczny i opis bazy używają `birth_date`, zgodnie z mapowani
 - Testy User i Notifications są obecnie w solucji; używają jawnie skonfigurowanych hostów TestServer. Dane połączenia do jednorazowego serwera przekazuj przez TEST_POSTGRES_CONNECTION_STRING, zgodnie z tests/README.md.
 - Konfiguracja skrzynki SMTP; adapter jest zaimplementowany, wybór serwera i faktyczne dostarczenie wiadomości nie są jeszcze potwierdzone.
 - Dostawca lub symulator importu bankowego i szczegóły integracji.
-- Usługa OCR, magazyn obrazów, kontrakt kategoryzacji i sposób pomiaru jakości.
+- Potwierdzenie pełnej integracji istniejących klientów OCR i magazynu obrazów,
+  podłączenie Receipt do Expense oraz kontrakt kategoryzacji i pomiar jakości.
 - Reguły podziału kosztów, sald i limitów, wskazane w [domenie](domain.md#kwestie-wymagające-ustalenia-przy-zadaniu).
 
 Nie są to automatyczne blokery wszystkich prac. Ustalaj tylko decyzje potrzebne

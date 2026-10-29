@@ -6,17 +6,23 @@ ich obecność nie potwierdza wykonania rzeczywistego przepływu Sandbox.
 
 | Kolekcja | Środowisko | Przeznaczenie |
 | --- | --- | --- |
-| `4Money.User.postman_collection.json` | `environments/4Money.Local.example.postman_environment.json` | Rejestracja, potwierdzenia e-maila, login/refresh/logout, profil, zmiana e-maila, reset hasła i dezaktywacja |
-| `4Money.Notifications.postman_collection.json` | `environments/4Money.Local.example.postman_environment.json` | Inbox z paginacją, wszystkie/nieodczytane/odczytane, oznaczanie jednego lub wszystkich jako odczytane |
-| `4Money.Banking.postman_collection.json` | `environments/4Money.Local.example.postman_environment.json` | Logowanie 4Money, rozpoczęcie próby, odczyt rezultatu, połączeń, zgód i błędy callbacku |
-| `Tink.Diagnostics.postman_collection.json` | `environments/Tink.Sandbox.example.postman_environment.json` | Token aplikacji, token użytkownika, zgody oraz osobne delegowanie Tink Link |
+| `collections/4Money.User.postman_collection.json` | `environments/4Money.Local.example.postman_environment.json` | Rejestracja, potwierdzenia e-maila, login/refresh/logout, profil, zmiana e-maila, reset hasła i dezaktywacja |
+| `collections/4Money.Notifications.postman_collection.json` | `environments/4Money.Local.example.postman_environment.json` | Inbox z paginacją, wszystkie/nieodczytane/odczytane, oznaczanie jednego lub wszystkich jako odczytane |
+| `collections/4Money.Banking.postman_collection.json` | `environments/4Money.Local.example.postman_environment.json` | Logowanie 4Money, rozpoczęcie próby, odczyt rezultatu, połączeń, zgód i błędy callbacku |
+| `collections/Tink.Diagnostics.postman_collection.json` | `environments/Tink.Sandbox.example.postman_environment.json` | Token aplikacji, token użytkownika, zgody oraz osobne delegowanie Tink Link |
+| `collections/4Money.Storage.postman_collection.json` | `environments/4Money.Storage.Local.example.postman_environment.json` | Lokalny SeaweedFS S3 na http://localhost:8333: listowanie, upload, pobranie i usunięcie obiektu testowego |
+
+Dla Storage ustaw lokalnie `storageAccessKey` i `storageSecretKey` zgodnie
+z `STORAGE_ACCESS_KEY` i `STORAGE_SECRET_KEY` w `containers/local/.env`.
+W już zaimportowanym środowisku ustaw `storageEndpoint=http://localhost:8333`
+albo zaimportuj nowy szablon Storage.Local. Kolekcja nie wymaga backendu API.
 
 Folder **80 — Odczyt rachunków i transakcji** w kolekcji Banking obejmuje nowe
 lokalne endpointy GET list i szczegółów. Wymaga JWT User, bez Tink i synchronizacji.
 Listy zapisują `bankReadAccountId` / `bankReadTransactionId` do żądań szczegółów;
 puste listy czyszczą poprzednie ID. Uruchamiaj przez Send: 81 → 82 i 83 → 84.
 Opcjonalne filtry w Params są domyślnie wyłączone; kwoty odpowiedzi są tekstem.
-Szczegóły: [instrukcja odczytu](../notes/POSTMAN.md#odczyt-lokalnych-rachunków-i-transakcji).
+Szczegóły: [instrukcja odczytu](../notes/TINK_POSTMAN.md#odczyt-lokalnych-rachunków-i-transakcji).
 
 Importuj kolekcję i właściwy szablon środowiska. Wartości poufne uzupełniaj
 wyłącznie lokalnie. Kolekcje używają formatu v2.1 oraz aktualnego Postman Desktop
@@ -43,8 +49,11 @@ wcześniej zaimportowanego środowiska w aplikacji Postman; zaimportuj aktualny
 plik lub dodaj brakujące zmienne w wybranym środowisku.
 
 1. Zaimportuj kolekcję User i szablon środowiska `4Money.Local`, a następnie
-   wybierz to środowisko. `baseUrl` nie zawiera `/api`, np. `https://localhost:7278`
-   albo `http://localhost:5283`. Backend wymaga lokalnej konfiguracji SMTP,
+   wybierz to środowisko. Domyślne `baseUrl=http://localhost:5283` odpowiada
+   backendowi w Compose i zwykłemu `dotnet run` (profil `http`), bez `/api`.
+   Jeśli masz już zaimportowane środowisko, zmień w nim `baseUrl` na ten adres;
+   zmiana szablonu w repo nie aktualizuje wartości w Postmanie.
+   Backend wymaga lokalnej konfiguracji SMTP,
    JWT i bazy z migracją `AddAccountDeactivationTokens`.
 2. Uzupełnij lokalnie `userLogin`, `userEmail` (dostępna skrzynka), `userPassword`
    i dane profilu. Hasło ma mieć 8–128 znaków, wielką literę, cyfrę i znak specjalny.
@@ -143,7 +152,7 @@ rzeczywistego auth. Moduł User implementuje login i może dostarczyć
 `fourMoneyAccessToken` do żądań Banking. Diagnostyka Tink
 nie zastępuje testu całego backendu.
 
-Instrukcja zespołowa: [notes/POSTMAN.md](../notes/POSTMAN.md).
+Instrukcja zespołowa: [notes/TINK_POSTMAN.md](../notes/TINK_POSTMAN.md).
 
 Lokalne eksporty nazywaj `*.local.postman_environment.json`. Katalog `results/`
 i takie eksporty są ignorowane przez Git. Nie zapisuj odpowiedzi z sekretami jako

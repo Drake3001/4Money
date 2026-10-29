@@ -258,11 +258,16 @@ NOT NULL. Nie wyprowadzaj obowiązkowego powiązania z grupą z samego diagramu.
 NotificationRecipient realizuje relację N:M użytkowników i powiadomień,
 z indywidualnym ReadAt. Obie encje należą do Notifications na diagramie podziału.
 
-`Receipt.storage_key` w aktualnym opisie i diagramie logicznym zastąpiło
-dawny odnośnik s3_link. Kod Receipt nadal ma S3Link mapowane na s3_link;
-nie ma jeszcze właściwości StorageKey ani tej zmiany schematu. Opis wymaga
-unikalnego klucza pliku, nie pełnego adresu URL. Dostosowanie modelu i migracji
-pozostaje osobną pracą.
+`Receipt.StorageKey` jest mapowane na wymagane `receipt.receipt.storage_key`
+z unikalnym indeksem `ux_receipt_storage_key`. Model, konfigurację, snapshot
+i migrację `20261028184348_RenameReceiptS3LinkToStorageKeyAndMakeUnique`
+sprawdzono 2026-10-28. Migracja zmienia nazwę `s3_link` bez przekształcania
+istniejących wartości i dodaje unikalność; nie zamienia dawnych URL-i w klucze
+obiektów. StorageKey przechowuje klucz pliku, nie pełny adres URL.
+`ExtractionResult` zawiera surową odpowiedź OCR: obiekt `receipt`, tablicę
+`warnings` i boolean `needs_review`. Nie tworzy automatycznie pozycji wydatku
+ani powiązań kategorii. Seed stosuje ten format i syntetyczny klucz storage,
+ale nie tworzy odpowiadającego mu pliku w magazynie.
 
 ## Kwestie wymagające ustalenia przy zadaniu
 
