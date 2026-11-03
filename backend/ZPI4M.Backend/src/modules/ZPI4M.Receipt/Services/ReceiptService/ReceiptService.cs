@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ZPI4M.Receipt.Database;
@@ -31,7 +32,7 @@ public sealed class ReceiptService : IReceiptService
 		_timeProvider = timeProvider;
 	}
 
-	public async Task<Guid> CreateAsync(Stream content, string contentType, CancellationToken cancellationToken = default)
+	public async Task<ReceiptCreationResult> CreateAsync(Stream content, string contentType, bool runOcr, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(content);
 		ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
@@ -52,8 +53,8 @@ public sealed class ReceiptService : IReceiptService
 			throw new ArgumentException("The content stream must not be empty.", nameof(content));
 
 		copy.Position = 0;
-		var result = await _analysis.AnalyzeAsync(copy, contentType, cancellationToken);
-		var extractionResult = result.GetRawText();
+		JsonElement? result = runOcr ? await _analysis.AnalyzeAsync(copy, contentType, cancellationToken) : null;
+		var extractionResult = result?.GetRawText();
 		copy.Position = 0;
 		var storageKey = await _storage.UploadAsync(copy, contentType, cancellationToken);
 		if (string.IsNullOrWhiteSpace(storageKey))
@@ -69,7 +70,7 @@ public sealed class ReceiptService : IReceiptService
 		{
 			_repository.Add(receipt);
 			await _context.SaveChangesAsync(cancellationToken);
-			return receipt.Id;
+			return new ReceiptCreationResult(receipt.Id, result);
 		}
 		catch (Exception error)
 		{
@@ -86,7 +87,7 @@ public sealed class ReceiptService : IReceiptService
 		return _repository.GetByIdAsync(receiptId, cancellationToken);
 	}
 
-	public async Task<FileUrlResult> GetFileUrlAsync(Guid receiptId, CancellationToken cancellationToken = default)
+	public async Task<FileUrlResult> GetFileUrlByIdAsync(Guid receiptId, CancellationToken cancellationToken = default)
 	{
 		var receipt = await _repository.GetByIdAsync(receiptId, cancellationToken)
 			?? throw new KeyNotFoundException("Receipt not found.");

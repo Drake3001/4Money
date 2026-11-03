@@ -73,15 +73,23 @@ Aktualizacja dokumentacji sama nie uruchamiała nowych testów ani operacji na b
 
 ## Receipt, OCR i kategoryzacja — przegląd 2026-10-29
 
-Host rejestruje `IReceiptService`, klienta HTTP OCR i adapter S3. `CreateAsync`
-kopiuje pojedynczy strumień do pliku tymczasowego, wykonuje OCR, upload, a następnie
-zapisuje Receipt z surowym JSON-em i StorageKey. Błąd OCR przerywa proces przed
+Aktualizacja kontraktu **2026-11-02**: host rejestruje `IReceiptService`, klienta HTTP
+OCR i adapter S3. `CreateAsync` wymaga `bool runOcr`, kopiuje pojedynczy strumień
+do pliku tymczasowego, opcjonalnie wykonuje OCR, następnie upload i zapis Receipt
+z StorageKey. Zwraca `ReceiptCreationResult` z ID i pełnym wynikiem analizy jako
+`JsonElement?`. Dla `runOcr: false` nie wywołuje OCR, a zwrócony i zapisany
+`ExtractionResult` są null. `GetFileUrlByIdAsync` zwraca podpisany URL;
+`GetByIdAsync` i `DeleteAsync` zachowują dotychczasowy kontrakt.
+Błąd OCR przerywa proces przed
 uploadem. Po błędzie zapisu bazy przesłany plik pozostaje w storage, ponieważ
 niepewne potwierdzenie nie dowodzi rollbacku. Usuwanie najpierw zapisuje usunięcie
 rekordu, potem podejmuje próbę usunięcia pliku z limitem 10 sekund; błąd sprzątania
 jest logowany. Brak wspólnej transakcji bazy i S3 oraz automatycznego sprzątania
 osieroconych obiektów. Serwis nie sprawdza właściciela paragonu; przed udostępnieniem
-przez Expense/API trzeba określić i egzekwować uprawnienia.
+przez endpointy Expense trzeba określić i egzekwować uprawnienia.
+Receipt zgodnie z decyzją z 2026-11-02 pozostaje modułem bez własnych endpointów;
+Expense będzie korzystać z jego serwisu. Jeden wydatek może mieć najwyżej jeden
+paragon. Nadpisywanie, dopisywanie i ręczna edycja danych wydatku należą do Expense.
 
 Worker `workers/extraction_worker` ma FastAPI: `/health`, `/docs`,
 `POST /api/v1/extract` i diagnostyczny `POST /api/v1/debug/extract`.
@@ -100,7 +108,7 @@ oraz flagi ręcznej kontroli. Taksonomia v2 obejmuje 19 kategorii, w tym `zniżk
 Są testy oraz narzędzia ewaluacji i fixture'y w `experiments/`; historyczne analizy
 w `notes/ocr/` nie potwierdzają celów jakościowych dla aktualnego domyślnego modelu.
 Brak mapowania tych propozycji na encje Category/ExpenseItem i przepływu korekt
-użytkownika. Nie ma endpointów Receipt/Storage w backendzie; kolekcja Postman
+użytkownika. Obsługa HTTP paragonów jest planowana przez Expense; kolekcja Postman
 Storage wywołuje bezpośrednio SeaweedFS S3.
 
 Opcje OCR i S3 mają `ValidateOnStart`. `STORAGE_PUBLIC_ENDPOINT` pozwala podpisywać
@@ -108,8 +116,17 @@ URL dla klienta innym adresem niż wewnętrzny endpoint S3. Receipt.IntegrationT
 zawiera ręczny test upload → podpisany GET → odmowa anonimowego GET → delete,
 włączany przez `STORAGE_INTEGRATION_TESTS=1`. Obecny CI nie uruchamia SeaweedFS,
 workera ani testów pytest. PostgreSQL CI obejmuje User, Banking i Notifications.
-W tej aktualizacji wykonano kontrolę statyczną, bez nowych testów aplikacji,
-wywołań dostawców, migracji ani resetów.
+Przegląd z 2026-10-29 obejmował kontrolę statyczną. Weryfikacja zmian kontraktu
+z **2026-11-02**: 155 testów jednostkowych Receipt zaliczone. Po uruchomieniu
+Docker Desktop i SeaweedFS z lokalnego Compose ponowiono Receipt.IntegrationTests
+z `STORAGE_INTEGRATION_TESTS=1`: wszystkie 5 testów zaliczone, bez pominięć.
+Obejmuje to rzeczywisty upload syntetycznego obrazu, podpisany GET, odmowę
+anonimowego GET i dwukrotne usunięcie. Nie potwierdza to pełnego przepływu
+OCR → S3 → baza ani integracji z Expense.
+Kompilacja całej solucji Release powiodła się; ostrzeżenia NuGet dotyczyły
+niedostępnego źródła/audytu i zastępczych wersji pakietów testów Banking
+z lokalnego cache. Kontrole stylu i formatowania zmienionych plików oraz
+`git diff --check` zaliczone. Bez wywołań płatnego OCR, migracji i resetów bazy.
 
 Źródła: [ReceiptService](../backend/ZPI4M.Backend/src/modules/ZPI4M.Receipt/Services/ReceiptService/ReceiptService.cs),
 [klient OCR](../backend/ZPI4M.Backend/src/modules/ZPI4M.Receipt/Services/ReceiptAnalysisService/HttpReceiptAnalysisService.cs),
@@ -128,7 +145,7 @@ wywołań dostawców, migracji ani resetów.
 | Repozytoria | Banking; Group/GroupMember; User/UserToken; Category/Expense/ExpenseItem/ExpenseShare; CategoryGroupLimit; Receipt; Notification/NotificationRecipient | BankingConnectionRepository sam zapisuje próby i połączenia; podstawowe repozytoria pozostawiają SaveChangesAsync serwisowi; warunkowe UPDATE/DELETE wykonują się od razu; brak kompletnego API wszystkich encji |
 | User | Rejestracja, potwierdzenie i ponowna wysyłka e-maila; login z JWT i hashowanym refresh tokenem, rotacja refresh, logout; jedna sesja na konto i weryfikacja jej aktualności przy uwierzytelnieniu; limity IP; GET/PUT api/users/profile; zmiana e-maila z aktualnym hasłem i potwierdzeniem tokenem; forgot-password/reset-password z unieważnieniem sesji; dezaktywacja po potwierdzeniu e-mailem z usunięciem wszystkich tokenów; login nieaktywnego konta po poprawnym haśle zwraca 403; wspólny IEmailSender/SmtpEmailSender i UserEmailMessages | Brak strony potwierdzenia/resetu, zmiany hasła po podaniu aktualnego hasła; konfiguracja JWT wymaga klucza w środowisku; istnieją projekty testów jednostkowych, HTTP i PostgreSQL; brak potwierdzenia dostarczenia wiadomości do rzeczywistej skrzynki |
 | Banking | Próby/połączenia, adapter Tink, callback, odczyt zgód oraz refresh on demand przez trwały worker PostgreSQL, import kont i BOOKED per rachunek; IBankingReadService oraz HTTP GET list/szczegółów rachunków i transakcji | Nowy import wymaga osobnego potwierdzenia Sandbox i zastosowania migracji AddBanking do właściwej bazy; brak odłączania banku i odnawiania zgód |
-| Receipt / OCR | StorageKey z unikalnym indeksem i migracją; IReceiptService koordynuje OCR HTTP, upload S3 i zapis paragonu; odczyt rekordu, podpisanego URL i usuwanie; dwa projekty testowe | Brak podłączenia do Expense i własnych endpointów Receipt; brak potwierdzenia pełnego przepływu OCR → storage → baza w tej weryfikacji; seed zawiera syntetyczny klucz bez pliku |
+| Receipt / OCR | StorageKey z unikalnym indeksem i migracją; IReceiptService koordynuje opcjonalny OCR HTTP, upload S3 i zapis paragonu oraz zwraca ID i analizę; odczyt rekordu, podpisanego URL i usuwanie; dwa projekty testowe | Brak podłączenia do Expense (własne endpointy Receipt są celowo wykluczone); brak potwierdzenia pełnego przepływu OCR → storage → baza w tej weryfikacji; seed zawiera syntetyczny klucz bez pliku |
 | Kategoryzacja | Klasyfikacja i propozycje nazw produktów w workerze Python, taksonomia v2, flagi review, testy i narzędzia ewaluacji; model i repozytorium Category w .NET | Brak mapowania kategorii workera na encje wydatku i korekt użytkownika; historyczne eksperymenty nie potwierdzają celów jakościowych aktualnego pipeline |
 | Grouping | Modele i repozytoria Group oraz GroupMember, rejestracja DI | Brak serwisów i API tworzenia/dołączania do grup, podziału kosztów i integracji Notifications |
 | Limits | Model i repozytorium CategoryGroupLimit oraz pola limitów grupy | Brak serwisów i API budżetów oraz przepływu alertów |

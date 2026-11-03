@@ -193,13 +193,22 @@ je nadpisują. Lokalny `.env` nie jest szablonem do kopiowania sekretów do repo
 
 ## Obecna integracja Receipt i workera OCR
 
-Stan rejestracji DI i kontraktów sprawdzono statycznie 2026-10-29. Receipt ma
+Kontrakt serwisu Receipt zaktualizowano 2026-11-02. Receipt ma
 `IReceiptService`, `IReceiptAnalysisService` (HTTP) i `IFileStorageService` (S3).
 Ich pliki są pogrupowane w `Services/ReceiptService`, `Services/ReceiptAnalysisService`
 i `Services/FileStorageService`; współdzielą namespace `ZPI4M.Receipt.Services`.
-Nie ma kontrolera Receipt/Storage ani wywołań z Expense.
+Receipt nie udostępnia własnych endpointów HTTP. Zgodnie z decyzją z 2026-11-02
+endpointy Expense będą korzystać z `IReceiptService`; wywołania z Expense
+nie są jeszcze zaimplementowane. Jeden wydatek może mieć najwyżej jeden paragon.
 
-`ReceiptService` wykonuje kolejno OCR → upload S3 → zapis własnego kontekstu.
+`ReceiptService.CreateAsync` wymaga argumentu `bool runOcr`. Dla `true` wykonuje
+OCR → upload S3 → zapis własnego kontekstu; dla `false` pomija OCR i zapisuje
+`ExtractionResult = null`. Zwraca `ReceiptCreationResult` z `ReceiptId` i opcjonalnym
+`JsonElement? ExtractionResult`, obejmującym pełną odpowiedź workera
+(`receipt`, `warnings`, `needs_review`). Zapisany JSON odpowiada zwróconej analizie.
+Odczyt rekordu udostępnia `GetByIdAsync`, podpisany URL — `GetFileUrlByIdAsync`,
+a usuwanie — `DeleteAsync`. Nadpisanie lub dopisanie danych wydatku oraz ręczna
+korekta należą do przyszłego serwisu Expense; surowy wynik OCR pozostaje w Receipt.
 Nie jest to transakcja obejmująca magazyn i bazę. Po błędzie zapisu pozostawia
 przesłany plik; przy usuwaniu najpierw usuwa rekord, potem próbuje usunąć plik.
 Uprawnienia dostępu do paragonu nie są egzekwowane przez ten serwis.
@@ -297,7 +306,7 @@ znajdują się w [instrukcji pracy](development.md#modele-i-migracje).
 | Kontenery aplikacji | Jeden containers/local/docker-compose.yml: PostgreSQL, backend .NET, SeaweedFS 4.48 i worker OCR; jedna konfiguracja containers/local/.env; wewnętrzna komunikacja po nazwach usług |
 | Web | Docelowo React; brak aplikacji frontendowej w obecnym repo |
 | Mobile | Uzgodniono React + Capacitor; Stos technologiczny.txt nadal wymienia alternatywę React Native, brak aplikacji w repo |
-| OCR i storage | Worker FastAPI z OCR i kategoryzacją produktów; Receipt wywołuje POST /api/v1/extract i magazyn zgodny z S3; brak endpointów Receipt i potwierdzenia pełnego przepływu w tej weryfikacji |
+| OCR i storage | Worker FastAPI z OCR i kategoryzacją produktów; Receipt opcjonalnie wywołuje POST /api/v1/extract i korzysta z magazynu zgodnego z S3; dostęp HTTP planowany przez Expense; brak potwierdzenia pełnego przepływu w tej weryfikacji |
 | Automatyzacja | GitHub Actions, pre-commit, narzędzia Python zarządzane przez uv |
 | Testy backendu | Jedenaście projektów: po trzy User, Banking i Notifications (UnitTests, Tests, IntegrationTests) oraz dwa Receipt (UnitTests, IntegrationTests); CI dostarcza PostgreSQL 15 dla testów bazy |
 | Infrastruktura | Obecna konfiguracja Terraform dla Proxmox; Linux i Tailscale w środowisku developerskim |

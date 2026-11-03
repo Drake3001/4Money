@@ -33,17 +33,18 @@ public sealed class ReceiptServiceTests
 		input.Position = 5;
 		if (fails)
 		{
-			await Assert.ThrowsAsync<ReceiptAnalysisException>(() => fixture.Service.CreateAsync(input, "image/png"));
+			await Assert.ThrowsAsync<ReceiptAnalysisException>(() => fixture.Service.CreateAsync(input, "image/png", runOcr: true));
 			Assert.Equal(0, fixture.Storage.UploadCalls);
 			Assert.Empty(await fixture.Context.Receipts.ToListAsync());
 		}
 		else
 		{
-			var id = await fixture.Service.CreateAsync(input, "image/png");
+			var result = await fixture.Service.CreateAsync(input, "image/png", runOcr: true);
 			fixture.Context.ChangeTracker.Clear();
-			var receipt = await fixture.Service.GetByIdAsync(id);
+			var receipt = await fixture.Service.GetByIdAsync(result.ReceiptId);
 			Assert.NotNull(receipt);
 			Assert.Equal(HttpReceiptAnalysisServiceTests.ResponseJson, receipt.ExtractionResult);
+			Assert.Equal(receipt.ExtractionResult, result.ExtractionResult?.GetRawText());
 			Assert.Equal(sentContent, fixture.Storage.Content);
 			Assert.Equal(1, fixture.Storage.UploadCalls);
 		}
@@ -52,110 +53,155 @@ public sealed class ReceiptServiceTests
 		Assert.Equal(1, handler.Calls);
 	}
 
-	[Fact]
-	public async Task Create_persists_receipt_and_passes_remaining_content_to_both_providers()
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task Create_persists_receipt_and_passes_remaining_content_to_requested_providers(bool runOcr)
 	{
 		using var fixture = new Fixture();
 		using var input = new MemoryStream(Encoding.UTF8.GetBytes("skip:receipt image"));
 		input.Position = 5;
 		using var cancellation = new CancellationTokenSource();
 
-		var id = await fixture.Service.CreateAsync(input, "image/custom", cancellation.Token);
+		var result = await fixture.Service.CreateAsync(input, "image/custom", runOcr: runOcr, cancellationToken: cancellation.Token);
 
 		fixture.Context.ChangeTracker.Clear();
-		var receipt = await fixture.Service.GetByIdAsync(id);
-		Assert.NotEqual(Guid.Empty, id);
+		var receipt = await fixture.Service.GetByIdAsync(result.ReceiptId);
+		Assert.NotEqual(Guid.Empty, result.ReceiptId);
 		Assert.NotNull(receipt);
 		Assert.Equal(fixture.Storage.Key, receipt.StorageKey);
-		Assert.Equal(fixture.Analysis.Json, receipt.ExtractionResult);
-		Assert.Equal("receipt image", fixture.Analysis.Content);
-		Assert.Equal(fixture.Analysis.Content, fixture.Storage.Content);
-		Assert.Equal("image/custom", fixture.Analysis.ContentType);
+		Assert.Equal(runOcr ? fixture.Analysis.Json : null, receipt.ExtractionResult);
+		Assert.Equal(runOcr ? "receipt image" : null, fixture.Analysis.Content);
+		Assert.Equal("receipt image", fixture.Storage.Content);
+		Assert.Equal(runOcr ? "image/custom" : null, fixture.Analysis.ContentType);
 		Assert.Equal("image/custom", fixture.Storage.ContentType);
-		Assert.Equal(cancellation.Token, fixture.Analysis.Token);
+		Assert.Equal(runOcr ? cancellation.Token : default, fixture.Analysis.Token);
 		Assert.Equal(cancellation.Token, fixture.Storage.UploadToken);
 		Assert.True(input.CanRead);
-		AssertTemporaryFileDeleted(fixture.Analysis.TemporaryPath);
+		AssertTemporaryFileDeleted(fixture.Storage.TemporaryPath);
+		Assert.Equal(runOcr ? 1 : 0, fixture.Analysis.Calls);
+		Assert.Equal(1, fixture.Storage.UploadCalls);
+		Assert.Equal(receipt.ExtractionResult, result.ExtractionResult?.GetRawText());
 	}
 
 	[Fact]
-	public async Task Create_accepts_a_non_seekable_stream_without_closing_it()
+	public async Task Create_without_ocr_does_not_send_http_request_and_returns_no_analysis()
+	{
+		using var handler = new HttpReceiptAnalysisServiceTests.Handler((_, _) => throw new InvalidOperationException("OCR must not be called."));
+		using var client = HttpReceiptAnalysisServiceTests.Client(handler);
+		using var fixture = new Fixture(HttpReceiptAnalysisServiceTests.Service(client));
+		using var input = new MemoryStream(Encoding.UTF8.GetBytes("synthetic image"));
+
+		var result = await fixture.Service.CreateAsync(input, "image/png", runOcr: false);
+
+		fixture.Context.ChangeTracker.Clear();
+		var receipt = await fixture.Service.GetByIdAsync(result.ReceiptId);
+		Assert.NotEqual(Guid.Empty, result.ReceiptId);
+		Assert.NotNull(receipt);
+		Assert.Null(receipt.ExtractionResult);
+		Assert.Null(result.ExtractionResult);
+		Assert.Equal(fixture.Storage.Key, receipt.StorageKey);
+		Assert.Equal("synthetic image", fixture.Storage.Content);
+		Assert.Equal(1, fixture.Storage.UploadCalls);
+		Assert.Equal(0, handler.Calls);
+		Assert.True(input.CanRead);
+		AssertTemporaryFileDeleted(fixture.Storage.TemporaryPath);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task Create_accepts_a_non_seekable_stream_without_closing_it(bool runOcr)
 	{
 		using var fixture = new Fixture();
 		using var input = new NonSeekableStream("image");
 
-		await fixture.Service.CreateAsync(input, "image/png");
+		await fixture.Service.CreateAsync(input, "image/png", runOcr: runOcr);
 
-		Assert.Equal("image", fixture.Analysis.Content);
+		Assert.Equal(runOcr ? "image" : null, fixture.Analysis.Content);
 		Assert.Equal("image", fixture.Storage.Content);
 		Assert.True(input.CanRead);
-		AssertTemporaryFileDeleted(fixture.Analysis.TemporaryPath);
+		AssertTemporaryFileDeleted(fixture.Storage.TemporaryPath);
+		Assert.Equal(runOcr ? 1 : 0, fixture.Analysis.Calls);
 	}
 
-	[Fact]
-	public async Task Create_rejects_null_content()
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task Create_rejects_null_content(bool runOcr)
 	{
 		using var fixture = new Fixture();
-		await Assert.ThrowsAsync<ArgumentNullException>(() => fixture.Service.CreateAsync(null!, "image/png"));
+		await Assert.ThrowsAsync<ArgumentNullException>(() => fixture.Service.CreateAsync(null!, "image/png", runOcr: runOcr));
 		AssertNoProviderCalls(fixture);
 	}
 
 	[Theory]
-	[InlineData(null)]
-	[InlineData("")]
-	[InlineData(" \t")]
-	public async Task Create_rejects_missing_content_type(string? contentType)
+	[InlineData(null, false)]
+	[InlineData(null, true)]
+	[InlineData("", false)]
+	[InlineData("", true)]
+	[InlineData(" \t", false)]
+	[InlineData(" \t", true)]
+	public async Task Create_rejects_missing_content_type(string? contentType, bool runOcr)
 	{
 		using var fixture = new Fixture();
 		using var input = new MemoryStream([1]);
-		await Assert.ThrowsAnyAsync<ArgumentException>(() => fixture.Service.CreateAsync(input, contentType!));
-		AssertNoProviderCalls(fixture);
-	}
-
-	[Fact]
-	public async Task Create_rejects_unreadable_content()
-	{
-		using var fixture = new Fixture();
-		var input = new MemoryStream([1]);
-		input.Dispose();
-		await Assert.ThrowsAsync<ArgumentException>(() => fixture.Service.CreateAsync(input, "image/png"));
+		await Assert.ThrowsAnyAsync<ArgumentException>(() => fixture.Service.CreateAsync(input, contentType!, runOcr: runOcr));
 		AssertNoProviderCalls(fixture);
 	}
 
 	[Theory]
 	[InlineData(false)]
 	[InlineData(true)]
-	public async Task Create_rejects_empty_remaining_content(bool atEnd)
+	public async Task Create_rejects_unreadable_content(bool runOcr)
+	{
+		using var fixture = new Fixture();
+		var input = new MemoryStream([1]);
+		input.Dispose();
+		await Assert.ThrowsAsync<ArgumentException>(() => fixture.Service.CreateAsync(input, "image/png", runOcr: runOcr));
+		AssertNoProviderCalls(fixture);
+	}
+
+	[Theory]
+	[InlineData(false, false)]
+	[InlineData(false, true)]
+	[InlineData(true, false)]
+	[InlineData(true, true)]
+	public async Task Create_rejects_empty_remaining_content(bool atEnd, bool runOcr)
 	{
 		using var fixture = new Fixture();
 		using var input = new MemoryStream(atEnd ? [1] : []);
 		input.Position = input.Length;
-		await Assert.ThrowsAsync<ArgumentException>(() => fixture.Service.CreateAsync(input, "image/png"));
+		await Assert.ThrowsAsync<ArgumentException>(() => fixture.Service.CreateAsync(input, "image/png", runOcr: runOcr));
 		AssertNoProviderCalls(fixture);
 		Assert.True(input.CanRead);
 	}
 
-	[Fact]
-	public async Task Create_honors_cancellation_before_reading()
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task Create_honors_cancellation_before_reading(bool runOcr)
 	{
 		using var fixture = new Fixture();
 		using var input = new MemoryStream([1]);
 		using var cancellation = new CancellationTokenSource();
 		cancellation.Cancel();
-		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => fixture.Service.CreateAsync(input, "image/png", cancellation.Token));
+		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => fixture.Service.CreateAsync(input, "image/png", runOcr: runOcr, cancellationToken: cancellation.Token));
 		Assert.Equal(0, input.Position);
 		AssertNoProviderCalls(fixture);
 	}
 
 	[Theory]
-	[InlineData(false)]
-	[InlineData(true)]
-	public async Task Create_cleans_temporary_file_when_copy_fails_or_is_cancelled(bool cancelled)
+	[InlineData(false, false)]
+	[InlineData(false, true)]
+	[InlineData(true, false)]
+	[InlineData(true, true)]
+	public async Task Create_cleans_temporary_file_when_copy_fails_or_is_cancelled(bool cancelled, bool runOcr)
 	{
 		using var fixture = new Fixture();
 		var error = cancelled ? (Exception)new OperationCanceledException() : new IOException("read failure");
 		using var input = new FailingCopyStream(error);
-		var actual = await Record.ExceptionAsync(() => fixture.Service.CreateAsync(input, "image/png"));
+		var actual = await Record.ExceptionAsync(() => fixture.Service.CreateAsync(input, "image/png", runOcr: runOcr));
 		Assert.Same(error, actual);
 		AssertTemporaryFileDeleted(input.TemporaryPath);
 		AssertNoProviderCalls(fixture);
@@ -170,7 +216,7 @@ public sealed class ReceiptServiceTests
 		fixture.Analysis.Error = error;
 		using var input = new MemoryStream([1]);
 
-		var actual = await Record.ExceptionAsync(() => fixture.Service.CreateAsync(input, "image/png"));
+		var actual = await Record.ExceptionAsync(() => fixture.Service.CreateAsync(input, "image/png", runOcr: true));
 
 		Assert.Same(error, actual);
 		Assert.Equal(0, fixture.Storage.UploadCalls);
@@ -178,38 +224,47 @@ public sealed class ReceiptServiceTests
 		AssertTemporaryFileDeleted(fixture.Analysis.TemporaryPath);
 	}
 
-	[Fact]
-	public async Task Create_does_not_persist_or_delete_an_unknown_file_when_upload_fails()
+	[Theory]
+	[InlineData(false, false)]
+	[InlineData(false, true)]
+	[InlineData(true, false)]
+	[InlineData(true, true)]
+	public async Task Create_does_not_persist_or_delete_an_unknown_file_when_upload_fails(bool runOcr, bool cancelled)
 	{
 		using var fixture = new Fixture();
-		var error = new IOException("upload failure");
+		using var cancellation = new CancellationTokenSource();
+		var error = cancelled ? (Exception)new OperationCanceledException(cancellation.Token) : new IOException("upload failure");
 		fixture.Storage.UploadError = error;
 		using var input = new MemoryStream([1]);
 
-		var actual = await Record.ExceptionAsync(() => fixture.Service.CreateAsync(input, "image/png"));
+		var actual = await Record.ExceptionAsync(() => fixture.Service.CreateAsync(input, "image/png", runOcr: runOcr, cancellationToken: cancellation.Token));
 
 		Assert.Same(error, actual);
 		Assert.Empty(fixture.Storage.DeletedKeys);
 		Assert.Empty(await fixture.Context.Receipts.ToListAsync());
-		AssertTemporaryFileDeleted(fixture.Analysis.TemporaryPath);
+		AssertTemporaryFileDeleted(fixture.Storage.TemporaryPath);
 	}
 
 	[Theory]
-	[InlineData("")]
-	[InlineData(" \t")]
-	public async Task Create_rejects_an_empty_storage_key(string key)
+	[InlineData("", false)]
+	[InlineData("", true)]
+	[InlineData(" \t", false)]
+	[InlineData(" \t", true)]
+	public async Task Create_rejects_an_empty_storage_key(string key, bool runOcr)
 	{
 		using var fixture = new Fixture();
 		fixture.Storage.Key = key;
 		using var input = new MemoryStream([1]);
-		await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.CreateAsync(input, "image/png"));
+		await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.CreateAsync(input, "image/png", runOcr: runOcr));
 		Assert.Empty(await fixture.Context.Receipts.ToListAsync());
 		Assert.Empty(fixture.Storage.DeletedKeys);
-		AssertTemporaryFileDeleted(fixture.Analysis.TemporaryPath);
+		AssertTemporaryFileDeleted(fixture.Storage.TemporaryPath);
 	}
 
-	[Fact]
-	public async Task Create_preserves_save_error_and_file_and_only_detaches_new_receipt()
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task Create_preserves_save_error_and_file_and_only_detaches_new_receipt(bool runOcr)
 	{
 		using var fixture = new Fixture();
 		var existing = await fixture.SeedAsync();
@@ -217,19 +272,21 @@ public sealed class ReceiptServiceTests
 		fixture.Interceptor.Error = error;
 		using var input = new MemoryStream([1]);
 
-		var actual = await Record.ExceptionAsync(() => fixture.Service.CreateAsync(input, "image/png"));
+		var actual = await Record.ExceptionAsync(() => fixture.Service.CreateAsync(input, "image/png", runOcr: runOcr));
 
 		Assert.Same(error, actual);
 		Assert.Empty(fixture.Storage.DeletedKeys);
 		Assert.Same(existing, Assert.Single(fixture.Context.ChangeTracker.Entries()).Entity);
 		Assert.Equal(EntityState.Unchanged, fixture.Context.Entry(existing).State);
 		Assert.Equal(existing.Id, (await fixture.Context.Receipts.SingleAsync()).Id);
-		AssertTemporaryFileDeleted(fixture.Analysis.TemporaryPath);
+		AssertTemporaryFileDeleted(fixture.Storage.TemporaryPath);
 		AssertRetainedFileWarning(fixture, error);
 	}
 
-	[Fact]
-	public async Task Create_preserves_file_and_original_cancellation_when_save_is_cancelled()
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task Create_preserves_file_and_original_cancellation_when_save_is_cancelled(bool runOcr)
 	{
 		using var fixture = new Fixture();
 		using var cancellation = new CancellationTokenSource();
@@ -237,21 +294,23 @@ public sealed class ReceiptServiceTests
 		fixture.Interceptor.Error = new OperationCanceledException(cancellation.Token);
 		using var input = new MemoryStream([1]);
 
-		var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => fixture.Service.CreateAsync(input, "image/png", cancellation.Token));
+		var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => fixture.Service.CreateAsync(input, "image/png", runOcr: runOcr, cancellationToken: cancellation.Token));
 
 		Assert.Same(fixture.Interceptor.Error, error);
 		Assert.Equal(cancellation.Token, error.CancellationToken);
 		Assert.Empty(fixture.Storage.DeletedKeys);
 		Assert.Empty(fixture.Context.ChangeTracker.Entries());
 		Assert.Empty(await fixture.Context.Receipts.ToListAsync());
-		AssertTemporaryFileDeleted(fixture.Analysis.TemporaryPath);
+		AssertTemporaryFileDeleted(fixture.Storage.TemporaryPath);
 		AssertRetainedFileWarning(fixture, error);
 	}
 
 	[Theory]
-	[InlineData(false)]
-	[InlineData(true)]
-	public async Task Create_retains_persisted_receipt_and_file_when_acknowledgement_fails(bool cancelled)
+	[InlineData(false, false)]
+	[InlineData(false, true)]
+	[InlineData(true, false)]
+	[InlineData(true, true)]
+	public async Task Create_retains_persisted_receipt_and_file_when_acknowledgement_fails(bool cancelled, bool runOcr)
 	{
 		using var fixture = new Fixture();
 		using var cancellation = new CancellationTokenSource();
@@ -262,7 +321,7 @@ public sealed class ReceiptServiceTests
 			fixture.Interceptor.OnSaved = cancellation.Cancel;
 		using var input = new MemoryStream([1]);
 
-		var actual = await Record.ExceptionAsync(() => fixture.Service.CreateAsync(input, "image/png", cancellation.Token));
+		var actual = await Record.ExceptionAsync(() => fixture.Service.CreateAsync(input, "image/png", runOcr: runOcr, cancellationToken: cancellation.Token));
 
 		Assert.Same(error, actual);
 		Assert.Empty(fixture.Context.ChangeTracker.Entries());
@@ -270,8 +329,8 @@ public sealed class ReceiptServiceTests
 		using var verification = new ReceiptDbContext(fixture.ContextOptions);
 		var receipt = await verification.Receipts.SingleAsync();
 		Assert.Equal(fixture.Storage.Key, receipt.StorageKey);
-		Assert.Equal(fixture.Analysis.Json, receipt.ExtractionResult);
-		AssertTemporaryFileDeleted(fixture.Analysis.TemporaryPath);
+		Assert.Equal(runOcr ? fixture.Analysis.Json : null, receipt.ExtractionResult);
+		AssertTemporaryFileDeleted(fixture.Storage.TemporaryPath);
 		AssertRetainedFileWarning(fixture, error);
 		Assert.Contains(receipt.Id.ToString(), fixture.Logger.Messages[0]);
 	}
@@ -283,8 +342,10 @@ public sealed class ReceiptServiceTests
 		Assert.Null(await fixture.Service.GetByIdAsync(Guid.NewGuid()));
 	}
 
-	[Fact]
-	public async Task Create_preserves_uploaded_file_and_other_entries_when_repository_add_fails()
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task Create_preserves_uploaded_file_and_other_entries_when_repository_add_fails(bool runOcr)
 	{
 		using var fixture = new Fixture();
 		var existing = await fixture.SeedAsync();
@@ -293,7 +354,7 @@ public sealed class ReceiptServiceTests
 		var service = new ReceiptService(repository, fixture.Context, fixture.Analysis, fixture.Storage, fixture.Logger, fixture.Clock);
 		using var input = new MemoryStream([1]);
 
-		var actual = await Record.ExceptionAsync(() => service.CreateAsync(input, "image/png"));
+		var actual = await Record.ExceptionAsync(() => service.CreateAsync(input, "image/png", runOcr: runOcr));
 
 		Assert.Same(error, actual);
 		Assert.Equal(1, fixture.Storage.UploadCalls);
@@ -301,19 +362,19 @@ public sealed class ReceiptServiceTests
 		Assert.Same(existing, Assert.Single(fixture.Context.ChangeTracker.Entries()).Entity);
 		Assert.Equal(EntityState.Unchanged, fixture.Context.Entry(existing).State);
 		Assert.Equal(existing.Id, (await fixture.Context.Receipts.SingleAsync()).Id);
-		AssertTemporaryFileDeleted(fixture.Analysis.TemporaryPath);
+		AssertTemporaryFileDeleted(fixture.Storage.TemporaryPath);
 		AssertRetainedFileWarning(fixture, error);
 	}
 
 	[Fact]
-	public async Task GetFileUrl_preserves_storage_error_and_receipt()
+	public async Task GetFileUrlById_preserves_storage_error_and_receipt()
 	{
 		using var fixture = new Fixture();
 		var receipt = await fixture.SeedAsync();
 		var error = new IOException("synthetic signing failure");
 		fixture.Storage.UrlError = error;
 
-		var actual = await Record.ExceptionAsync(() => fixture.Service.GetFileUrlAsync(receipt.Id));
+		var actual = await Record.ExceptionAsync(() => fixture.Service.GetFileUrlByIdAsync(receipt.Id));
 
 		Assert.Same(error, actual);
 		Assert.Equal(receipt.StorageKey, fixture.Storage.UrlKey);
@@ -324,22 +385,22 @@ public sealed class ReceiptServiceTests
 	}
 
 	[Fact]
-	public async Task GetFileUrl_passes_key_and_token_and_returns_storage_result()
+	public async Task GetFileUrlById_passes_key_and_token_and_returns_storage_result()
 	{
 		using var fixture = new Fixture();
 		var receipt = await fixture.SeedAsync();
 		using var cancellation = new CancellationTokenSource();
-		var result = await fixture.Service.GetFileUrlAsync(receipt.Id, cancellation.Token);
+		var result = await fixture.Service.GetFileUrlByIdAsync(receipt.Id, cancellation.Token);
 		Assert.Same(fixture.Storage.UrlResult, result);
 		Assert.Equal(receipt.StorageKey, fixture.Storage.UrlKey);
 		Assert.Equal(cancellation.Token, fixture.Storage.UrlToken);
 	}
 
 	[Fact]
-	public async Task GetFileUrl_throws_for_missing_receipt_without_calling_storage()
+	public async Task GetFileUrlById_throws_for_missing_receipt_without_calling_storage()
 	{
 		using var fixture = new Fixture();
-		await Assert.ThrowsAsync<KeyNotFoundException>(() => fixture.Service.GetFileUrlAsync(Guid.NewGuid()));
+		await Assert.ThrowsAsync<KeyNotFoundException>(() => fixture.Service.GetFileUrlByIdAsync(Guid.NewGuid()));
 		Assert.Null(fixture.Storage.UrlKey);
 	}
 
@@ -590,7 +651,7 @@ public sealed class ReceiptServiceTests
 
 	private sealed class AnalysisStub : IReceiptAnalysisService
 	{
-		public string Json { get; } = "{\"store\":\"Sklep\",\"total\":\"6.00\",\"items\":[]}";
+		public string Json { get; } = "{\"receipt\":{\"store\":\"Sklep\",\"total\":\"6.00\",\"items\":[]},\"warnings\":[\"synthetic warning\"],\"needs_review\":true}";
 		public string? Content { get; private set; }
 		public string? ContentType { get; private set; }
 		public string? TemporaryPath { get; private set; }
@@ -615,6 +676,7 @@ public sealed class ReceiptServiceTests
 
 	private sealed class StorageStub : IFileStorageService
 	{
+		public string? TemporaryPath { get; private set; }
 		public string Key { get; set; } = "synthetic/receipt-key";
 		public string? Content { get; private set; }
 		public string? ContentType { get; private set; }
@@ -633,6 +695,7 @@ public sealed class ReceiptServiceTests
 		public async Task<string> UploadAsync(Stream content, string contentType, CancellationToken cancellationToken = default)
 		{
 			UploadCalls++;
+			TemporaryPath = Assert.IsType<FileStream>(content).Name;
 			UploadToken = cancellationToken;
 			ContentType = contentType;
 			using var reader = new StreamReader(content, leaveOpen: true);

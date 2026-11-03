@@ -58,3 +58,31 @@ Workflow `backend.yml` uruchamia PostgreSQL 15, czeka na healthcheck i przekazuj
 connection string. Runner CI wykrywa śledzone projekty `.UnitTests`, `.Tests`
 i `.IntegrationTests`; wszystkie projekty User i Notifications są wpisane do solution, więc krok
 Release build kompiluje je przed `dotnet test --no-build --no-restore`.
+
+## Receipt
+
+`ZPI4M.Receipt.UnitTests` sprawdza serwis Receipt, klienta HTTP OCR, adapter S3
+oraz walidację konfiguracji. `CreateAsync` wymaga jawnego `runOcr` i zwraca
+`ReceiptCreationResult` (ID oraz opcjonalny pełny wynik OCR). Testy obejmują
+oba tryby: analizę i zapis oraz samo zdjęcie z `ExtractionResult = null`
+i bez żądania HTTP do OCR. Wspólne scenariusze obejmują strumienie bez przewijania,
+odczyt od bieżącej pozycji, walidację, anulowanie, błędy uploadu i zapisu,
+sprzątanie plików tymczasowych oraz niepewne potwierdzenie zapisu.
+Testy `GetFileUrlByIdAsync` i usuwania zachowują kontrolę obsługi błędów.
+OCR i dostawcy są zastępowani atrapami; testy nie wywołują płatnego modelu.
+Receipt nie ma własnych endpointów; przyszłe endpointy Expense będą korzystać
+z jego serwisu, więc nie dodajemy testów kontrolera Receipt.
+
+Z katalogu `backend/ZPI4M.Backend`, po kompilacji Release:
+
+```powershell
+dotnet test tests/ZPI4M.Receipt.UnitTests/ZPI4M.Receipt.UnitTests.csproj --configuration Release --no-build --no-restore
+dotnet test tests/ZPI4M.Receipt.IntegrationTests/ZPI4M.Receipt.IntegrationTests.csproj --configuration Release --no-build --no-restore
+```
+
+`ZPI4M.Receipt.IntegrationTests` zawiera testy pomocnika sprzątania i ręczny test
+rzeczywistego S3: upload syntetycznego obrazu, podpisany GET, odmowa anonimowego
+GET i dwukrotne usunięcie. Test S3 wymaga działającego lokalnego magazynu,
+konfiguracji `STORAGE_*` z API `.env` lub środowiska oraz
+`STORAGE_INTEGRATION_TESTS=1`. Bez tej flagi jest pomijany. Nie potwierdza
+pełnego przepływu OCR → S3 → PostgreSQL ani integracji z Expense.
