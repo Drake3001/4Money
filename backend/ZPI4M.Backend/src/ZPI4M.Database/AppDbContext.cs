@@ -18,6 +18,10 @@ namespace ZPI4M.Database
 		{
 		}
 
+		public DbSet<ZPI4M.Grouping.Models.GroupSettlement> GroupSettlements { get; set; }
+		public DbSet<ZPI4M.Grouping.Models.GroupInvitation> GroupInvitations { get; set; }
+		public DbSet<ZPI4M.Limits.Models.GroupLimit> GroupLimits { get; set; }
+
 		protected override void OnModelCreating(ModelBuilder modelBuilder)
 		{
 			base.OnModelCreating(modelBuilder);
@@ -29,6 +33,29 @@ namespace ZPI4M.Database
 			NotificationsConfiguration.Configure(modelBuilder);
 			ReceiptConfiguration.Configure(modelBuilder);
 			UserConfiguration.Configure(modelBuilder);
+			modelBuilder.Entity<ZPI4M.Grouping.Models.Group>().HasOne<ZPI4M.User.Models.User>().WithMany()
+				.HasForeignKey(e => e.AdminUserId).OnDelete(DeleteBehavior.NoAction);
+
+			modelBuilder.Entity<ZPI4M.Grouping.Models.GroupMember>().HasOne<ZPI4M.User.Models.User>().WithMany()
+				.HasForeignKey(e => e.FkUserId).OnDelete(DeleteBehavior.NoAction).HasConstraintName("c_group_member_fk_user_id");
+
+			modelBuilder.Entity<ZPI4M.Grouping.Models.GroupSettlement>().HasOne<ZPI4M.User.Models.User>().WithMany()
+				.HasForeignKey(e => e.FromUserId).OnDelete(DeleteBehavior.NoAction);
+
+			modelBuilder.Entity<ZPI4M.Grouping.Models.GroupSettlement>().HasOne<ZPI4M.User.Models.User>().WithMany()
+				.HasForeignKey(e => e.ToUserId).OnDelete(DeleteBehavior.NoAction);
+
+			modelBuilder.Entity<ZPI4M.Grouping.Models.GroupSettlement>().HasOne<ZPI4M.Banking.Models.BankTransaction>().WithMany()
+				.HasForeignKey(e => e.BankTransactionId).OnDelete(DeleteBehavior.NoAction);
+
+			modelBuilder.Entity<ZPI4M.Grouping.Models.GroupInvitation>().HasOne<ZPI4M.User.Models.User>().WithMany()
+				.HasForeignKey(e => e.CreatedByUserId).OnDelete(DeleteBehavior.NoAction);
+
+			modelBuilder.Entity<ZPI4M.Limits.Models.GroupLimit>().HasOne<ZPI4M.Grouping.Models.Group>().WithMany()
+				.HasForeignKey(e => e.GroupId).OnDelete(DeleteBehavior.NoAction);
+
+			modelBuilder.Entity<ZPI4M.Expense.Models.Expense>().HasOne<ZPI4M.User.Models.User>().WithMany()
+				.HasForeignKey(e => e.FkPayerId).OnDelete(DeleteBehavior.NoAction);
 			modelBuilder.Entity<ZPI4M.Notifications.Models.Notification>()
 				.HasOne<ZPI4M.Expense.Models.Expense>().WithMany()
 				.HasForeignKey(e => e.FkExpenseId)

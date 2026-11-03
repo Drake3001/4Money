@@ -44,8 +44,8 @@ public class ExpenseRepository : IExpenseRepository
 		IQueryable<Models.Expense> itemsQuery = _context.Expenses.Where(e => e.FkGroupId == groupId);
 		if (!string.IsNullOrWhiteSpace(query.Name))
 		{
-			var name = query.Name.Trim().ToLowerInvariant();
-			itemsQuery = itemsQuery.Where(e => e.Name.ToLower().Contains(name));
+			var description = query.Name.Trim().ToLowerInvariant();
+			itemsQuery = itemsQuery.Where(e => e.Name.ToLower().Contains(description));
 		}
 		if (!string.IsNullOrWhiteSpace(query.Merchant))
 		{
@@ -54,12 +54,12 @@ public class ExpenseRepository : IExpenseRepository
 		}
 		if (query.DateFrom.HasValue)
 		{
-			var dateFrom = query.DateFrom.Value.ToDateTime(TimeOnly.MinValue);
+			var dateFrom = query.DateFrom.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 			itemsQuery = itemsQuery.Where(e => e.TransactionTime >= dateFrom);
 		}
 		if (query.DateTo.HasValue)
 		{
-			var dateTo = query.DateTo.Value.ToDateTime(TimeOnly.MinValue);
+			var dateTo = query.DateTo.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 			itemsQuery = itemsQuery.Where(e => e.TransactionTime.Date <= dateTo);
 		}
 		if (query.MinAmount.HasValue)

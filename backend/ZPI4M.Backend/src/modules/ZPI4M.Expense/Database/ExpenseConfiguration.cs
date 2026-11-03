@@ -45,6 +45,8 @@ namespace ZPI4M.Expense.Database
 				entity.Property(e => e.FkBankTransactionId).HasColumnName("fk_bank_transaction_id");
 				entity.Property(e => e.FkGroupId).HasColumnName("fk_group_id");
 				entity.Property(e => e.FkReceiptId).HasColumnName("fk_receipt_id");
+				entity.Property(e => e.FkPayerId).HasColumnName("fk_payer_id");
+				entity.HasIndex(e => e.FkPayerId).HasDatabaseName("ix_expense_fk_payer_id");
 				entity.Property(e => e.Merchant).HasColumnName("merchant");
 				entity.Property(e => e.Name).HasColumnName("name");
 				entity.Property(e => e.TransactionTime)
@@ -87,14 +89,16 @@ namespace ZPI4M.Expense.Database
 			{
 				entity.HasKey(e => new { e.FkExpenseId, e.FkUserId }).HasName("expense_share_pkey");
 
-				entity.ToTable("expense_share", "expense");
+				entity.ToTable("expense_share", "expense", t => t.HasCheckConstraint("c_expense_share_amount", "amount >= 0"));
 
 				entity.Property(e => e.FkExpenseId).HasColumnName("fk_expense_id");
 				entity.Property(e => e.FkUserId).HasColumnName("fk_user_id");
-				entity.Property(e => e.Percentage)
-					.HasPrecision(5, 2)
-					.HasColumnName("percentage");
+				entity.Property(e => e.Amount)
+					.HasPrecision(18, 2)
+					.HasColumnName("amount");
 			});
+			modelBuilder.Entity<ExpenseShare>().HasOne<Models.Expense>().WithMany()
+				.HasForeignKey(e => e.FkExpenseId).OnDelete(DeleteBehavior.NoAction).HasConstraintName("c_expense_share_fk_expense_id");
 		}
 	}
 }

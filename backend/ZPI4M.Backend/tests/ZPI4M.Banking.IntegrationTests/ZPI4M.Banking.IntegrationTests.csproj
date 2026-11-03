@@ -12,6 +12,7 @@
   <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4"><PrivateAssets>all</PrivateAssets></PackageReference>
   <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
   <ProjectReference Include="../../src/ZPI4M.Api/ZPI4M.Api.csproj" />
+  <None Include="../../../../database/seed_local.sql" Link="Baseline/seed_local.sql" CopyToOutputDirectory="PreserveNewest" />
   <None Include="../../../../database/init/*.sql" Link="Baseline/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
  </ItemGroup>
 </Project>

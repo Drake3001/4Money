@@ -30,6 +30,7 @@ using ZPI4M.Receipt.Database;
 using ZPI4M.Receipt.Repositories.ReceiptRepository;
 using ZPI4M.Receipt.Services;
 using ZPI4M.Shared.CurrentUser;
+using ZPI4M.Shared.Storage;
 using ZPI4M.User.ApiControllers;
 using ZPI4M.User.Database;
 using ZPI4M.User.Integrations.Smtp;
@@ -57,7 +58,8 @@ builder.Configuration.AddEnvironmentVariables();
 
 builder.Services.AddControllers()
 	.AddApplicationPart(typeof(UsersController).Assembly)
-	.AddApplicationPart(typeof(BankingController).Assembly);
+	.AddApplicationPart(typeof(BankingController).Assembly)
+	.AddApplicationPart(typeof(ZPI4M.Grouping.ApiControllers.GroupsController).Assembly);
 builder.Services.AddProblemDetails();
 builder.Services.AddAuthorization();
 builder.Services.AddTink(builder.Configuration);
@@ -90,6 +92,17 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 	options.UseNpgsql(dbConnectionString, npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "public")));
 
 // Grouping module
+builder.Services.AddScoped<ZPI4M.Grouping.Services.Suggestions.IGroupSettlementSuggestionService, ZPI4M.Grouping.Services.Suggestions.GroupSettlementSuggestionService>();
+builder.Services.AddSingleton<ZPI4M.Grouping.Services.Suggestions.SettlementSuggestionCalculator>();
+builder.Services.AddScoped<ZPI4M.Grouping.Services.Aggregates.IGroupMemberAggregateService, ZPI4M.Grouping.Services.Aggregates.GroupMemberAggregateService>();
+builder.Services.AddScoped<ZPI4M.Grouping.Services.Settlements.IGroupSettlementService, ZPI4M.Grouping.Services.Settlements.GroupSettlementService>();
+builder.Services.AddScoped<ZPI4M.Grouping.Repositories.GroupSettlementRepository.IGroupSettlementRepository, ZPI4M.Grouping.Repositories.GroupSettlementRepository.GroupSettlementRepository>();
+builder.Services.AddScoped<ZPI4M.Grouping.Services.Members.IGroupMemberService, ZPI4M.Grouping.Services.Members.GroupMemberService>();
+builder.Services.AddScoped<ZPI4M.Grouping.Services.Transactions.IGroupingTransactionCoordinator, ZPI4M.Grouping.Services.Transactions.GroupingTransactionCoordinator>();
+builder.Services.AddScoped<ZPI4M.Grouping.Repositories.GroupInvitationRepository.IGroupInvitationRepository, ZPI4M.Grouping.Repositories.GroupInvitationRepository.GroupInvitationRepository>();
+builder.Services.AddScoped<ZPI4M.Grouping.Services.Invitations.IGroupInvitationService, ZPI4M.Grouping.Services.Invitations.GroupInvitationService>();
+builder.Services.AddScoped<ZPI4M.Grouping.Services.Groups.IGroupIconService, ZPI4M.Grouping.Services.Groups.GroupIconService>();
+builder.Services.AddScoped<ZPI4M.Grouping.Services.Groups.IGroupService, ZPI4M.Grouping.Services.Groups.GroupService>();
 builder.Services.AddDbContext<GroupingDbContext>((provider, options) =>
 	options.UseNpgsql(provider.GetRequiredService<NpgsqlConnection>(), contextOwnsConnection: false));
 builder.Services.AddScoped<IGroupRepository, GroupRepository>();
@@ -118,7 +131,7 @@ builder.Services.AddDbContext<ReceiptDbContext>(options => options.UseNpgsql(dbC
 builder.Services.AddScoped<IReceiptRepository, ReceiptRepository>();
 builder.Services.AddScoped<IReceiptService, ReceiptService>();
 builder.Services.AddReceiptAnalysis(builder.Configuration);
-builder.Services.AddReceiptFileStorage(builder.Configuration);
+builder.Services.AddObjectStorage(builder.Configuration);
 
 // User module
 builder.Services.AddUserAuthentication(builder.Configuration);

@@ -3,9 +3,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Xunit;
-using ZPI4M.Receipt.Services;
+using ZPI4M.Shared.Storage;
 
-namespace ZPI4M.Receipt.UnitTests;
+
+namespace ZPI4M.Shared.UnitTests;
 
 public sealed class S3StorageOptionsTests
 {
@@ -18,7 +19,7 @@ public sealed class S3StorageOptionsTests
 	[InlineData("http://storage.example.test#fragment")]
 	public void Invalid_public_endpoint_is_rejected_without_echoing_value(string endpoint)
 	{
-		var options = S3FileStorageServiceTests.ValidOptions();
+		var options = S3ObjectStorageTests.ValidOptions();
 		options.PublicEndpoint = endpoint;
 		var error = Assert.Throws<OptionsValidationException>(() => options.CreateClient());
 		Assert.Contains("STORAGE_PUBLIC_ENDPOINT", error.Message);
@@ -30,7 +31,7 @@ public sealed class S3StorageOptionsTests
 	[InlineData("https://storage.example.test")]
 	public void Valid_configuration_creates_path_style_client(string endpoint)
 	{
-		var options = S3FileStorageServiceTests.ValidOptions();
+		var options = S3ObjectStorageTests.ValidOptions();
 		options.Endpoint = endpoint;
 		using var client = options.CreateClient();
 		Assert.True(((AmazonS3Config)client.Config).ForcePathStyle);
@@ -47,7 +48,7 @@ public sealed class S3StorageOptionsTests
 	[InlineData("http://storage.example.test#fragment")]
 	public void Invalid_endpoint_is_rejected_without_echoing_value(string endpoint)
 	{
-		var options = S3FileStorageServiceTests.ValidOptions();
+		var options = S3ObjectStorageTests.ValidOptions();
 		options.Endpoint = endpoint;
 		var error = Assert.Throws<OptionsValidationException>(() => options.CreateClient());
 		Assert.Contains("STORAGE_ENDPOINT", error.Message);
@@ -100,9 +101,9 @@ public sealed class S3StorageOptionsTests
 		Assert.Equal(expected, provider.GetRequiredService<IOptions<S3StorageOptions>>().Value.UrlExpirationMinutes);
 		using var first = provider.CreateScope();
 		using var second = provider.CreateScope();
-		Assert.IsType<S3FileStorageService>(first.ServiceProvider.GetRequiredService<IFileStorageService>());
+		Assert.IsType<S3ObjectStorage>(first.ServiceProvider.GetRequiredService<IObjectStorage>());
 		Assert.Same(first.ServiceProvider.GetRequiredService<IAmazonS3>(), second.ServiceProvider.GetRequiredService<IAmazonS3>());
-		Assert.NotSame(first.ServiceProvider.GetRequiredService<IFileStorageService>(), second.ServiceProvider.GetRequiredService<IFileStorageService>());
+		Assert.NotSame(first.ServiceProvider.GetRequiredService<IObjectStorage>(), second.ServiceProvider.GetRequiredService<IObjectStorage>());
 	}
 
 	private static Dictionary<string, string?> Values() => new()
@@ -117,6 +118,6 @@ public sealed class S3StorageOptionsTests
 	private static ServiceProvider Provider(Dictionary<string, string?> values)
 	{
 		var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
-		return new ServiceCollection().AddReceiptFileStorage(configuration).BuildServiceProvider();
+		return new ServiceCollection().AddObjectStorage(configuration).BuildServiceProvider();
 	}
 }

@@ -126,6 +126,12 @@ celowo nieaktywny. W środowisku User ustaw odpowiednio userLogin i userPassword
 Zmiana pliku seed nie aktualizuje istniejącej bazy. Nie uruchamiaj go wyłącznie
 w celu zmiany hasła: zawiera TRUNCATE i usuwa dotychczasowe dane.
 
+Inbox obsługuje także `SettlementReceived` (`type=5`): utworzenie rozliczenia
+w Grouping powiadamia odbiorcę pieniędzy, jeśli nie jest autorem wpisu.
+Powiadomienie wskazuje grupę. Edycja i usunięcie rozliczenia nie tworzą powiadomień.
+Rozszerzenie CHECK typów należy do `20261102215301_AddGroupingModel`;
+baza z wcześniej zastosowaną wersją tej migracji nie zmieni się od samej edycji pliku.
+
 ## Banking i diagnostyka Tink
 
 Folder **10 — Rozpoczęcie połączenia** zaczyna się od żądania

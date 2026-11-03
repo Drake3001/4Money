@@ -7,6 +7,8 @@ public partial class Expense
 {
 	public Guid Id { get; set; }
 
+	public Guid FkPayerId { get; set; }
+
 	public Guid FkGroupId { get; set; }
 
 	public Guid? FkBankTransactionId { get; set; }

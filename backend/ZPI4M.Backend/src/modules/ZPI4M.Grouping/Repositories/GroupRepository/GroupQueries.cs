@@ -2,7 +2,7 @@ using ZPI4M.Shared.Pagination;
 
 namespace ZPI4M.Grouping.Repositories.GroupRepository;
 
-public enum GroupSortBy { Name, MemberCount, WeeklyLimit, MonthlyLimit, YearLimit }
+public enum GroupSortBy { Name, MemberCount }
 
 public class GroupQuery : PagedQuery
 {

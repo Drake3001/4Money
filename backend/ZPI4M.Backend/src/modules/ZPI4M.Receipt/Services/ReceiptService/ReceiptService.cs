@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using ZPI4M.Receipt.Database;
 using ZPI4M.Receipt.DTOs;
 using ZPI4M.Receipt.Repositories.ReceiptRepository;
+using ZPI4M.Shared.Storage;
 
 namespace ZPI4M.Receipt.Services;
 
@@ -12,7 +13,7 @@ public sealed class ReceiptService : IReceiptService
 	private readonly IReceiptRepository _repository;
 	private readonly ReceiptDbContext _context;
 	private readonly IReceiptAnalysisService _analysis;
-	private readonly IFileStorageService _storage;
+	private readonly IObjectStorage _storage;
 	private readonly ILogger<ReceiptService> _logger;
 	private readonly TimeProvider _timeProvider;
 
@@ -20,7 +21,7 @@ public sealed class ReceiptService : IReceiptService
 		IReceiptRepository repository,
 		ReceiptDbContext context,
 		IReceiptAnalysisService analysis,
-		IFileStorageService storage,
+		IObjectStorage storage,
 		ILogger<ReceiptService> logger,
 		TimeProvider timeProvider)
 	{
@@ -56,9 +57,8 @@ public sealed class ReceiptService : IReceiptService
 		JsonElement? result = runOcr ? await _analysis.AnalyzeAsync(copy, contentType, cancellationToken) : null;
 		var extractionResult = result?.GetRawText();
 		copy.Position = 0;
-		var storageKey = await _storage.UploadAsync(copy, contentType, cancellationToken);
-		if (string.IsNullOrWhiteSpace(storageKey))
-			throw new InvalidOperationException("File storage returned an empty storage key.");
+		var storageKey = $"receipts/{Guid.NewGuid():N}";
+		await _storage.UploadAsync(storageKey, copy, contentType, cancellationToken);
 
 		var receipt = new Models.Receipt
 		{
@@ -91,7 +91,7 @@ public sealed class ReceiptService : IReceiptService
 	{
 		var receipt = await _repository.GetByIdAsync(receiptId, cancellationToken)
 			?? throw new KeyNotFoundException("Receipt not found.");
-		return await _storage.GetUrlAsync(receipt.StorageKey, cancellationToken);
+		return await _storage.GetReadUrlAsync(receipt.StorageKey, cancellationToken);
 	}
 
 	public async Task DeleteAsync(Guid receiptId, CancellationToken cancellationToken = default)

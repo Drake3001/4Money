@@ -194,9 +194,10 @@ je nadpisują. Lokalny `.env` nie jest szablonem do kopiowania sekretów do repo
 ## Obecna integracja Receipt i workera OCR
 
 Kontrakt serwisu Receipt zaktualizowano 2026-11-02. Receipt ma
-`IReceiptService`, `IReceiptAnalysisService` (HTTP) i `IFileStorageService` (S3).
-Ich pliki są pogrupowane w `Services/ReceiptService`, `Services/ReceiptAnalysisService`
-i `Services/FileStorageService`; współdzielą namespace `ZPI4M.Receipt.Services`.
+`IReceiptService` i `IReceiptAnalysisService` (HTTP), pogrupowane w
+`Services/ReceiptService` i `Services/ReceiptAnalysisService`, ze wspólnym
+namespace `ZPI4M.Receipt.Services`. Kontrakt S3 `IObjectStorage` i jego
+implementacja znajdują się w `ZPI4M.Shared.Storage`.
 Receipt nie udostępnia własnych endpointów HTTP. Zgodnie z decyzją z 2026-11-02
 endpointy Expense będą korzystać z `IReceiptService`; wywołania z Expense
 nie są jeszcze zaimplementowane. Jeden wydatek może mieć najwyżej jeden paragon.
@@ -342,3 +343,178 @@ w hoście API przetwarza trwałe zadania PostgreSQL; kontroler tylko zleca zadan
 i udostępnia jego wynik. Serwis/processor koordynuje adapter Tink i repozytorium,
 które przejmuje zadania przez lease oraz zapisuje dane atomowo dla rachunku.
 Nie ma zewnętrznej kolejki. [Kontrakt i parametry workera](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#refresh-on-demand).
+
+## Model grup po zatwierdzonym planie (2026-10-28)
+
+Grouping posiada Group, GroupMember (SQL group_user), GroupSettlement i
+GroupInvitation; Limits posiada GroupLimit obok niezmienionego CategoryGroupLimit.
+Expense posiada płatnika i udziały kwotowe. Mapowania wewnątrz modułów są w ich
+konfiguracjach; nowe relacje między modułami są wyłącznie w AppDbContext i mają
+DeleteBehavior.NoAction. Nie dodano zależności projektów ani nowego CRUD/API.
+Szczegóły pól i przyszłe niezmienniki opisuje [domena](domain.md#zatwierdzony-model-grup--2026-10-28).
+Agregaty nie są utrzymywane automatycznie; przyszły koordynator musi zapisywać
+źródła i agregaty atomowo oraz umożliwiać ich odbudowę. Członkostwo, suma udziałów,
+waluta, właściciel transakcji i wyłączność bankowego źródła pomiędzy wydatkiem
+oraz rozliczeniem nie są jeszcze egzekwowane przez serwis.
+
+Storage jest współdzielony w ZPI4M.Shared.Storage: IObjectStorage, S3ObjectStorage,
+FileUrlResult i konfiguracja STORAGE_*. Klucze generuje moduł wywołujący;
+Receipt zachowuje prefiks receipts/. Testy adaptera: ZPI4M.Shared.UnitTests.
+
+## Grupy: opis, obrazy i archiwizacja — 2026-10-31
+Nowa migracja AddGroupDescriptionIconsAndArchive dodaje description varchar(255)
+nullable, icon_storage_key nullable oraz is_archived NOT NULL DEFAULT false.
+Icon i IconStorageKey są rozłączne. Presety pochodzą z listowania storage pod
+GROUP_ICON_PRESET_PREFIX (domyślnie icons/presets/groups/), bez listy ID w kodzie.
+GroupIconService korzysta z Shared.Storage; moduł generuje klucze własnych plików.
+POST/PUT grup obsługują JSON i multipart. Brak instrukcji ikony na PUT ją zachowuje;
+removeIcon usuwa wybór. Opis jest przycinany, pusty staje się null, limit wynosi
+255 znaków Unicode. DELETE archiwizuje, zachowując dane i pliki; odczyty ukrywają
+archiwum. Szczegóły i ograniczenia: README modułu Grouping.
+Migracja nie została zastosowana na bazie deweloperskiej.
+
+## Zaproszenia grupowe — 2026-11-01
+GroupInvitationService implementuje generowanie, listę, odwołanie, podgląd
+i akceptację. Token to 32 losowe bajty Base64URL; w bazie pozostaje SHA-256.
+Ważność jest dowolnym przyszłym terminem. IsActive oznacza odwołanie,
+nie dostępność wynikającą z czasu/licznika. Były członek jest reaktywowany
+bez zmiany daty i agregatów. Obecny członek nie zużywa ponownie zaproszenia.
+Mutacje blokują grupę, potem zaproszenie. Dołączenie zapisuje licznik,
+członkostwo i GroupMemberJoined w transakcji wspólnej z Notifications.
+Brak push i migracji. Szczegóły: README Grouping.
+
+Repozytorium zaproszeń nie udostępnia IQueryable: GroupInvitationQuery w
+GroupInvitationQueries.cs opisuje filtr IsActive i wspólną paginację.
+GetPageAsync wykonuje filtrowanie i sortowanie w repozytorium, a
+GetByTokenHashAsync zapewnia odczyt bez śledzenia. Serwis mapuje wynik na DTO.
+
+## Koordynacja zapisów Grouping — 2026-11-01
+Wszystkie operacje zapisu Grouping korzystają ze scoped
+IGroupingTransactionCoordinator. Zewnętrzny przepływ otacza operacje przez
+ExecuteAsync(action, succeeded, cancellationToken); wywołania zagnieżdżone
+współdzielą transakcję i nie zatwierdzają jej samodzielnie. succeeded dla
+wyników serwisów oznacza status 2xx. Odmowa lub wyjątek zagnieżdżony blokuje
+końcowy commit nawet po przechwyceniu błędu. Walidacyjne odmowy przed zapisem
+są zgłaszane do koordynatora przez Reject.
+
+Nie rozpoczynaj bezpośrednio transakcji EF przed wejściem do koordynatora:
+taka transakcja jest odrzucana przed mutacją. SaveChangesAsync nadal zapisuje
+wszystkie oczekujące zmiany kontekstu jako jedną jednostkę pracy. Operacje
+na wspólnym połączeniu wykonuj kolejno, bez równoległego używania zakresu DI.
+
+Po rollbacku zakończ użycie zakresu DI i utwórz nowe konteksty. Koordynator
+odrzuca kolejne zapisy w zakończonej niepowodzeniem jednostce pracy.
+Nie czyści globalnie ChangeTracker ani nie naprawia stanu encji w pamięci.
+Notifications jest dołączany jawnie do tej samej transakcji i połączenia;
+właściciel transakcji odpowiada za odłączenie.
+
+AfterCommit służy usunięciu zastąpionych własnych ikon dopiero po końcowym
+commicie. AfterRollback sprząta nowe uploady tylko po potwierdzonym rollbacku.
+Przy niepewnym wyniku commitu zachowujemy pliki. Cleanup jest best effort,
+nie zmienia potwierdzonego sukcesu. Brak trwałej kolejki/outboxa.
+
+## Członkostwo grup — 2026-11-01
+GroupMemberService obsługuje listę, szczegóły, opuszczenie i usunięcie członka.
+Listy obsługują active/former/all (domyślnie active), paginację i kierunek
+sortowania po UserId. Odczyty dostępne aktywnym członkom niearchiwalnej grupy.
+Szczegóły mogą dotyczyć także byłego członka, ale były członek nie odczytuje grupy.
+Leave/Remove zmieniają tylko IsMember=false; historia, JoinedAt i wszystkie
+agregaty pozostają. Niezerowe saldo nie blokuje operacji. Powtórzenie daje 204,
+brak członkostwa 404; administrator musi wcześniej przekazać rolę (409).
+Usunięcie nie jest banem: ważne zaproszenie pozwala wrócić. Brak nowych powiadomień.
+Zapisy korzystają z GroupingTransactionCoordinator, blokując najpierw grupę.
+Nie ma migracji ani obliczania/utrzymywania sald w tym serwisie.
+
+## Rozliczenia ręczne i agregaty — 2026-11-02
+GroupSettlementService implementuje CRUD rozliczeń wykonanych poza aplikacją.
+Aktualizuje wkład przez osobny GroupMemberAggregateService we wspólnej transakcji.
+Obie strony mogą być historycznymi członkami; wykonujący musi być aktualnym
+członkiem i nadawcą albo administratorem. Przy edycji zwykły użytkownik pozostaje
+nadawcą przed i po zmianie. Data nie może być przyszła, kwota nie jest ograniczana
+saldem. BankTransactionId niepusty daje 400; Banking i wyłączność źródeł pozostają
+na osobną turę. Powiązane historyczne rekordy można odczytać lub usunąć; PUT
+z null usuwa istniejące powiązanie.
+
+IGroupMemberAggregateService udostępnia ApplySettlementChangeAsync i
+ApplyExpenseChangeAsync(previous,current). Null po jednej stronie oznacza
+utworzenie/usunięcie; obie null są błędem. Kontrakty wartości należą do Grouping,
+bez encji Expense. Płatnik/udziały aktualizują TotalPaid/TotalShare, nadawca/odbiorca
+TotalSettlementsSent/Received. Różnice są scalane per użytkownik i sprawdzane
+przed mutacją; wynik nie może być ujemny ani przekraczać numeric(18,2).
+Historyczne członkostwa są zachowane, brakujące nie są tworzone.
+Serwis wymaga aktywnego koordynatora (EnsureActive), blokuje grupę, nie robi
+SaveChanges ani commitu. Wywołanie musi nastąpić dokładnie raz ze zmianą źródła.
+Przyszły Expense musi stosować tę samą transakcję i blokadę grupy.
+Nie podłączono ExpenseDbContext ani CRUD Expense. Brak odbudowy/uzgadniania
+agregatów. Od 2026-11-03 utworzenie rozliczenia tworzy SettlementReceived (5)
+wyłącznie dla ToUserId różnego od autora wpisu, również dla byłego członka.
+Nieaktywne konta pomija NotifyAsync. GroupSettlementService jawnie dołącza
+Notifications do transakcji koordynatora; błąd zapisu powiadomienia/odbiorcy
+wycofuje rozliczenie i agregaty. Edycja i usunięcie nie tworzą powiadomień.
+CHECK typów rozszerza istniejąca AddGroupingModel; tymczasowa migracja Expense
+nie wykonuje operacji na Notifications.
+
+## Prywatność powiązania bankowego rozliczenia — 2026-11-02
+Grouping zależy od publicznego IBankingReadService, bez zależności odwrotnej.
+Lista, szczegóły i odpowiedzi zapisów ujawniają BankTransactionId tylko po
+poprawnym odczycie dla ID zalogowanego użytkownika (nie nadawcy rozliczenia).
+Administrator grupy nie uzyskuje uprawnień do cudzej bankowości. Brak odczytu
+lub kontrolowany błąd Banking daje null bez ukrywania samego rozliczenia.
+Nieoczekiwane wyjątki propagują się bez fallbacku ujawniającego ID.
+Sprawdzenia listy są kolejne, z lokalnym cache dla jednej odpowiedzi.
+Brak nowego interfejsu przypisań, tabeli i migracji. POST/PUT nadal odrzucają
+niepuste BankTransactionId. Edycja/null i DELETE historycznych powiązań
+pozostają dozwolone; wymagają zastąpienia claim/release przy wdrożeniu Banking.
+Walidacja wskazuje konkretne pola zamiast wspólnego komunikatu bankowego.
+
+## Podział migracji Grouping i Expense — 2026-11-02
+Aktualny koniec łańcucha:
+1. 20261102215301_AddGroupingModel — docelowy model Grouping i zachowane Limits.
+2. 20261102215328_AddTemporaryExpenseAggregationSupport — tymczasowe minimum Expense.
+
+Zastępują usunięte migracje 20261028191002_ApprovedGroupingModel i
+20261031165114_AddGroupDescriptionIconsAndArchive. Wcześniejsze opisy tych
+migracji są historyczne; nie wykonuj ich procedur cofania na nowym łańcuchu.
+
+Expense zachowuje Id/_id, Name/name, TransactionTime/transaction_time,
+fk_group_id, fk_receipt_id, fk_bank_transaction_id i udziały z fk_expense_id,
+fk_user_id. Tymczasowe rozszerzenia: FkPayerId/fk_payer_id (wymagany,
+indeks ix_expense_fk_payer_id, FK User) oraz Amount/amount numeric(18,2)
+zamiast Percentage. Nie ma zmian nazw kolumn niezwiązanych z agregacją.
+Grouping nie zależy od encji Expense; jego ExpenseContribution nadal używa
+PaidByUserId jako nazwy kontraktu wartości.
+
+Migracja Grouping nie zmienia tabel Expense. Jej Up/Down wymagają pustych
+grup i członkostw. Tymczasowa Expense wymaga pustych wydatków/udziałów przy
+Up/Down; nie konwertuje historycznych danych ani nie zgaduje płatnika.
+Seed działa dopiero po obu migracjach i przelicza agregaty z danych syntetycznych.
+
+Przy integracji właściwego PR Expense należy uzgodnić model, relacje, repozytoria,
+tymczasową migrację, designer/snapshot, seed i testy. Samo usunięcie ostatniej
+migracji nie cofa zastosowanego schematu. Lokalna baza po starym łańcuchu wymaga
+kontrolowanego odtworzenia (SQL init → migracje → seed), bez kasowania kontenera
+lub wolumenu. Nie zmieniaj ręcznie pojedynczych wpisów historii EF.
+
+## Sugestie rozliczeń — 2026-11-02
+GET /api/groups/{groupId}/settlements/suggestions: aktywny członek
+niearchiwalnej grupy. Spójny odczyt grupy, autoryzacji i wszystkich agregatów
+w jednym SQL AsSingleQuery/AsNoTracking, bez blokad zapisów i transakcji
+koordynatora. Uwzględnia także byłych członków. Saldo = Paid - Share + Sent -
+Received. Suma musi wynosić dokładnie zero, a końcowe liczniki Sent/Received
+muszą mieścić się w numeric(18,2); w przeciwnym razie 409.
+Osobny kalkulator stosuje deterministyczne największy dłużnik/największy
+wierzyciel (kolejki priorytetowe, remisy po UserId), O(n log n), decimal.
+Nie gwarantuje minimum; DTO jawnie zwraca optimalityGuaranteed=false.
+Sugestie są odczytem i nie stanowią zlecenia płatności ani zapisów rozliczeń.
+Bez migracji, Banking, odczytów Expense i odbudowy agregatów.
+Kontrakt frontendowy: agent-context/grouping-frontedn.md.
+
+## Dostęp do danych Grouping — 2026-11-02
+Serwisy biznesowe Grouping kierują zapytania i operacje na zbiorach do repozytoriów.
+SaveChangesAsync pozostaje w serwisie jako granica jednostki pracy; wspólną
+transakcją i blokadami przepływu zarządza GroupingTransactionCoordinator.
+Blokada SQL grupy należy do GroupRepository. Listowanie grup wraz ze stanem
+członkostwa korzysta z GroupMembershipQuery i GroupMembershipEntry, bez zależności
+repozytorium od DTO HTTP. Odczyty projekcyjne są bez śledzenia.
+Serwisy zwracają wspólne GroupingResult<T>/GroupingResult. Kontrolery mapują je
+na istniejące DTO i statusy; wyniki wewnętrzne nie są kontraktem HTTP.

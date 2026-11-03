@@ -10,6 +10,21 @@ namespace ZPI4M.Limits.Database
 	{
 		public static void Configure(ModelBuilder modelBuilder)
 		{
+			modelBuilder.Entity<GroupLimit>(entity =>
+			{
+				entity.ToTable("group_limit", "limits", t =>
+				{
+					t.HasCheckConstraint("c_group_limit_amount", "amount > 0");
+					t.HasCheckConstraint("c_group_limit_period", "period IN (1, 2, 3)");
+				});
+				entity.HasKey(e => e.Id);
+				entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedNever();
+				entity.Property(e => e.GroupId).HasColumnName("group_id");
+				entity.Property(e => e.Period).HasColumnName("period");
+				entity.Property(e => e.Amount).HasColumnName("amount").HasPrecision(18, 2);
+				entity.HasIndex(e => new { e.GroupId, e.Period }).IsUnique();
+			});
+
 			modelBuilder.Entity<CategoryGroupLimit>(entity =>
 			{
 				entity.HasKey(e => new { e.FkCategoryId, e.FkGroupId }).HasName("category_group_limit_pkey");

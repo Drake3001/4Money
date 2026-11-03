@@ -9,5 +9,5 @@ public partial class ExpenseShare
 
 	public Guid FkUserId { get; set; }
 
-	public decimal Percentage { get; set; }
+	public decimal Amount { get; set; }
 }

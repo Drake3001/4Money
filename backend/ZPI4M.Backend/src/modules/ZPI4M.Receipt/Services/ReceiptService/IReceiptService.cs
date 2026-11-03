@@ -1,4 +1,5 @@
 using ZPI4M.Receipt.DTOs;
+using ZPI4M.Shared.Storage;
 
 namespace ZPI4M.Receipt.Services;
 

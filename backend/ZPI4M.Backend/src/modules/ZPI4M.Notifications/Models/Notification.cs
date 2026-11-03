@@ -9,7 +9,8 @@ public enum NotificationType
 	ExpenseAdded = 1,
 	LimitApproaching = 2,
 	LimitExceeded = 3,
-	GroupMemberJoined = 4
+	GroupMemberJoined = 4,
+	SettlementReceived = 5
 }
 
 public partial class Notification

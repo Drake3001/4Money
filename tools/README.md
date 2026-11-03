@@ -1,3 +1,44 @@
+# Architecture diagrams (ProjGraph)
+
+ProjGraph.Cli 1.2.0 is pinned as a repository-local .NET tool in
+[`dotnet-tools.json`](../dotnet-tools.json). It is a development dependency,
+separate from application `PackageReference` entries; it is not included in
+backend build or publish output. Requires the .NET 10 SDK or later.
+
+From the repository root, restore the tool after cloning:
+
+```bash
+dotnet tool restore
+dotnet tool run projgraph --version
+```
+
+Generate diagrams without building the backend or connecting to a database:
+
+```bash
+# Solution project references (includes test projects)
+dotnet tool run projgraph visualize backend/ZPI4M.Backend/ZPI4M.Backend.slnx --output .cache/projgraph/projects.md
+
+# Whole-system EF model represented by the migration snapshot
+dotnet tool run projgraph erd backend/ZPI4M.Backend/src/ZPI4M.Database/Migrations/AppDbContextModelSnapshot.cs --output .cache/projgraph/database.md
+
+# Focused class diagram, including interfaces and discovered dependencies
+dotnet tool run projgraph classdiagram backend/ZPI4M.Backend/src/modules/ZPI4M.Notifications/Services/Notifications/NotificationService.cs --inheritance --dependencies --depth 1 --output .cache/projgraph/notification-service.md
+```
+
+The output directories are created automatically. `.md` outputs contain fenced
+Mermaid diagrams; use `.mmd` for raw Mermaid. `.cache/` is already ignored by
+Git. View Markdown in a Mermaid-capable viewer.
+
+These are static source views: project references do not prove runtime calls,
+and the snapshot does not prove the deployed database matches it. Class
+dependency discovery uses heuristics; review generated diagrams before publishing.
+See the [CLI reference](https://handys11.github.io/ProjGraph/src/ProjGraph.Cli/README.html)
+for available options. No documentation publishing workflow is configured here.
+
+To intentionally upgrade, run `dotnet tool update --local ProjGraph.Cli --version VERSION`
+and review the manifest change. CI jobs that need diagrams can explicitly run
+`dotnet tool restore`; ordinary backend builds do not need this tool.
+
 # Local Git hooks
 
 Polska instrukcja dla deweloperów: [konfiguracja pre-commit](../notes/PRECOMMIT.md).

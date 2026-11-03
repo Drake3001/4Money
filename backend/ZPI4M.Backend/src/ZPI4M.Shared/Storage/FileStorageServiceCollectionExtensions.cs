@@ -4,11 +4,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
-namespace ZPI4M.Receipt.Services;
+namespace ZPI4M.Shared.Storage;
 
 public static class FileStorageServiceCollectionExtensions
 {
-	public static IServiceCollection AddReceiptFileStorage(this IServiceCollection services, IConfiguration configuration)
+	public static IServiceCollection AddObjectStorage(this IServiceCollection services, IConfiguration configuration)
 	{
 		services.AddSingleton<IValidateOptions<S3StorageOptions>, S3StorageOptionsValidator>();
 		services.AddOptions<S3StorageOptions>().Configure(options =>
@@ -25,7 +25,7 @@ public static class FileStorageServiceCollectionExtensions
 		}).ValidateOnStart();
 		services.TryAddSingleton<TimeProvider>(TimeProvider.System);
 		services.AddSingleton<IAmazonS3>(provider => provider.GetRequiredService<IOptions<S3StorageOptions>>().Value.CreateClient());
-		services.AddScoped<IFileStorageService, S3FileStorageService>();
+		services.AddScoped<IObjectStorage, S3ObjectStorage>();
 		return services;
 	}
 }

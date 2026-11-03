@@ -414,6 +414,43 @@ zachowuje wcześniejsze daty; 204 także dla pustego inboxa i przy ponowieniu.
 Operację obejmują testy jednostkowe, HTTP i PostgreSQL (również równoległy
 odczyt pojedynczy/zbiorczy, zachowanie wcześniejszych dat i izolacja użytkowników).
 
+## Zatwierdzony model grup (2026-10-28)
+
+Uzupełnienie zweryfikowane 2026-10-30: GroupMember ma `IsMember` (domyślnie
+true), mapowane na `grouping.group_user.is_member boolean NOT NULL DEFAULT true`.
+False oznacza opuszczenie grupy z zachowaniem wpisu. Na wyraźne życzenie
+użytkownika uzupełniono istniejącą migrację ApprovedGroupingModel, designer
+i snapshot; lokalną migrację cofnięto w poprzedniej wersji i zastosowano ponownie.
+Odczyt schematu w kontenerze potwierdził typ, NOT NULL, default true i wpis
+migracji. Wszystkie 35 testów GroupingModel przeszło na tymczasowych bazach
+lokalnego PostgreSQL bez pominięć, w tym Up/Down/Up, zgodność snapshotu,
+default true, zapis i aktualizacja false oraz odrzucenie NULL.
+Nie dodano przepływu opuszczenia grupy ani filtrów aktywnego członkostwa
+w repozytoriach. Znaczenie pola opisuje [domena](domain.md).
+
+Wdrożono modele i mapowania Group.AdminUserId/CurrencyCode, GroupMember jako
+SQL group_user z datą dołączenia i czterema agregatami, GroupSettlement,
+GroupInvitation, GroupLimit oraz płatnika i kwotowe ExpenseShare. Repozytoria
+odczytują administratora z Group.AdminUserId, udziały sumują/filtrują jako kwoty;
+stare sortowania limitów grupy usunięto. Nowe encje mają DbSety, bez CRUD/API.
+Jedna migracja ApprovedGroupingModel ma osłonę pustych danych przed DDL,
+designer i snapshot. Historyczny SQL init i migracje pozostają niezmienione.
+Seed zawiera komplet syntetycznych danych PLN i przelicza agregaty ze źródeł.
+
+Nie wdrożono utrzymania/odbudowy agregatów ani serwisowych reguł członkostwa,
+sumy udziałów, waluty, właściciela bankowego źródła i jego wyłączności pomiędzy
+wydatkiem a rozliczeniem. Szczegóły: [domena](domain.md#przyszłe-niezmienniki-serwisów--jeszcze-niezaimplementowane).
+Nowe FK są NoAction, relacje między modułami konfiguruje tylko AppDbContext.
+Weryfikacja 2026-10-28: build Debug i Release bez ostrzeżeń i błędów.
+Pełna regresja dziewięciu projektów: 399 testów zaliczonych bez pominięć,
+z izolowanym PostgreSQL 15. Po doprecyzowaniu jawnego JoinedAt i rozszerzeniu
+przypadków FK ponowiono wszystkie 34 testy modelu: zaliczone bez pominięć.
+Potwierdzono SQL init → migracje → seed, Up/Down/Up, odrzucenie historycznych
+danych przed DDL, ograniczenia, zapytania repozytoriów i zgodność agregatów.
+Testy kontraktu potwierdziły zgodność runtime/snapshot/designer i granice modułów.
+Kontrole dotnet format style, whitespace oraz git diff --check przeszły.
+Nie zmieniano bazy deweloperskiej i nie wykonywano wywołań rzeczywistego Tink.
+
 ## Rozbieżności istotne podczas pracy
 
 | Rozbieżność | Znaczenie dla agenta |
@@ -463,3 +500,207 @@ Aktualny diagram logiczny i opis bazy używają `birth_date`, zgodnie z mapowani
 Nie są to automatyczne blokery wszystkich prac. Ustalaj tylko decyzje potrzebne
 do konkretnego zadania. Po realizacji aktualizuj odpowiedni wiersz statusu,
 źródła i datę weryfikacji; nie używaj tego pliku jako dziennika każdej sesji.
+
+## Kontrakty HTTP Grouping — 2026-10-30
+
+Dodano 11 szkieletowych operacji grup, członkostwa i zaproszeń oraz DTO.
+Listy używają Shared.PagedResult i walidowanej paginacji. Kontrolery wymagają
+uwierzytelnienia i ICurrentUser; poprawne żądania zwracają 501 ProblemDetails.
+Uprawnienia administratora są docelowe, nie są jeszcze sprawdzane. Nie ma
+serwisów, operacji bazodanowych, opuszczania grup ani generowania tokenów.
+
+Weryfikacja szkieletów: build API bez ostrzeżeń i błędów; dwa testy HTTP
+obejmujące 11 tras, niepoprawną tożsamość i paginację przeszły bez pominięć.
+Kontrakt opisuje [README Grouping](../backend/ZPI4M.Backend/src/modules/ZPI4M.Grouping/README.md).
+
+DTO Grouping rozdzielono na Groups/Members/Invitations, po jednym typie na plik.
+Requesty list dziedziczą po Shared.PagedQuery (w tym descending=false); usunięto
+duplikację walidacji paginacji w kontrolerze. Response zachowują rekordy, requesty
+body są klasami z init. Kontrakt pól body i odpowiedzi pozostaje bez zmian.
+
+## Dalsze kontrakty Grouping — 2026-10-30
+
+Dodano szkielety CRUD rozliczeń, akceptacji zaproszenia i przekazania administratora
+oraz DTO według funkcji. Requesty rozliczeń walidują pola, kwotę numeric(18,2),
+metodę i różne strony; lista używa PagedQuery/PagedResult. Wszystkie poprawne
+żądania nadal zwracają 501. Brak operacji bazodanowych i kontroli uprawnień
+zależnych od grupy. Szczegóły kontraktu: README Grouping.
+
+Refactor storage 2026-10-31: adapter S3 i kontrakt przeniesiono do Shared.Storage;
+Receipt generuje klucze i używa IObjectStorage. Bez migracji i zmian cyklu życia.
+
+Weryfikacja refactoru: build całej solucji bez ostrzeżeń i błędów;
+Shared.UnitTests 48/48, Receipt.UnitTests 85/85. Receipt.IntegrationTests:
+4 zaliczone, 1 test SeaweedFS pominięty. Pełny przebieg wykazał też
+4 błędy poza storage: dwa Grouping ContractTests i dwa Banking testy
+zgodności modelu/migracji. Testy PostgreSQL pominięto bez konfiguracji.
+Nie potwierdzono pełnej regresji ani rzeczywistego połączenia z SeaweedFS.
+
+## Grupy: opis, storage ikon i archiwizacja — 2026-10-31
+Dodano migrację 20261031165114_AddGroupDescriptionIconsAndArchive oraz pola
+Description (255 znaków), IconStorageKey i IsArchived. Serwis grup obsługuje
+opis, presety z katalogu SeaweedFS, upload multipart oraz logiczne DELETE.
+Archiwum jest ukrywane, dane i pliki zachowane. Shared.Storage listuje klucze
+po prefiksie ze stronicowaniem. Szczegóły kontraktu i ograniczeń: README Grouping.
+
+Weryfikacja: pełny przebieg solucji zaliczony (453 testy, 65 pominiętych).
+Po dodaniu testu paginacji katalogu i limitu opisu ponowiono Shared (49/49)
+i Grouping (17/17). Testy PostgreSQL i rzeczywistego SeaweedFS pominięto
+bez konfiguracji. Nowe dwa testy PostgreSQL obejmują archiwizację i migrację,
+ale ich wykonania nie potwierdzono; nie zweryfikowano wyścigów na żywej bazie.
+Kontrola whitespace i git diff --check przeszły.
+Nie stosowano migracji na bazie deweloperskiej ani nie wysyłano obrazów
+do rzeczywistego SeaweedFS.
+
+## Zaproszenia grupowe — 2026-11-01
+GroupInvitationService implementuje generowanie, listę, odwołanie, podgląd
+i akceptację. Token to 32 losowe bajty Base64URL; w bazie pozostaje SHA-256.
+Ważność jest dowolnym przyszłym terminem. IsActive oznacza odwołanie,
+nie dostępność wynikającą z czasu/licznika. Były członek jest reaktywowany
+bez zmiany daty i agregatów. Obecny członek nie zużywa ponownie zaproszenia.
+Mutacje blokują grupę, potem zaproszenie. Dołączenie zapisuje licznik,
+członkostwo i GroupMemberJoined w transakcji wspólnej z Notifications.
+Brak push i migracji. Szczegóły: README Grouping.
+
+Weryfikacja zaproszeń: regresja solucji zaliczona, Grouping 19/19,
+Shared 49/49, Receipt 85/85. Testy PostgreSQL (w tym nowy scenariusz
+reaktywacji/rollbacku) i rzeczywistego S3 pominięto bez konfiguracji.
+Nie potwierdzono współbieżności na żywej bazie. Bez zmian bazy deweloperskiej.
+
+## Koordynator transakcji Grouping — 2026-11-01
+Zapisy GroupService i GroupInvitationService przechodzą przez scoped
+IGroupingTransactionCoordinator. Usunięto globalne ChangeTracker.Clear,
+zagnieżdżone commity i sprzątanie starej ikony przed końcowym commitem.
+Nie ma migracji ani zmian kontraktów HTTP.
+Regresja bez konfiguracji PostgreSQL przeszła; Grouping 19/19, Shared 49/49,
+Receipt 85/85. Nowe testy transakcji skompilowano. Próba wykonania siedmiu
+scenariuszy na jednorazowych bazach z lokalnej konfiguracji nie dotarła do
+testów: PostgreSQL localhost:5434 odrzuca połączenie. Nie potwierdzono
+atomowości na żywej bazie i nie zmieniano bazy aplikacji.
+
+### Ponowienie PostgreSQL — 2026-11-01
+Po uruchomieniu kontenera PostgreSQL port localhost:5434 jest dostępny.
+Na jednorazowych bazach wykonano 10 testów: GroupingTransactionTests,
+InvitationFlowTests, GroupArchiveTests i InvitationQueryTests — wszystkie
+zaliczone, bez pominięć. Potwierdzono wspólny commit/rollback grupy i zaproszenia,
+odroczone cleanupy, odrzucenie niezarządzanej transakcji, rollback powiadomienia,
+reaktywację członkostwa i migrację.
+Poprawiono testowy seed (NpgsqlCommand zamiast ExecuteSqlRawAsync, które
+interpretuje klamry JSON jako formatowanie) oraz asercję DbUpdateException
+z wewnętrznym PostgresException. Bazy aplikacji nie zmieniano.
+Nie jest to nowy pełny przebieg całej solucji z PostgreSQL.
+
+## GroupMemberService — 2026-11-01
+Wdrożono listę, szczegóły, opuszczenie i usuwanie członka przez administratora.
+Repozytorium filtruje IsMember; odczyty nie śledzą encji. Grupa blokowana jest
+przez GroupRepository, a zapisy korzystają z koordynatora. Bez migracji,
+nowych powiadomień i zmian agregatów. Szczegóły reguł: README Grouping.
+Weryfikacja: Grouping HTTP 19/19, regresja backendu bez błędów. Osobno wykonano
+20 testów PostgreSQL bez pominięć (członkostwo, zaproszenia, transakcje,
+archiwizacja i queries), w tym wyścig opuszczenia/przekazania administratora
+i powrót po usunięciu. Baza aplikacji bez zmian. Nie oznacza to wdrożonego
+utrzymania sald ani weryfikacji wszystkich możliwych wyścigów.
+
+## Rozliczenia i serwis agregatów — 2026-11-02
+Wdrożono ręczny CRUD rozliczeń i GroupMemberAggregateService obsługujący
+zmianę wkładu rozliczenia oraz wydatku. Serwis agregatów wymaga aktywnej
+transakcji koordynatora, nie zapisuje/commituje samodzielnie. Uzupełniono
+repozytorium rozliczeń i zbiorczy odczyt członkostw. Banking, integracja
+ExpenseDbContext i odbudowa agregatów pozostają poza zakresem; niepusty
+BankTransactionId jest odrzucany.
+Weryfikacja: build bez ostrzeżeń i błędów, Grouping HTTP 19/19, regresja
+backendu zaliczona (testy wymagające osobnej konfiguracji były pomijane).
+Osobno 12 nowych testów PostgreSQL zaliczonych bez pominięć: CRUD i odwracanie
+wkładu, byli członkowie, cztery agregaty na kontrakcie wydatku, rollback po
+błędzie źródła, walidacja i przepełnienie, odczyty bez śledzenia i równoległe
+tworzenie bez utraty aktualizacji. Nie używano ExpenseDbContext w tych
+scenariuszach. Bez migracji i zmian bazy aplikacji.
+
+## Prywatność bankowego ID rozliczenia — 2026-11-02
+Grouping używa istniejącego IBankingReadService do właścicielskiego mapowania
+BankTransactionId. Właściciel widzi ID; pozostali członkowie i administrator
+niebędący właścicielem otrzymują null. Kontrolowane niepowodzenie Banking
+również ukrywa ID bez blokowania podstawowego odczytu. Nie ma nowej tabeli,
+portu przypisań ani migracji. Non-null BankTransactionId na zapisie pozostaje
+niedostępne. Walidacja rozróżnia pola bankTransactionId, settledAt i kwoty.
+Zaktualizowano agent-context/grouping-frontedn.md według wdrożonego kodu.
+Weryfikacja: Grouping 27/27, regresja backendu zaliczona (testy usług
+zewnętrznych bez konfiguracji pominięte). Osobno 13/13 testów PostgreSQL:
+rzeczywisty lookup Banking właściciela i administratora oraz regresja CRUD,
+agregatów i współbieżności. Bazy aplikacji nie zmieniano.
+
+## Rozdzielenie migracji Grouping/Expense — 2026-11-02
+Dwie wcześniejsze migracje brancha zastąpiono:
+20261102215301_AddGroupingModel (Grouping/Limits) oraz
+20261102215328_AddTemporaryExpenseAggregationSupport (płatnik i kwotowe udziały).
+Expense zachowuje pierwotne nazwy SQL i C#: Name, TransactionTime oraz FkPayerId.
+Seed i repozytoria dostosowano; kontrakt ExpenseContribution pozostał bez zmian.
+Usunięto generowane ponownie FK obecne już w SQL init. Osłony Up/Down
+wymagają pustych danych odpowiednio Grouping lub Expense.
+
+Weryfikacja: build bez ostrzeżeń/błędów, regresja całego backendu zaliczona
+(testy bez konfiguracji usług zewnętrznych były pomijane). Osobno pełny projekt
+Banking.IntegrationTests: 115/115 testów z PostgreSQL zaliczonych bez pominięć,
+w tym Up/Down/Up, seed, agregaty, serwisy, snapshot i granice migracji.
+Za zgodą użytkownika odtworzono wyłącznie lokalną bazę zpi4m_db:
+SQL init → pełne migracje → seed. Odczyt historii EF potwierdził oba nowe ID,
+a schemat Expense kolumny _id/name/transaction_time/fk_* i fk_payer_id.
+Nie usuwano kontenera, wolumenu ani innych baz. expense.snapshot zachowano.
+
+## Sugestie rozliczeń — 2026-11-02
+Dodano GET /api/groups/{groupId}/settlements/suggestions, osobny serwis i czysty
+kalkulator heurystyczny largestBalanceFirst. Zwraca salda wszystkich członków
+(w tym byłych), proponowane płatności i optimalityGuaranteed=false.
+Odczyt autoryzacji oraz agregatów jest jednym zapytaniem AsSingleQuery bez
+śledzenia. Niespójna suma lub przekroczenie zakresu liczników daje 409.
+Nie zapisuje rozliczeń ani danych. Bez migracji, Banking i odczytów Expense.
+Kontrakt zaktualizowano w agent-context/grouping-frontedn.md.
+
+Weryfikacja: Grouping 33/33, regresja backendu zaliczona (testy usług
+zewnętrznych bez konfiguracji pominięte). Osobno 14/14 testów PostgreSQL
+bez pominięć: sugestie i regresja rozliczeń, byli członkowie, brak zapisów,
+wyzerowanie sald po zarejestrowaniu planu oraz spójny odczyt podczas zmiany
+dwóch sald w innej transakcji. Build bez błędów/ostrzeżeń.
+Bazy aplikacji nie zmieniano.
+
+## Refaktor dostępu do danych Grouping — weryfikacja 2026-11-02
+Usunięto nieużywany GroupingControllerBase. Serwisy grup i zaproszeń używają
+repozytoriów do zapytań i operacji na zbiorach; SaveChangesAsync pozostaje
+w serwisach, a zarządzanie transakcją w GroupingTransactionCoordinator.
+Wspólne GroupingResult<T>/GroupingResult zastąpiły lokalne wyniki serwisów,
+w tym payloady object. Kontrakt HTTP nie uległ zmianie.
+
+Wykonano: 33/33 testy Grouping; 118/118 Banking.IntegrationTests z PostgreSQL
+na losowych bazach testowych (obejmują Grouping, nowe zapytania repozytoriów,
+transakcje i rollback). Regresja całej solucji bez ustawionej konfiguracji usług
+zewnętrznych: 472 zaliczone, 87 pominiętych, 0 błędów. Pominięcia tej regresji
+nie stanowią potwierdzenia testów integracyjnych Notifications/User/Receipt.
+Osobny przebieg PostgreSQL powyżej obejmował Banking.IntegrationTests.
+Nie stosowano migracji ani seeda na bazie aplikacji.
+
+## Powiadomienia o rozliczeniach — weryfikacja 2026-11-03
+Utworzenie rozliczenia w GroupSettlementService tworzy SettlementReceived (5)
+wyłącznie dla ToUserId różnego od autora wpisu, również dla byłego członka.
+NotifyAsync pomija nieaktywne konta bez blokowania rozliczenia. Powiadomienie
+wskazuje grupę, bez ExpenseId. Edycja i usunięcie nie tworzą powiadomień.
+Rozliczenie, agregaty, powiadomienie i odbiorca zapisują się w jednej transakcji
+GroupingTransactionCoordinator; błędy i odmowa transakcji nadrzędnej wycofują całość.
+
+CHECK typów rozszerzono w istniejącej 20261102215301_AddGroupingModel, wraz
+z designerem, modelem późniejszego designera Expense i snapshotem. Operacje
+Up/Down tymczasowej migracji Expense nie zmieniają Notifications. Down Grouping
+mapuje typ 5 na General przed przywróceniem CHECK 0–4, zachowując historię.
+Edycja wcześniej zastosowanej migracji nie aktualizuje bazy automatycznie.
+Bazy aplikacji nie zmieniano, nie uruchamiano na niej migracji ani seeda.
+
+Weryfikacja: Release build bez błędów i ostrzeżeń; kontrole dotnet format style
+i whitespace oraz git diff --check zaliczone. Regresja solucji z PostgreSQL:
+wszystkie projekty zaliczone poza jednym starym testem Notifications używającym
+nieaktualnych nazw kolumn Expense. Poprawiono zapytanie testowe do bieżących
+fk_expense_id/_id; ponowny przebieg Notifications.IntegrationTests: 13/13.
+Łącznie końcowe wyniki projektów: 626 zaliczonych, 0 błędów, 1 pominięty ręczny
+test S3. Banking.IntegrationTests: 129/129 (w tym 11 nowych przypadków
+odbiorców, rollbacku i Up/Down/Up); Grouping: 33/33. Testy PostgreSQL korzystały
+z własnych losowych baz. Kolekcja Notifications: poprawny JSON i składnia
+6 skryptów; nie wykonywano żądań Postman do API. Dostępny Postman CLI nie
+obsługuje polecenia status; nie inicjalizowano ani nie publikowano workspace.

@@ -16,7 +16,7 @@ namespace ZPI4M.Notifications.Database
 
 				entity.ToTable("notification", "notifications", table =>
 				{
-					table.HasCheckConstraint("c_notification_valid_type", "type IN (0, 1, 2, 3, 4)");
+					table.HasCheckConstraint("c_notification_valid_type", "type IN (0, 1, 2, 3, 4, 5)");
 				});
 
 				entity.HasIndex(e => new { e.CreatedAt, e.Id }, "ix_notification_created_at_id")

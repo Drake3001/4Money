@@ -7,12 +7,33 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.Extensions.Options;
 using Xunit;
-using ZPI4M.Receipt.Services;
+using ZPI4M.Shared.Storage;
 
-namespace ZPI4M.Receipt.UnitTests;
 
-public sealed class S3FileStorageServiceTests
+namespace ZPI4M.Shared.UnitTests;
+
+public sealed class S3ObjectStorageTests
 {
+	[Fact]
+	public async Task List_keys_reads_all_pages_and_filters_prefix_and_directories()
+	{
+		using var client = new RecordingClient();
+		var keys = await Service(client).ListKeysAsync("icons/");
+		Assert.Equal(new[] { "icons/one.png", "icons/two.png" }, keys);
+		Assert.Equal(new string?[] { null, "next" }, client.ListTokens);
+	}
+
+	[Theory]
+	[InlineData("receipts/test")]
+	[InlineData("groups/test/icons/image")]
+	public async Task Upload_preserves_caller_key(string key)
+	{
+		using var client = new RecordingClient();
+		using var input = new MemoryStream([1]);
+		await Service(client).UploadAsync(key, input, "image/png");
+		Assert.Equal(key, client.Upload!.Key);
+	}
+
 	[Fact]
 	public async Task Public_endpoint_is_signed_without_changing_upload_endpoint()
 	{
@@ -20,8 +41,8 @@ public sealed class S3FileStorageServiceTests
 		options.Endpoint = "http://internal-storage.example.test:8333";
 		options.PublicEndpoint = "https://public-storage.example.test";
 		using var client = options.CreateClient();
-		var service = new S3FileStorageService(client, Options.Create(options), TimeProvider.System);
-		var result = await service.GetUrlAsync("receipts/synthetic");
+		var service = new S3ObjectStorage(client, Options.Create(options), TimeProvider.System);
+		var result = await service.GetReadUrlAsync("receipts/synthetic");
 		var url = new Uri(result.Url);
 		Assert.Equal("https", url.Scheme);
 		Assert.Equal("public-storage.example.test", url.Host);
@@ -48,7 +69,7 @@ public sealed class S3FileStorageServiceTests
 		((AmazonS3Config)client.Config).HttpClientFactory = new CaptureClientFactory(handler);
 		using var input = new MemoryStream(Encoding.UTF8.GetBytes("skip:image"));
 		input.Position = 5;
-		var key = await Service(client).UploadAsync(input, "image/png");
+		var key = await Service(client).UploadForTestAsync(input, "image/png");
 		Assert.Equal("image", handler.Content);
 		Assert.Equal("image/png", handler.ContentType);
 		Assert.Equal($"/receipts/{key}", handler.Path);
@@ -65,7 +86,7 @@ public sealed class S3FileStorageServiceTests
 		using var input = new MemoryStream(Encoding.UTF8.GetBytes("skip:image"));
 		using var cancellation = new CancellationTokenSource();
 		input.Position = 5;
-		var key = await service.UploadAsync(input, "image/png", cancellation.Token);
+		var key = await service.UploadForTestAsync(input, "image/png", cancellation.Token);
 		Assert.Matches("^receipts/[a-f0-9]{32}$", key);
 		Assert.Equal("image", client.Content);
 		Assert.Equal("image/png", client.Upload!.ContentType);
@@ -78,7 +99,7 @@ public sealed class S3FileStorageServiceTests
 		Assert.Equal(cancellation.Token, client.Token);
 		Assert.True(input.CanRead);
 		input.Position = 5;
-		Assert.NotEqual(key, await service.UploadAsync(input, "image/png"));
+		Assert.NotEqual(key, await service.UploadForTestAsync(input, "image/png"));
 	}
 
 	[Theory]
@@ -89,9 +110,9 @@ public sealed class S3FileStorageServiceTests
 		using var client = new RecordingClient { Error = fail ? new AmazonS3Exception("synthetic failure") : null };
 		using var input = new NonseekableStream(Encoding.UTF8.GetBytes("image"));
 		if (fail)
-			await Assert.ThrowsAsync<AmazonS3Exception>(() => Service(client).UploadAsync(input, "image/png"));
+			await Assert.ThrowsAsync<AmazonS3Exception>(() => Service(client).UploadForTestAsync(input, "image/png"));
 		else
-			await Service(client).UploadAsync(input, "image/png");
+			await Service(client).UploadForTestAsync(input, "image/png");
 		Assert.Equal("image", client.Content);
 		Assert.True(input.CanRead);
 		Assert.NotNull(client.TemporaryPath);
@@ -104,7 +125,7 @@ public sealed class S3FileStorageServiceTests
 		using var cancellation = new CancellationTokenSource();
 		using var client = new RecordingClient { BeforeUploadCompletes = cancellation.Cancel };
 		using var input = new NonseekableStream([1, 2, 3]);
-		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Service(client).UploadAsync(input, "image/png", cancellation.Token));
+		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Service(client).UploadForTestAsync(input, "image/png", cancellation.Token));
 		Assert.NotNull(client.TemporaryPath);
 		Assert.False(File.Exists(client.TemporaryPath));
 		Assert.True(input.CanRead);
@@ -115,19 +136,19 @@ public sealed class S3FileStorageServiceTests
 	{
 		using var client = new RecordingClient();
 		var service = Service(client);
-		await Assert.ThrowsAsync<ArgumentNullException>(() => service.UploadAsync(null!, "image/png"));
+		await Assert.ThrowsAsync<ArgumentNullException>(() => service.UploadForTestAsync(null!, "image/png"));
 		using var empty = new MemoryStream();
-		await Assert.ThrowsAsync<ArgumentException>(() => service.UploadAsync(empty, "image/png"));
+		await Assert.ThrowsAsync<ArgumentException>(() => service.UploadForTestAsync(empty, "image/png"));
 		using var exhausted = new MemoryStream([1]);
 		exhausted.Position = 1;
-		await Assert.ThrowsAsync<ArgumentException>(() => service.UploadAsync(exhausted, "image/png"));
+		await Assert.ThrowsAsync<ArgumentException>(() => service.UploadForTestAsync(exhausted, "image/png"));
 		using var nonseekableEmpty = new NonseekableStream([]);
-		await Assert.ThrowsAsync<ArgumentException>(() => service.UploadAsync(nonseekableEmpty, "image/png"));
+		await Assert.ThrowsAsync<ArgumentException>(() => service.UploadForTestAsync(nonseekableEmpty, "image/png"));
 		using var content = new MemoryStream([1]);
-		await Assert.ThrowsAsync<ArgumentException>(() => service.UploadAsync(content, " "));
+		await Assert.ThrowsAsync<ArgumentException>(() => service.UploadForTestAsync(content, " "));
 		using var closed = new MemoryStream([1]);
 		closed.Close();
-		await Assert.ThrowsAsync<ArgumentException>(() => service.UploadAsync(closed, "image/png"));
+		await Assert.ThrowsAsync<ArgumentException>(() => service.UploadForTestAsync(closed, "image/png"));
 		Assert.Null(client.Upload);
 	}
 
@@ -139,7 +160,7 @@ public sealed class S3FileStorageServiceTests
 		using var client = new RecordingClient();
 		using var input = new InterruptedReadStream(cancelled);
 		using var cancellation = new CancellationTokenSource();
-		var upload = Service(client).UploadAsync(input, "image/png", cancellation.Token);
+		var upload = Service(client).UploadForTestAsync(input, "image/png", cancellation.Token);
 		await input.Waiting.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		if (cancelled)
 			cancellation.Cancel();
@@ -165,7 +186,7 @@ public sealed class S3FileStorageServiceTests
 		((AmazonS3Config)client.Config).HttpClientFactory = new CaptureClientFactory(handler);
 		using var input = new NonseekableStream(bytes);
 
-		await Service(client).UploadAsync(input, "image/png");
+		await Service(client).UploadForTestAsync(input, "image/png");
 
 		Assert.Equal(bytes, handler.Bytes);
 		Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(bytes)), handler.PayloadHash);
@@ -179,7 +200,7 @@ public sealed class S3FileStorageServiceTests
 		using var client = new RecordingClient { OnSign = cancellation.Cancel };
 
 		var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(
-			() => Service(client).GetUrlAsync("receipts/synthetic", cancellation.Token));
+			() => Service(client).GetReadUrlAsync("receipts/synthetic", cancellation.Token));
 
 		Assert.Equal(cancellation.Token, error.CancellationToken);
 		Assert.NotNull(client.Signed);
@@ -190,8 +211,8 @@ public sealed class S3FileStorageServiceTests
 	{
 		using var client = new RecordingClient();
 		var now = new DateTimeOffset(2026, 10, 26, 12, 0, 0, TimeSpan.Zero).AddMilliseconds(123);
-		var service = new S3FileStorageService(client, Options.Create(ValidOptions()), new FixedTimeProvider(now));
-		var result = await service.GetUrlAsync("receipts/key");
+		var service = new S3ObjectStorage(client, Options.Create(ValidOptions()), new FixedTimeProvider(now));
+		var result = await service.GetReadUrlAsync("receipts/key");
 		Assert.Equal("http://127.0.0.1:8333/receipts/receipts/key?signed", result.Url);
 		Assert.Equal(now.AddMilliseconds(-123).AddMinutes(15), result.ExpiresAt);
 		Assert.Equal(result.ExpiresAt.UtcDateTime, client.Signed!.Expires);
@@ -209,7 +230,7 @@ public sealed class S3FileStorageServiceTests
 		var options = ValidOptions();
 		options.Endpoint = $"{scheme}://127.0.0.1:8333";
 		using var client = options.CreateClient();
-		var result = await new S3FileStorageService(client, Options.Create(options), TimeProvider.System).GetUrlAsync("receipts/synthetic");
+		var result = await new S3ObjectStorage(client, Options.Create(options), TimeProvider.System).GetReadUrlAsync("receipts/synthetic");
 		var uri = new Uri(result.Url);
 		Assert.Equal($"{scheme}://127.0.0.1:8333/receipts/receipts/synthetic", uri.GetLeftPart(UriPartial.Path));
 		Assert.Contains("X-Amz-Algorithm=AWS4-HMAC-SHA256", uri.Query);
@@ -244,7 +265,7 @@ public sealed class S3FileStorageServiceTests
 		await service.DeleteAsync("receipts/key");
 		await service.DeleteAsync("receipts/key");
 		await Assert.ThrowsAsync<ArgumentException>(() => service.DeleteAsync(" "));
-		await Assert.ThrowsAsync<ArgumentException>(() => service.GetUrlAsync(" "));
+		await Assert.ThrowsAsync<ArgumentException>(() => service.GetReadUrlAsync(" "));
 	}
 
 	[Fact]
@@ -254,15 +275,15 @@ public sealed class S3FileStorageServiceTests
 		using var content = new MemoryStream([1]);
 		var token = new CancellationToken(true);
 		var service = Service(client);
-		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.UploadAsync(content, "image/png", token));
-		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.GetUrlAsync("key", token));
+		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.UploadForTestAsync(content, "image/png", token));
+		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.GetReadUrlAsync("key", token));
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.DeleteAsync("key", token));
 		Assert.Null(client.Upload);
 		Assert.Null(client.Signed);
 		Assert.Null(client.Deleted);
 	}
 
-	private static S3FileStorageService Service(IAmazonS3 client) => new(client, Options.Create(ValidOptions()), TimeProvider.System);
+	private static S3ObjectStorage Service(IAmazonS3 client) => new(client, Options.Create(ValidOptions()), TimeProvider.System);
 
 	internal static S3StorageOptions ValidOptions() => new()
 	{
@@ -307,6 +328,15 @@ public sealed class S3FileStorageServiceTests
 
 	private sealed class RecordingClient() : AmazonS3Client(new BasicAWSCredentials("synthetic", "synthetic"), new AmazonS3Config { ServiceURL = "http://127.0.0.1:8333" }), IAmazonS3
 	{
+		public List<string?> ListTokens { get; } = [];
+		public override Task<ListObjectsV2Response> ListObjectsV2Async(ListObjectsV2Request request, CancellationToken cancellationToken = default)
+		{
+			ListTokens.Add(request.ContinuationToken);
+			return Task.FromResult(request.ContinuationToken is null
+			 ? new ListObjectsV2Response { IsTruncated = true, NextContinuationToken = "next", S3Objects = [new S3Object { Key = "icons/" }, new S3Object { Key = "icons/one.png" }, new S3Object { Key = "other/x" }] }
+			 : new ListObjectsV2Response { IsTruncated = false, S3Objects = [new S3Object { Key = "icons/two.png" }] });
+		}
+
 		public PutObjectRequest? Upload { get; private set; }
 		public DeleteObjectRequest? Deleted { get; private set; }
 		public GetPreSignedUrlRequest? Signed { get; private set; }
@@ -368,5 +398,15 @@ public sealed class S3FileStorageServiceTests
 				_inner.Dispose();
 			base.Dispose(disposing);
 		}
+	}
+}
+
+internal static class StorageTestUpload
+{
+	public static async Task<string> UploadForTestAsync(this IObjectStorage storage, Stream content, string contentType, CancellationToken ct = default)
+	{
+		var key = $"receipts/{Guid.NewGuid():N}";
+		await storage.UploadAsync(key, content, contentType, ct);
+		return key;
 	}
 }

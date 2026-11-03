@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ZPI4M.Notifications\ZPI4M.Notifications.csproj" />
+    <ProjectReference Include="..\ZPI4M.Banking\ZPI4M.Banking.csproj" />
     <ProjectReference Include="..\ZPI4M.User\ZPI4M.User.csproj" />
   </ItemGroup>
 

@@ -6,9 +6,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
 using ZPI4M.Receipt.Database;
-using ZPI4M.Receipt.DTOs;
 using ZPI4M.Receipt.Repositories.ReceiptRepository;
 using ZPI4M.Receipt.Services;
+using ZPI4M.Shared.Storage;
 
 namespace ZPI4M.Receipt.UnitTests;
 
@@ -246,19 +246,15 @@ public sealed class ReceiptServiceTests
 	}
 
 	[Theory]
-	[InlineData("", false)]
-	[InlineData("", true)]
-	[InlineData(" \t", false)]
-	[InlineData(" \t", true)]
-	public async Task Create_rejects_an_empty_storage_key(string key, bool runOcr)
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task Create_generates_a_receipt_key(bool runOcr)
 	{
 		using var fixture = new Fixture();
-		fixture.Storage.Key = key;
 		using var input = new MemoryStream([1]);
-		await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.CreateAsync(input, "image/png", runOcr: runOcr));
-		Assert.Empty(await fixture.Context.Receipts.ToListAsync());
-		Assert.Empty(fixture.Storage.DeletedKeys);
-		AssertTemporaryFileDeleted(fixture.Storage.TemporaryPath);
+		var result = await fixture.Service.CreateAsync(input, "image/png", runOcr: runOcr);
+		Assert.Matches("^receipts/[a-f0-9]{32}$", fixture.Storage.Key);
+		Assert.Equal(fixture.Storage.Key, (await fixture.Context.Receipts.FindAsync(result.ReceiptId))!.StorageKey);
 	}
 
 	[Theory]
@@ -674,9 +670,11 @@ public sealed class ReceiptServiceTests
 		}
 	}
 
-	private sealed class StorageStub : IFileStorageService
+	private sealed class StorageStub : IObjectStorage
 	{
 		public string? TemporaryPath { get; private set; }
+		public Task<IReadOnlyList<string>> ListKeysAsync(string prefix, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<string>>([]);
+
 		public string Key { get; set; } = "synthetic/receipt-key";
 		public string? Content { get; private set; }
 		public string? ContentType { get; private set; }
@@ -692,7 +690,7 @@ public sealed class ReceiptServiceTests
 		public Func<Task>? OnDelete { get; set; }
 		public FileUrlResult UrlResult { get; } = new("https://example.invalid/receipt", DateTimeOffset.UtcNow.AddMinutes(5));
 
-		public async Task<string> UploadAsync(Stream content, string contentType, CancellationToken cancellationToken = default)
+		public async Task UploadAsync(string key, Stream content, string contentType, CancellationToken cancellationToken = default)
 		{
 			UploadCalls++;
 			TemporaryPath = Assert.IsType<FileStream>(content).Name;
@@ -702,10 +700,10 @@ public sealed class ReceiptServiceTests
 			Content = await reader.ReadToEndAsync(cancellationToken);
 			if (UploadError is not null)
 				throw UploadError;
-			return Key;
+			Key = key;
 		}
 
-		public Task<FileUrlResult> GetUrlAsync(string key, CancellationToken cancellationToken = default)
+		public Task<FileUrlResult> GetReadUrlAsync(string key, CancellationToken cancellationToken = default)
 		{
 			UrlKey = key;
 			UrlToken = cancellationToken;

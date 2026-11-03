@@ -16,6 +16,10 @@ public partial class GroupingDbContext : DbContext
 
 	public virtual DbSet<GroupMember> GroupMembers { get; set; }
 
+	public virtual DbSet<GroupSettlement> GroupSettlements { get; set; }
+
+	public virtual DbSet<GroupInvitation> GroupInvitations { get; set; }
+
 	protected override void OnModelCreating(ModelBuilder modelBuilder)
 	{
 		base.OnModelCreating(modelBuilder);

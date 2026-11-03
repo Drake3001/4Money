@@ -470,6 +470,10 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("fk_group_id");
 
+                    b.Property<Guid>("FkPayerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fk_payer_id");
+
                     b.Property<Guid?>("FkReceiptId")
                         .HasColumnType("uuid")
                         .HasColumnName("fk_receipt_id");
@@ -489,6 +493,9 @@ namespace ZPI4M.Database.Migrations
 
                     b.HasKey("Id")
                         .HasName("expense_pkey");
+
+                    b.HasIndex("FkPayerId")
+                        .HasDatabaseName("ix_expense_fk_payer_id");
 
                     b.HasIndex(new[] { "FkBankTransactionId" }, "c_expense_unique_fk_bank_transaction_id")
                         .IsUnique();
@@ -552,79 +559,246 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("fk_user_id");
 
-                    b.Property<decimal>("Percentage")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)")
-                        .HasColumnName("percentage");
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("amount");
 
                     b.HasKey("FkExpenseId", "FkUserId")
                         .HasName("expense_share_pkey");
 
-                    b.ToTable("expense_share", "expense");
+                    b.ToTable("expense_share", "expense", t =>
+                        {
+                            t.HasCheckConstraint("c_expense_share_amount", "amount >= 0");
+                        });
                 });
 
             modelBuilder.Entity("ZPI4M.Grouping.Models.Group", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
-                        .HasColumnName("_id");
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AdminUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("admin_user_id");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency_code");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("description");
 
                     b.Property<string>("Icon")
                         .HasColumnType("text")
                         .HasColumnName("icon");
 
-                    b.Property<decimal?>("MonthlyLimit")
+                    b.Property<string>("IconStorageKey")
+                        .HasColumnType("text")
+                        .HasColumnName("icon_storage_key");
+
+                    b.Property<bool>("IsArchived")
                         .ValueGeneratedOnAdd()
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)")
-                        .HasColumnName("monthly_limit")
-                        .HasDefaultValueSql("NULL::numeric");
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_archived");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("name");
 
-                    b.Property<decimal?>("WeeklyLimit")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)")
-                        .HasColumnName("weekly_limit")
-                        .HasDefaultValueSql("NULL::numeric");
-
-                    b.Property<decimal?>("YearLimit")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)")
-                        .HasColumnName("year_limit")
-                        .HasDefaultValueSql("NULL::numeric");
-
                     b.HasKey("Id")
                         .HasName("group_pkey");
 
-                    b.ToTable("group", "grouping");
+                    b.HasIndex("AdminUserId");
+
+                    b.ToTable("group", "grouping", t =>
+                        {
+                            t.HasCheckConstraint("c_group_currency", "currency_code ~ '^[A-Z]{3}$'");
+
+                            t.HasCheckConstraint("c_group_icon_source", "icon IS NULL OR icon_storage_key IS NULL");
+                        });
+                });
+
+            modelBuilder.Entity("ZPI4M.Grouping.Models.GroupInvitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<int>("MaxUses")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_uses");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("token_hash");
+
+                    b.Property<int>("UseCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("use_count");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("GroupId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("group_invitation", "grouping", t =>
+                        {
+                            t.HasCheckConstraint("c_group_invitation_uses", "max_uses > 0 AND use_count >= 0 AND use_count <= max_uses");
+                        });
                 });
 
             modelBuilder.Entity("ZPI4M.Grouping.Models.GroupMember", b =>
                 {
                     b.Property<Guid>("FkUserId")
                         .HasColumnType("uuid")
-                        .HasColumnName("fk_user_id");
+                        .HasColumnName("user_id");
 
                     b.Property<Guid>("FkGroupId")
                         .HasColumnType("uuid")
-                        .HasColumnName("fk_group_id");
+                        .HasColumnName("group_id");
 
-                    b.Property<bool>("IsAdmin")
+                    b.Property<bool>("IsMember")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
-                        .HasColumnName("is_admin");
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_member");
+
+                    b.Property<DateTime>("JoinedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("joined_at");
+
+                    b.Property<decimal>("TotalPaid")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("total_paid");
+
+                    b.Property<decimal>("TotalSettlementsReceived")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("total_settlements_received");
+
+                    b.Property<decimal>("TotalSettlementsSent")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("total_settlements_sent");
+
+                    b.Property<decimal>("TotalShare")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("total_share");
 
                     b.HasKey("FkUserId", "FkGroupId")
                         .HasName("group_member_pkey");
 
                     b.HasIndex("FkGroupId");
 
-                    b.ToTable("group_member", "grouping");
+                    b.ToTable("group_user", "grouping", t =>
+                        {
+                            t.HasCheckConstraint("c_group_user_total_paid", "total_paid >= 0");
+
+                            t.HasCheckConstraint("c_group_user_total_settlements_received", "total_settlements_received >= 0");
+
+                            t.HasCheckConstraint("c_group_user_total_settlements_sent", "total_settlements_sent >= 0");
+
+                            t.HasCheckConstraint("c_group_user_total_share", "total_share >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ZPI4M.Grouping.Models.GroupSettlement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid?>("BankTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bank_transaction_id");
+
+                    b.Property<Guid>("FromUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("from_user_id");
+
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
+
+                    b.Property<int>("Method")
+                        .HasColumnType("integer")
+                        .HasColumnName("method");
+
+                    b.Property<DateTime>("SettledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("settled_at");
+
+                    b.Property<Guid>("ToUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("to_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BankTransactionId")
+                        .IsUnique();
+
+                    b.HasIndex("FromUserId");
+
+                    b.HasIndex("GroupId");
+
+                    b.HasIndex("ToUserId");
+
+                    b.ToTable("group_settlements", "grouping", t =>
+                        {
+                            t.HasCheckConstraint("c_group_settlements_amount", "amount > 0");
+
+                            t.HasCheckConstraint("c_group_settlements_method", "method IN (1, 2, 3)");
+
+                            t.HasCheckConstraint("c_group_settlements_users", "from_user_id <> to_user_id");
+                        });
                 });
 
             modelBuilder.Entity("ZPI4M.Limits.Models.CategoryGroupLimit", b =>
@@ -662,6 +836,38 @@ namespace ZPI4M.Database.Migrations
                         .HasName("category_group_limit_pkey");
 
                     b.ToTable("category_group_limit", "limits");
+                });
+
+            modelBuilder.Entity("ZPI4M.Limits.Models.GroupLimit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
+
+                    b.Property<int>("Period")
+                        .HasColumnType("integer")
+                        .HasColumnName("period");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GroupId", "Period")
+                        .IsUnique();
+
+                    b.ToTable("group_limit", "limits", t =>
+                        {
+                            t.HasCheckConstraint("c_group_limit_amount", "amount > 0");
+
+                            t.HasCheckConstraint("c_group_limit_period", "period IN (1, 2, 3)");
+                        });
                 });
 
             modelBuilder.Entity("ZPI4M.Notifications.Models.Notification", b =>
@@ -710,7 +916,7 @@ namespace ZPI4M.Database.Migrations
 
                     b.ToTable("notification", "notifications", t =>
                         {
-                            t.HasCheckConstraint("c_notification_valid_type", "type IN (0, 1, 2, 3, 4)");
+                            t.HasCheckConstraint("c_notification_valid_type", "type IN (0, 1, 2, 3, 4, 5)");
                         });
                 });
 
@@ -958,6 +1164,15 @@ namespace ZPI4M.Database.Migrations
                     b.Navigation("FkBankAccount");
                 });
 
+            modelBuilder.Entity("ZPI4M.Expense.Models.Expense", b =>
+                {
+                    b.HasOne("ZPI4M.User.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("FkPayerId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ZPI4M.Expense.Models.ExpenseItem", b =>
                 {
                     b.HasOne("ZPI4M.Expense.Models.Category", "FkCategory")
@@ -977,15 +1192,92 @@ namespace ZPI4M.Database.Migrations
                     b.Navigation("FkExpense");
                 });
 
+            modelBuilder.Entity("ZPI4M.Expense.Models.ExpenseShare", b =>
+                {
+                    b.HasOne("ZPI4M.Expense.Models.Expense", null)
+                        .WithMany()
+                        .HasForeignKey("FkExpenseId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("c_expense_share_fk_expense_id");
+                });
+
+            modelBuilder.Entity("ZPI4M.Grouping.Models.Group", b =>
+                {
+                    b.HasOne("ZPI4M.User.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("AdminUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ZPI4M.Grouping.Models.GroupInvitation", b =>
+                {
+                    b.HasOne("ZPI4M.User.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ZPI4M.Grouping.Models.Group", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ZPI4M.Grouping.Models.GroupMember", b =>
                 {
                     b.HasOne("ZPI4M.Grouping.Models.Group", "FkGroup")
                         .WithMany("GroupMembers")
                         .HasForeignKey("FkGroupId")
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired()
                         .HasConstraintName("c_group_member_fk_group_id");
 
+                    b.HasOne("ZPI4M.User.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("FkUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("c_group_member_fk_user_id");
+
                     b.Navigation("FkGroup");
+                });
+
+            modelBuilder.Entity("ZPI4M.Grouping.Models.GroupSettlement", b =>
+                {
+                    b.HasOne("ZPI4M.Banking.Models.BankTransaction", null)
+                        .WithMany()
+                        .HasForeignKey("BankTransactionId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("ZPI4M.User.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("FromUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ZPI4M.Grouping.Models.Group", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ZPI4M.User.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("ToUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ZPI4M.Limits.Models.GroupLimit", b =>
+                {
+                    b.HasOne("ZPI4M.Grouping.Models.Group", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ZPI4M.Notifications.Models.Notification", b =>

@@ -18,6 +18,12 @@ hooków wymagają Git, uv i Python 3.10+ zgodnego z projektem `tools`.
 Migracje wymagają narzędzia `dotnet-ef` zgodnego z EF Core 10.
 Restore i instalacja narzędzi mogą pobierać zależności.
 
+ProjGraph.Cli 1.2.0 jest przypięty w głównym `dotnet-tools.json` jako lokalne
+narzędzie deweloperskie .NET, poza zależnościami aplikacji. Instalacja po clone:
+`dotnet tool restore` z katalogu głównego. Polecenia diagramów projektów, klas
+i ERD opisuje [instrukcja narzędzi](../tools/README.md#architecture-diagrams-projgraph).
+Generowanie nie wymaga uruchomionej bazy ani builda backendu.
+
 ## Lokalna baza i API
 
 Docker uruchamia cztery usługi przez jeden `containers/local/docker-compose.yml`
@@ -716,7 +722,7 @@ Snapshot uwzględnia Banking i nowy inbox. Obecność plików nie potwierdza
 zastosowania migracji do aktualnej bazy użytkownika.
 `UserEmailNotNull` ustawia wymagany e-mail. Migracja
 `20261021162958_AddUniqueExpenseSourceReferences` dodaje osobne unikalne indeksy
-na `expense.expense.fk_bank_transaction_id` i `fk_receipt_id`. Kolumny nadal
+na `expense.expense.bank_transaction_id` i `receipt_id`. Kolumny nadal
 dopuszczają NULL. Istniejące powtórzenia niepustych FK uniemożliwią utworzenie
 indeksów; przed zastosowaniem tej migracji sprawdź dane, jeśli baza nie jest pusta.
 `20261023131244_AddAccountDeactivationTokens` rozszerza CHECK purpose i TargetEmail
@@ -900,3 +906,100 @@ w [kontrakcie Banking](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README
 i [instrukcji Postmana](../notes/TINK_POSTMAN.md#refresh-danych-przez-backend-4money).
 Testy PostgreSQL muszą wskazywać izolowany serwer przez `TEST_POSTGRES_CONNECTION_STRING`;
 nie stosuj migracji na bazie deweloperskiej w ramach weryfikacji.
+
+## Migracja zatwierdzonego modelu grup (2026-10-28)
+
+Jedna nowa migracja `ApprovedGroupingModel`, designer i snapshot rozwijają
+historyczny baseline bez edycji SQL init i starszych migracji. Up przed DDL
+blokuje cztery zmieniane tabele i przerywa, jeżeli istnieją stare grupy,
+członkostwa, wydatki lub udziały. Nie ma konwersji procentów, wyboru administratora,
+waluty ani backfillu agregatów. Down również wymaga pustych danych, odtwarza
+historyczne CHECK limitów i procentów; nie odtwarza usuniętych danych.
+Nie czyść bazy deweloperskiej automatycznie po błędzie tej osłony.
+
+Kolejność nowej bazy pozostaje: SQL init → wszystkie migracje → seed_local.sql.
+Seed PLN obejmuje nowe rozliczenia, zaproszenie i limity oraz oblicza agregaty
+ze źródeł. Reset wymaga aktualnego schematu i usuwa dane jak dotychczas.
+Testy `GroupingModelTests` w Banking.IntegrationTests korzystają z losowych baz
+przez TEST_POSTGRES_CONNECTION_STRING; obejmują Up/Down/Up, osłonę, seed,
+repozytoria i ograniczenia. `GroupingModelContractTests` nie wymagają połączenia
+z bazą i kontrolują model/snapshot, granice modułów oraz operacje migracji.
+
+### Uzupełnienie modelu członkostwa — 2026-10-30
+
+Na wyraźne życzenie użytkownika istniejąca migracja ApprovedGroupingModel została
+uzupełniona o `grouping.group_user.is_member boolean NOT NULL DEFAULT true`.
+Baza z wcześniejszą wersją tej samej migracji nie dostanie kolumny przez zwykłe
+`database update`: lokalne ponowne zastosowanie wymaga najpierw cofnięcia do
+AddNotificationsAfterRebase z użyciem poprzedniej wersji migracji, następnie
+builda i zastosowania wersji poprawionej. Osłona Down wymaga pustych tabel;
+nie usuwaj danych ani historii EF w celu jej obejścia.
+
+Storage jest współdzielony w ZPI4M.Shared.Storage: IObjectStorage, S3ObjectStorage,
+FileUrlResult i konfiguracja STORAGE_*. Klucze generuje moduł wywołujący;
+Receipt zachowuje prefiks receipts/. Testy adaptera: ZPI4M.Shared.UnitTests.
+
+## Grupy: opis, obrazy i archiwizacja — 2026-10-31
+Nowa migracja AddGroupDescriptionIconsAndArchive dodaje description varchar(255)
+nullable, icon_storage_key nullable oraz is_archived NOT NULL DEFAULT false.
+Icon i IconStorageKey są rozłączne. Presety pochodzą z listowania storage pod
+GROUP_ICON_PRESET_PREFIX (domyślnie icons/presets/groups/), bez listy ID w kodzie.
+GroupIconService korzysta z Shared.Storage; moduł generuje klucze własnych plików.
+POST/PUT grup obsługują JSON i multipart. Brak instrukcji ikony na PUT ją zachowuje;
+removeIcon usuwa wybór. Opis jest przycinany, pusty staje się null, limit wynosi
+255 znaków Unicode. DELETE archiwizuje, zachowując dane i pliki; odczyty ukrywają
+archiwum. Szczegóły i ograniczenia: README modułu Grouping.
+Migracja nie została zastosowana na bazie deweloperskiej.
+
+## Koordynacja zapisów Grouping — 2026-11-01
+Wszystkie operacje zapisu Grouping korzystają ze scoped
+IGroupingTransactionCoordinator. Zewnętrzny przepływ otacza operacje przez
+ExecuteAsync(action, succeeded, cancellationToken); wywołania zagnieżdżone
+współdzielą transakcję i nie zatwierdzają jej samodzielnie. succeeded dla
+wyników serwisów oznacza status 2xx. Odmowa lub wyjątek zagnieżdżony blokuje
+końcowy commit nawet po przechwyceniu błędu. Walidacyjne odmowy przed zapisem
+są zgłaszane do koordynatora przez Reject.
+
+Nie rozpoczynaj bezpośrednio transakcji EF przed wejściem do koordynatora:
+taka transakcja jest odrzucana przed mutacją. SaveChangesAsync nadal zapisuje
+wszystkie oczekujące zmiany kontekstu jako jedną jednostkę pracy. Operacje
+na wspólnym połączeniu wykonuj kolejno, bez równoległego używania zakresu DI.
+
+Po rollbacku zakończ użycie zakresu DI i utwórz nowe konteksty. Koordynator
+odrzuca kolejne zapisy w zakończonej niepowodzeniem jednostce pracy.
+Nie czyści globalnie ChangeTracker ani nie naprawia stanu encji w pamięci.
+Notifications jest dołączany jawnie do tej samej transakcji i połączenia;
+właściciel transakcji odpowiada za odłączenie.
+
+AfterCommit służy usunięciu zastąpionych własnych ikon dopiero po końcowym
+commicie. AfterRollback sprząta nowe uploady tylko po potwierdzonym rollbacku.
+Przy niepewnym wyniku commitu zachowujemy pliki. Cleanup jest best effort,
+nie zmienia potwierdzonego sukcesu. Brak trwałej kolejki/outboxa.
+
+## Podział migracji Grouping i Expense — 2026-11-02
+Aktualny koniec łańcucha:
+1. 20261102215301_AddGroupingModel — docelowy model Grouping i zachowane Limits.
+2. 20261102215328_AddTemporaryExpenseAggregationSupport — tymczasowe minimum Expense.
+
+Zastępują usunięte migracje 20261028191002_ApprovedGroupingModel i
+20261031165114_AddGroupDescriptionIconsAndArchive. Wcześniejsze opisy tych
+migracji są historyczne; nie wykonuj ich procedur cofania na nowym łańcuchu.
+
+Expense zachowuje Id/_id, Name/name, TransactionTime/transaction_time,
+fk_group_id, fk_receipt_id, fk_bank_transaction_id i udziały z fk_expense_id,
+fk_user_id. Tymczasowe rozszerzenia: FkPayerId/fk_payer_id (wymagany,
+indeks ix_expense_fk_payer_id, FK User) oraz Amount/amount numeric(18,2)
+zamiast Percentage. Nie ma zmian nazw kolumn niezwiązanych z agregacją.
+Grouping nie zależy od encji Expense; jego ExpenseContribution nadal używa
+PaidByUserId jako nazwy kontraktu wartości.
+
+Migracja Grouping nie zmienia tabel Expense. Jej Up/Down wymagają pustych
+grup i członkostw. Tymczasowa Expense wymaga pustych wydatków/udziałów przy
+Up/Down; nie konwertuje historycznych danych ani nie zgaduje płatnika.
+Seed działa dopiero po obu migracjach i przelicza agregaty z danych syntetycznych.
+
+Przy integracji właściwego PR Expense należy uzgodnić model, relacje, repozytoria,
+tymczasową migrację, designer/snapshot, seed i testy. Samo usunięcie ostatniej
+migracji nie cofa zastosowanego schematu. Lokalna baza po starym łańcuchu wymaga
+kontrolowanego odtworzenia (SQL init → migracje → seed), bez kasowania kontenera
+lub wolumenu. Nie zmieniaj ręcznie pojedynczych wpisów historii EF.

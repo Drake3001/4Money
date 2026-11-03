@@ -14,6 +14,8 @@ public partial class LimitsDbContext : DbContext
 
 	public virtual DbSet<CategoryGroupLimit> CategoryGroupLimits { get; set; }
 
+	public virtual DbSet<GroupLimit> GroupLimits { get; set; }
+
 	protected override void OnModelCreating(ModelBuilder modelBuilder)
 	{
 		base.OnModelCreating(modelBuilder);

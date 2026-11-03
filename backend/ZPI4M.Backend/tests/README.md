@@ -86,3 +86,15 @@ GET i dwukrotne usunięcie. Test S3 wymaga działającego lokalnego magazynu,
 konfiguracji `STORAGE_*` z API `.env` lub środowiska oraz
 `STORAGE_INTEGRATION_TESTS=1`. Bez tej flagi jest pomijany. Nie potwierdza
 pełnego przepływu OCR → S3 → PostgreSQL ani integracji z Expense.
+## Model grup, wydatków i rozliczeń
+
+`ZPI4M.Banking.IntegrationTests/GroupingModelTests.cs` używa tego samego
+izolowanego fixture PostgreSQL: SQL baseline, migracje, kontrolowany seed PLN,
+Up/Down/Up, odrzucenie historycznych danych przed DDL, CHECK/UNIQUE/FK,
+agregaty seeda, domyślne wartości i odczyty repozytoriów. Każdy przypadek
+ma osobną bazę banking_tests_<guid>. `GroupingModelContractTests` sprawdza
+zgodność snapshotu i modelu oraz strukturę migracji bez łączenia z PostgreSQL.
+Nie traktuj pominiętych testów bazy jako potwierdzenia migracji lub seeda.
+
+Storage: testy adaptera i konfiguracji znajdują się w ZPI4M.Shared.UnitTests.
+Test SeaweedFS pozostaje w Receipt.IntegrationTests (STORAGE_INTEGRATION_TESTS=1).

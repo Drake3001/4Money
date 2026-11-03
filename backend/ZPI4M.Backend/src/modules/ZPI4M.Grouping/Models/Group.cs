@@ -11,11 +11,13 @@ public partial class Group
 
 	public string? Icon { get; set; }
 
-	public decimal? WeeklyLimit { get; set; }
+	public string? Description { get; set; }
+	public string? IconStorageKey { get; set; }
+	public bool IsArchived { get; set; }
 
-	public decimal? MonthlyLimit { get; set; }
+	public Guid AdminUserId { get; set; }
 
-	public decimal? YearLimit { get; set; }
+	public string CurrencyCode { get; set; } = null!;
 
 	public virtual ICollection<GroupMember> GroupMembers { get; set; } = new List<GroupMember>();
 }

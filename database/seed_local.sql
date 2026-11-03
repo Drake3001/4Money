@@ -1,18 +1,21 @@
 -- Destructive local reset: run only after SQL init and all EF migrations, including
--- 20261028184348_RenameReceiptS3LinkToStorageKeyAndMakeUnique.
+-- 20261102215328_AddTemporaryExpenseAggregationSupport (after AddGroupingModel).
 -- Shared password for all seeded test accounts: TestPassword1!
 -- Storage keys are synthetic; this script does not upload images or call OCR/Tink.
 BEGIN;
 SET LOCAL timezone = 'UTC';
 
 TRUNCATE TABLE
+    grouping.group_settlements,
+    grouping.group_invitation,
+    limits.group_limit,
     banking.bank_refresh_account,
     banking.bank_refresh,
     banking.bank_connection_attempt,
     banking.bank_connection,
     "user".user_token,
     "user"."user",
-    "grouping".group_member,
+    "grouping".group_user,
     "grouping"."group",
     expense.expense_share,
     expense.expense_item,
@@ -40,15 +43,15 @@ SELECT id::uuid, login, name, surname,
     email, birth_date, CURRENT_TIMESTAMP - INTERVAL '30 days', is_active, is_email_confirmed
 FROM seed_users;
 
-INSERT INTO "grouping"."group" (_id, name, icon, weekly_limit, monthly_limit, year_limit) VALUES
-    ('20000000-0000-0000-0000-000000000001', 'Dom', 'home', 1000.00, 4000.00, 48000.00),
-    ('20000000-0000-0000-0000-000000000002', 'Wyjazd', 'suitcase', NULL, 1500.00, NULL);
+INSERT INTO "grouping"."group" (id, name, icon, admin_user_id, currency_code, description, icon_storage_key, is_archived) VALUES
+    ('20000000-0000-0000-0000-000000000001', 'Dom', 'home', '10000000-0000-0000-0000-000000000001', 'PLN', NULL, NULL, FALSE),
+    ('20000000-0000-0000-0000-000000000002', 'Wyjazd', 'suitcase', '10000000-0000-0000-0000-000000000002', 'PLN', NULL, NULL, FALSE);
 
-INSERT INTO "grouping".group_member (fk_user_id, fk_group_id, is_admin) VALUES
-    ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', TRUE),
-    ('10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', FALSE),
-    ('10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', TRUE),
-    ('10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002', FALSE);
+INSERT INTO grouping.group_user (user_id, group_id, joined_at) VALUES
+    ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', CURRENT_TIMESTAMP - INTERVAL '20 days'),
+    ('10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', CURRENT_TIMESTAMP - INTERVAL '20 days'),
+    ('10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', CURRENT_TIMESTAMP - INTERVAL '20 days'),
+    ('10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002', CURRENT_TIMESTAMP - INTERVAL '20 days');
 
 INSERT INTO expense.category (_id, name, description, icon, color) VALUES
     ('30000000-0000-0000-0000-000000000001', 'Zakupy spozywcze', 'Produkty spozywcze do domu', 'shopping-cart', '#4CAF50'),
@@ -69,7 +72,8 @@ VALUES
     ('50000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', -120.00, 'Booked', 'Zakupy spozywcze', CURRENT_DATE - 2, 'PLN', 'seed-transaction-001'),
     ('50000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000002', -60.00, 'Booked', 'Bilety na wyjazd', CURRENT_DATE - 1, 'PLN', 'seed-transaction-002'),
     ('50000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000001', -45.00, 'Pending', 'Platnosc oczekujaca', CURRENT_DATE, 'PLN', 'seed-transaction-003'),
-    ('50000000-0000-0000-0000-000000000004', '40000000-0000-0000-0000-000000000002', -30.00, 'Cancelled', 'Platnosc anulowana', CURRENT_DATE - 3, 'PLN', 'seed-transaction-004');
+    ('50000000-0000-0000-0000-000000000004', '40000000-0000-0000-0000-000000000002', -30.00, 'Cancelled', 'Platnosc anulowana', CURRENT_DATE - 3, 'PLN', 'seed-transaction-004'),
+    ('50000000-0000-0000-0000-000000000005', '40000000-0000-0000-0000-000000000002', -30.00, 'Booked', 'Syntetyczne rozliczenie', CURRENT_DATE, 'PLN', 'seed-settlement-005');
 
 INSERT INTO receipt.receipt (_id, storage_key, extraction_result) VALUES
     ('60000000-0000-0000-0000-000000000001', 'receipts/60000000000000000000000000000001',
@@ -93,12 +97,12 @@ INSERT INTO receipt.receipt (_id, storage_key, extraction_result) VALUES
      }'::jsonb);
 
 INSERT INTO expense.expense
-    (_id, fk_group_id, fk_bank_transaction_id, fk_receipt_id, name, merchant, amount, transaction_time)
+    (_id, fk_group_id, fk_bank_transaction_id, fk_receipt_id, name, merchant, amount, transaction_time, fk_payer_id)
 VALUES
-    ('70000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001', 'Zakupy do domu', 'Sklep testowy', 120.00, CURRENT_TIMESTAMP - INTERVAL '2 days'),
-    ('70000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', NULL, NULL, 'Wspolny obiad', 'Restauracja testowa', 90.00, CURRENT_TIMESTAMP - INTERVAL '1 day'),
-    ('70000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002', '50000000-0000-0000-0000-000000000002', NULL, 'Bilety na wyjazd', 'Przewoznik testowy', 60.00, CURRENT_TIMESTAMP - INTERVAL '1 day'),
-    ('70000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', NULL, NULL, 'Czynsz', NULL, 1500.00, CURRENT_TIMESTAMP - INTERVAL '5 days');
+    ('70000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001', 'Zakupy do domu', 'Sklep testowy', 120.00, CURRENT_TIMESTAMP - INTERVAL '2 days', '10000000-0000-0000-0000-000000000001'),
+    ('70000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', NULL, NULL, 'Wspolny obiad', 'Restauracja testowa', 90.00, CURRENT_TIMESTAMP - INTERVAL '1 day', '10000000-0000-0000-0000-000000000002'),
+    ('70000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002', '50000000-0000-0000-0000-000000000002', NULL, 'Bilety na wyjazd', 'Przewoznik testowy', 60.00, CURRENT_TIMESTAMP - INTERVAL '1 day', '10000000-0000-0000-0000-000000000002'),
+    ('70000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', NULL, NULL, 'Czynsz', NULL, 1500.00, CURRENT_TIMESTAMP - INTERVAL '5 days', '10000000-0000-0000-0000-000000000001');
 
 INSERT INTO expense.expense_item
     (_id, fk_expense_id, fk_category_id, fk_user_id, name, unit_price, quantity)
@@ -111,15 +115,15 @@ VALUES
     ('80000000-0000-0000-0000-000000000006', '70000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000003', NULL, 'Bilet', 30.00, 2.000),
     ('80000000-0000-0000-0000-000000000007', '70000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000004', NULL, 'Czynsz za mieszkanie', 1500.00, 1.000);
 
-INSERT INTO expense.expense_share (fk_expense_id, fk_user_id, percentage) VALUES
-    ('70000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 50.00),
-    ('70000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 50.00),
-    ('70000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 55.56),
-    ('70000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000003', 44.44),
-    ('70000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000002', 50.00),
-    ('70000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000003', 50.00),
-    ('70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 60.00),
-    ('70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000002', 40.00);
+INSERT INTO expense.expense_share (fk_expense_id, fk_user_id, amount) VALUES
+    ('70000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 60.00),
+    ('70000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 60.00),
+    ('70000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 50.00),
+    ('70000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000003', 40.00),
+    ('70000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000002', 30.00),
+    ('70000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000003', 30.00),
+    ('70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 900.00),
+    ('70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000002', 600.00);
 
 INSERT INTO limits.category_group_limit
     (fk_category_id, fk_group_id, weekly_limit, monthly_limit, year_limit)
@@ -145,12 +149,37 @@ INSERT INTO notifications.notification_recipient (fk_notification_id, fk_user_id
     ('90000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', NULL),
     ('90000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', CURRENT_TIMESTAMP - INTERVAL '2 days');
 
+INSERT INTO grouping.group_settlements
+    (id, group_id, from_user_id, to_user_id, amount, method, settled_at, bank_transaction_id)
+VALUES
+    ('a0000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 100.00, 1, CURRENT_TIMESTAMP, NULL),
+    ('a0000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 30.00, 2, CURRENT_TIMESTAMP, '50000000-0000-0000-0000-000000000005'),
+    ('a0000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000002', 10.00, 3, CURRENT_TIMESTAMP, NULL);
+
+INSERT INTO grouping.group_invitation (id, group_id, created_by_user_id, token_hash, max_uses, use_count, expires_at)
+VALUES ('b0000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'synthetic-hash-not-a-real-token', 5, 1, CURRENT_TIMESTAMP + INTERVAL '7 days');
+
+INSERT INTO limits.group_limit (id, group_id, period, amount) VALUES
+    ('c0000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 1, 1000.00),
+    ('c0000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', 2, 4000.00),
+    ('c0000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001', 3, 48000.00);
+
+-- Rebuild the synthetic aggregates from their sources, never independent constants.
+UPDATE grouping.group_user m SET
+    total_paid = COALESCE((SELECT SUM(e.amount) FROM expense.expense e WHERE e.fk_group_id = m.group_id AND e.fk_payer_id = m.user_id), 0),
+    total_share = COALESCE((SELECT SUM(s.amount) FROM expense.expense_share s JOIN expense.expense e ON e._id = s.fk_expense_id WHERE e.fk_group_id = m.group_id AND s.fk_user_id = m.user_id), 0),
+    total_settlements_sent = COALESCE((SELECT SUM(s.amount) FROM grouping.group_settlements s WHERE s.group_id = m.group_id AND s.from_user_id = m.user_id), 0),
+    total_settlements_received = COALESCE((SELECT SUM(s.amount) FROM grouping.group_settlements s WHERE s.group_id = m.group_id AND s.to_user_id = m.user_id), 0);
+
 COMMIT;
 
 SELECT 'user.user' AS "table", COUNT(*) AS row_count FROM "user"."user"
 UNION ALL SELECT 'user.user_token', COUNT(*) FROM "user".user_token
 UNION ALL SELECT 'grouping.group', COUNT(*) FROM "grouping"."group"
-UNION ALL SELECT 'grouping.group_member', COUNT(*) FROM "grouping".group_member
+UNION ALL SELECT 'grouping.group_user', COUNT(*) FROM "grouping".group_user
+UNION ALL SELECT 'grouping.group_settlements', COUNT(*) FROM grouping.group_settlements
+UNION ALL SELECT 'grouping.group_invitation', COUNT(*) FROM grouping.group_invitation
+UNION ALL SELECT 'limits.group_limit', COUNT(*) FROM limits.group_limit
 UNION ALL SELECT 'expense.category', COUNT(*) FROM expense.category
 UNION ALL SELECT 'expense.expense', COUNT(*) FROM expense.expense
 UNION ALL SELECT 'expense.expense_item', COUNT(*) FROM expense.expense_item

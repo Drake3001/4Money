@@ -1,25 +1,39 @@
 using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.Extensions.Options;
-using ZPI4M.Receipt.DTOs;
 
-namespace ZPI4M.Receipt.Services;
+namespace ZPI4M.Shared.Storage;
 
-public sealed class S3FileStorageService : IFileStorageService
+public sealed class S3ObjectStorage : IObjectStorage
 {
 	private readonly IAmazonS3 _client;
 	private readonly S3StorageOptions _options;
 	private readonly TimeProvider _timeProvider;
 
-	public S3FileStorageService(IAmazonS3 client, IOptions<S3StorageOptions> options, TimeProvider timeProvider)
+	public S3ObjectStorage(IAmazonS3 client, IOptions<S3StorageOptions> options, TimeProvider timeProvider)
 	{
 		_client = client;
 		_options = options.Value;
 		_timeProvider = timeProvider;
 	}
 
-	public async Task<string> UploadAsync(Stream content, string contentType, CancellationToken cancellationToken = default)
+	public async Task<IReadOnlyList<string>> ListKeysAsync(string prefix, CancellationToken cancellationToken = default)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
+		var keys = new List<string>();
+		string? token = null;
+		do
+		{
+			var page = await _client.ListObjectsV2Async(new ListObjectsV2Request { BucketName = _options.Bucket, Prefix = prefix, ContinuationToken = token }, cancellationToken);
+			keys.AddRange((page.S3Objects ?? []).Select(o => o.Key).Where(k => k.StartsWith(prefix, StringComparison.Ordinal) && !k.EndsWith('/')));
+			token = page.IsTruncated == true ? page.NextContinuationToken : null;
+		} while (token is not null);
+		return keys;
+	}
+
+	public async Task UploadAsync(string key, Stream content, string contentType, CancellationToken cancellationToken = default)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(key);
 		ArgumentNullException.ThrowIfNull(content);
 		ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
 		if (!content.CanRead)
@@ -27,7 +41,10 @@ public sealed class S3FileStorageService : IFileStorageService
 		cancellationToken.ThrowIfCancellationRequested();
 
 		if (content.CanSeek)
-			return await UploadSeekableAsync(content, contentType, cancellationToken);
+		{
+			await UploadSeekableAsync(key, content, contentType, cancellationToken);
+			return;
+		}
 
 		var path = Path.Combine(Path.GetTempPath(), $"zpi4m-storage-{Guid.NewGuid():N}.tmp");
 		await using var buffer = new FileStream(path, new FileStreamOptions
@@ -39,15 +56,14 @@ public sealed class S3FileStorageService : IFileStorageService
 		});
 		await content.CopyToAsync(buffer, cancellationToken);
 		buffer.Position = 0;
-		return await UploadSeekableAsync(buffer, contentType, cancellationToken);
+		await UploadSeekableAsync(key, buffer, contentType, cancellationToken);
 	}
 
-	private async Task<string> UploadSeekableAsync(Stream content, string contentType, CancellationToken cancellationToken)
+	private async Task UploadSeekableAsync(string key, Stream content, string contentType, CancellationToken cancellationToken)
 	{
 		if (content.Length <= content.Position)
 			throw new ArgumentException("The content stream must not be empty.", nameof(content));
 
-		var key = $"receipts/{Guid.NewGuid():N}";
 		await _client.PutObjectAsync(new PutObjectRequest
 		{
 			BucketName = _options.Bucket,
@@ -58,10 +74,9 @@ public sealed class S3FileStorageService : IFileStorageService
 			AutoResetStreamPosition = false,
 			UseChunkEncoding = false
 		}, cancellationToken);
-		return key;
 	}
 
-	public async Task<FileUrlResult> GetUrlAsync(string key, CancellationToken cancellationToken = default)
+	public async Task<FileUrlResult> GetReadUrlAsync(string key, CancellationToken cancellationToken = default)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(key);
 		cancellationToken.ThrowIfCancellationRequested();

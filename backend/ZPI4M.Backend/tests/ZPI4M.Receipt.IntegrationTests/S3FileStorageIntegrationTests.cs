@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 using ZPI4M.Receipt.Services;
+using ZPI4M.Shared.Storage;
 
 namespace ZPI4M.Receipt.IntegrationTests;
 
@@ -25,9 +26,9 @@ public sealed class S3FileStorageIntegrationTests
 					.ToDictionary(pair => pair.Key, pair => (string?)pair.Value));
 		}
 		var configuration = configurationBuilder.AddEnvironmentVariables().Build();
-		using var provider = new ServiceCollection().AddReceiptFileStorage(configuration).BuildServiceProvider();
+		using var provider = new ServiceCollection().AddObjectStorage(configuration).BuildServiceProvider();
 		using var scope = provider.CreateScope();
-		var storage = scope.ServiceProvider.GetRequiredService<IFileStorageService>();
+		var storage = scope.ServiceProvider.GetRequiredService<IObjectStorage>();
 		// Synthetic 1x1 PNG, no personal or financial data.
 		var image = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=");
 		using var input = new MemoryStream(image);
@@ -36,8 +37,8 @@ public sealed class S3FileStorageIntegrationTests
 		string? key = null;
 		await TestCleanup.RunAsync(async () =>
 		{
-			key = await storage.UploadAsync(input, "image/png", timeout.Token);
-			var link = await storage.GetUrlAsync(key, timeout.Token);
+			key = await storage.UploadForTestAsync(input, "image/png", timeout.Token);
+			var link = await storage.GetReadUrlAsync(key, timeout.Token);
 			using var downloaded = await http.GetAsync(link.Url, timeout.Token);
 			Assert.True(downloaded.IsSuccessStatusCode, $"Signed GET returned HTTP {(int)downloaded.StatusCode}.");
 			Assert.Equal("image/png", downloaded.Content.Headers.ContentType?.MediaType);
@@ -69,5 +70,15 @@ public sealed class StorageIntegrationFactAttribute : FactAttribute
 	{
 		if (Environment.GetEnvironmentVariable("STORAGE_INTEGRATION_TESTS") != "1")
 			Skip = "Manual test: start SeaweedFS and set STORAGE_INTEGRATION_TESTS=1; storage settings load from the API .env.";
+	}
+}
+
+internal static class StorageTestUpload
+{
+	public static async Task<string> UploadForTestAsync(this IObjectStorage storage, Stream content, string contentType, CancellationToken ct = default)
+	{
+		var key = $"receipts/{Guid.NewGuid():N}";
+		await storage.UploadAsync(key, content, contentType, ct);
+		return key;
 	}
 }

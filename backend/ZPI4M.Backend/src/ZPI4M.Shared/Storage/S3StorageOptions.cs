@@ -2,7 +2,7 @@ using Amazon.Runtime;
 using Amazon.S3;
 using Microsoft.Extensions.Options;
 
-namespace ZPI4M.Receipt.Services;
+namespace ZPI4M.Shared.Storage;
 
 public sealed class S3StorageOptions
 {
