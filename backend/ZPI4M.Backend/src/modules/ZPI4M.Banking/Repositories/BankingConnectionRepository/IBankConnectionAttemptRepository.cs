@@ -1,7 +1,7 @@
 using ZPI4M.Banking.Models;
 using ZPI4M.Banking.Services.Contracts;
 
-namespace ZPI4M.Banking.Repositories;
+namespace ZPI4M.Banking.Repositories.BankingConnectionRepository;
 
 public interface IBankConnectionAttemptRepository
 {

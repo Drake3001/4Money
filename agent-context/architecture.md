@@ -86,7 +86,10 @@ plikiem `<Nazwa>Queries.cs`. Namespace odzwierciedla katalog konkretnego
 repozytorium: `ZPI4M.<Moduł>.Repositories.<Nazwa>Repository`, np.
 `ZPI4M.Grouping.Repositories.GroupMemberRepository`. Ta sama przestrzeń nazw
 obejmuje interfejs, implementację i Queries. UserToken, Notification oraz
-NotificationRecipient nie mają Queries. NotificationRecipientRepository przyjmuje
+NotificationRecipient nie mają Queries. W Banking katalog
+`BankingConnectionRepository/` grupuje wspólną implementację oraz interfejsy
+IBankConnectionRepository i IBankConnectionAttemptRepository; odświeżanie ma
+osobny katalog `BankRefreshRepository/`. NotificationRecipientRepository przyjmuje
 parametry pageNumber, pageSize i opcjonalny isRead; sortuje zawsze od najnowszych.
 Inbox użytkownika pobiera NotificationRecipientRepository,
 a NotificationRepository odpowiada za treść powiadomienia (Add/GetByIdAsync).
@@ -109,6 +112,14 @@ Repozytoria rejestrują dodanie i usunięcie encji, ale nie wykonują własnego
 i dodanie administratora zapisać atomowo. Wspólny zapis wymaga tego samego
 scoped kontekstu; osobne konteksty modułów nie współdzielą automatycznie
 transakcji ani change trackera.
+
+Od 2026-11-04 Banking używa rejestracji AddDbContextFactory<BankingDbContext>
+z czasem życia scoped dla fabryki i kontekstu. BankingConnectionRepository tworzy
+i zwalnia osobny kontekst dla każdej operacji, także odczytu wygaszającego próby.
+Jego zapisy zatwierdzają własne transakcje i nie zapisują ani nie odłączają zmian
+śledzonych przez wywołującego. Finalizacja próby i utworzenie połączenia pozostają
+atomowe. Odczyty, refresh i rejestr przypisań zachowują dotychczasowy scoped
+kontekst; przypisania nadal wymagają jawnej transakcji wywołującego.
 
 Od 2026-10-28 host przekazuje ExpenseDbContext, GroupingDbContext i
 NotificationsDbContext tę samą scoped instancję NpgsqlConnection. Połączenie
@@ -518,3 +529,30 @@ członkostwa korzysta z GroupMembershipQuery i GroupMembershipEntry, bez zależn
 repozytorium od DTO HTTP. Odczyty projekcyjne są bez śledzenia.
 Serwisy zwracają wspólne GroupingResult<T>/GroupingResult. Kontrolery mapują je
 na istniejące DTO i statusy; wyniki wewnętrzne nie są kontraktem HTTP.
+
+## Rejestr przypisań Banking — 2026-11-03
+
+Banking posiada BankTransactionAssignment i filtrowanie odczytu według typu
+przypisania. Model i konfiguracja są wspólne dla BankingDbContext oraz
+AppDbContext, bez zależności Banking od Expense/Grouping i bez polimorficznego FK
+konsumenta. [Kontrakt Banking](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#transaction-assignments--2026-11-03)
+opisuje schemat, semantykę flag i wewnętrzny IBankTransactionAssignmentService.
+Serwis udostępnia odczyt, idempotentne przypisanie oraz warunkowe zwolnienie.
+Zapisy wymagają jawnej transakcji scoped BankingDbContext; serwis jej nie otwiera,
+nie zatwierdza ani nie wycofuje i nie zapisuje innych oczekujących zmian EF.
+Repozytorium wykonuje SQL od razu, blokując rekord BankTransaction na czas
+transakcji i rozstrzygając konflikty bez nadpisywania konsumenta.
+Banking zachowuje osobne połączenie. Integracja z przepływami biznesowymi oraz
+dołączenie kontekstu do ich transakcji pozostają na później; przyszły koordynator
+musi zapewnić atomowy zapis/usunięcie przypisania razem z powiązaniem konsumenta.
+Sam rejestr nie zapewnia spójności z kolumnami źródłowymi konsumentów.
+
+## Inicjalizacja użytkownika Tink przy łączeniu banku — 2026-11-07
+
+Rejestracja i logowanie nie wywołują Tink. `BankingConnectionService` przy
+`POST /api/banking/connection-attempts` zapewnia mapowanie przez publiczny
+kontrakt `UserBankingProfileService.EnsureTinkUserAsync` i adapter Tink.
+Blokada PostgreSQL serializuje inicjalizację użytkownika, a stabilny
+external_user_id umożliwia odzyskanie zdalnej tożsamości po błędzie zapisu.
+User nadal nie ma zależności od Banking. Osobny endpoint inicjalizacji usunięto.
+[Kontrakt i błędy](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#tink-user-initialization-on-connection-start--2026-11-07).

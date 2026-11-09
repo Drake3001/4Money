@@ -239,6 +239,61 @@ public sealed class BankingReadFlowTests : PostgresFixture
 	}
 
 	[PostgresFact]
+	public async Task AssignmentFiltersCombineBeforeCountingAndPagingAndRemainOwnerScoped()
+	{
+		var data = await SeedAsync();
+		await using var db = Database();
+		await using var users = Users();
+		db.BankTransactionAssignments.AddRange(
+			new() { BankTransactionId = data.Transactions[0].Id, ConsumerType = BankTransactionConsumerType.Expense, ConsumerId = Guid.NewGuid() },
+			new() { BankTransactionId = data.Transactions[1].Id, ConsumerType = BankTransactionConsumerType.GroupSettlement, ConsumerId = Guid.NewGuid() },
+			new() { BankTransactionId = data.Transactions[3].Id, ConsumerType = BankTransactionConsumerType.Expense, ConsumerId = Guid.NewGuid() });
+		await db.SaveChangesAsync();
+		var service = Service(db, users);
+		foreach (var settlement in new bool?[] { null, false, true })
+			foreach (var expense in new bool?[] { null, false, true })
+			{
+				var expected = data.Transactions.Take(3)
+					.Where(t => !settlement.HasValue || (t.Id == data.Transactions[1].Id) == settlement.Value)
+					.Where(t => !expense.HasValue || (t.Id == data.Transactions[0].Id) == expense.Value)
+					.Select(t => t.Id).ToArray();
+				var actual = new List<Guid>();
+				for (var pageNumber = 1; pageNumber <= expected.Length + 1; pageNumber++)
+				{
+					var page = (await service.GetTransactionsAsync(data.Owner, new()
+					{
+						SettlementAssignment = settlement,
+						ExpenseAssignment = expense,
+						PageSize = 1,
+						PageNumber = pageNumber
+					})).Value!;
+					Assert.Equal(expected.Length, page.TotalCount);
+					actual.AddRange(page.Items.Select(t => t.Id));
+					if (pageNumber > expected.Length) Assert.Empty(page.Items);
+				}
+				Assert.Equal(expected, actual);
+			}
+		var filtered = (await service.GetTransactionsAsync(data.Owner, new()
+		{
+			ExpenseAssignment = true,
+			SettlementAssignment = false,
+			BankAccountId = data.Accounts[0].Id,
+			Status = "Booked",
+			MaxAmount = 0,
+			Description = "test"
+		})).Value!;
+		Assert.Equal(data.Transactions[0].Id, Assert.Single(filtered.Items).Id);
+		Assert.Equal(1, filtered.TotalCount);
+		Assert.Empty((await service.GetTransactionsAsync(data.Owner, new()
+		{
+			ExpenseAssignment = false,
+			SettlementAssignment = false,
+			Status = "Booked"
+		})).Value!.Items);
+		Assert.Equal(data.Transactions[0].Id, (await service.GetTransactionAsync(data.Owner, data.Transactions[0].Id)).Value!.Id);
+	}
+
+	[PostgresFact]
 	public async Task EmptyHistoryNeedsNoTinkMappingAndUnavailableUsersCannotRead()
 	{
 		var owner = await AddUserAsync();

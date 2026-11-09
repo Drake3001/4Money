@@ -29,6 +29,166 @@ CI dostarcza PostgreSQL 15 i jedną zmienną TEST_POSTGRES_CONNECTION_STRING
 dla wszystkich trzech modułów. Ostatnie częściowe przebiegi opisano poniżej;
 nie zastępują pełnego uruchomienia solucji z PostgreSQL.
 
+## Narzędzia migracji — weryfikacja 2026-11-07
+
+`dotnet-tools.json` przypina `dotnet-ef` 10.0.4. Wrapper `tools/ef.cs`
+ustawia projekty i kontekst migracji; `--ef-version` pozwala jednorazowo
+uruchomić inną wersję bez zmiany manifestu. Nie dodano global.json ani zależności
+Pythona. [Użycie i konfiguracja](development.md#modele-i-migracje).
+
+Sprawdzono restore, kompilację wrappera na SDK 10.0.113, pomoc, wersje 10.0.4
+oraz 10.0.5 i zachowanie pinu, przekazywanie argumentów i kodów zakończenia,
+wywołanie z podkatalogu i checkout ze spacjami w ścieżce. Kontrola modelu
+nie wykazała zmian względem snapshotu. W jednorazowym PostgreSQL 15 wykonano
+SQL init i wszystkie 14 istniejących migracji; listowanie potwierdziło brak
+oczekujących migracji. Operacje zapisu używały jawnego --connection do bazy
+testowej; nie stosowano migracji do bazy aplikacji. Nie testowano innych SDK.
+
+## Profile Tink z JSON — weryfikacja 2026-11-06
+
+Nowa nakładka `tools/scripts/tink_profiles.py` obsługuje `plan`, `apply` i `resume`
+z mapowaniem GUID → preset w JSON. Działa na istniejącej lokalnej bazie i tworzy
+świeże tożsamości/dane Tink, zastępując wyłącznie wskazane `tink_user_id` po
+weryfikacji. Nie uruchamia SQL init, migracji ani seedera. Konfigurację,
+mapowanie i blokadę sesyjną wydzielono do wspólnego `tink_batch.py`; istniejący
+reset zachowuje swój kontrakt i manifesty. [Instrukcja](../tools/scripts/tink_profiles/README.md).
+
+Wykonano 73 testy Python narzędzi bez błędów i pominięć, w tym 14 nowych testów
+profili. PostgreSQL 15 działał w jednorazowym kontenerze; przypadki tworzyły
+własne bazy, a migracje EF wygenerowano do pliku i zastosowano wyłącznie w bazach
+testów regresji resetu. Sprawdzono aktualizację wielu istniejących kont,
+zachowanie pozostałych danych i niewybranych mapowań, świeże ID dla nowego
+batcha, preflight wszystkich celów, konflikt unikalności, dezaktywację,
+częściowy sukces, utratę checkpointu po commicie, zamrożone wejście wznowienia,
+zmianę środowiska/mapowania oraz blokady i niezgodny manifest Connector.
+HTTP korzystał ze stanowej atrapy Tink; rzeczywiste wywołania i uprawnienia
+Sandbox pozostają niezweryfikowane. Baza aplikacji nie była modyfikowana.
+Po końcowym zabezpieczeniu niepoprawnego manifestu ponownie wykonano 14/14
+testów profili. Hooki higieny i `git diff --check` przeszły; kontener testowy
+usunięto. Testy Python narzędzi nadal nie są częścią workflow backendu.
+
+## Użytkownik Tink przy łączeniu banku — 2026-11-07
+
+Usunięto osobny endpoint inicjalizacji i dedykowany serwis. Rejestracja,
+potwierdzenie e-maila i login nie wywołują Tink. Rozpoczęcie połączenia zapewnia
+mapowanie przez istniejący kontrakt User i adapter. Przy awarii zwraca 503
+z attemptId, zapisuje nieudaną próbę best effort i pozwala ponowić rozpoczęcie
+w tej samej sesji. Zachowuje poprawnie zapisane ID po błędzie tworzenia linku.
+Nie ma migracji ani inicjalizacji w tle.
+[Kontrakt](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#tink-user-initialization-on-connection-start--2026-11-07).
+
+Weryfikacja 2026-11-07: build Release całej solucji bez ostrzeżeń i błędów.
+Przeszło 485 testów .NET bez błędów i pominięć: Banking.UnitTests 121,
+Banking.Tests 95, Banking.IntegrationTests 152, User.UnitTests 18,
+User.Tests 64, User.IntegrationTests 35. Testy używały odizolowanego
+PostgreSQL 15 i atrap Tink. Pełny przepływ HTTP obejmuje brak wywołań Tink
+przy rejestracji/loginie, usunięcie endpointu inicjalizacji, 503 przy błędzie
+upstream/sieci/timeout/odpowiedzi, brak mapowania po awarii i udane ponowienie.
+Sprawdzono też zachowanie ID po awarii linku, współbieżne starty, dezaktywację
+i odzyskanie po błędzie zapisu. Sprawdzono styl i whitespace zmienionych C#,
+git diff --check, JSON kolekcji i składnię 136 skryptów JavaScript oraz trzy
+pliki testów skryptów kolekcji (login, odczyty, refresh). Nie wykonywano wywołań
+Tink Sandbox ani zmian w bazie aplikacji.
+
+## Użytkownik Tink po rejestracji — weryfikacja 2026-11-06 (historyczne)
+
+Na rewizji z 2026-11-06 Banking miał autoryzowany `POST /api/banking/tink-user`, wywoływany przez klienta
+po rejestracji, potwierdzeniu e-maila i zalogowaniu. HTTP 204 oznacza zapisane
+mapowanie, bez ujawniania ID Tink i tworzenia próby połączenia/importu.
+Usługa korzysta z istniejącej blokady i adaptera; nie dodano zależności User →
+Banking ani migracji. Aktualny przepływ opisuje sekcja powyżej.
+
+Wykonano build Release całej solucji bez ostrzeżeń i błędów oraz 500 testów
+bez błędów i pominięć: Banking.UnitTests 130/130, Banking.Tests 104/104,
+Banking.IntegrationTests 152/152, User.UnitTests 18/18, User.Tests 64/64,
+User.IntegrationTests 32/32. Testy bazy używały odizolowanego PostgreSQL 15; tymczasowy kontener usunięto
+po zakończeniu testów. Nie zmieniano bazy aplikacji.
+Nowe przypadki obejmują pełne HTTP register → confirm-email → login → provision
+z prawdziwym JWT, błąd Tink i ponowienie w tej samej sesji, ponowne użycie
+mapowania przy rozpoczęciu połączenia, współbieżną inicjalizację, wyścig z
+rozpoczęciem połączenia, dezaktywację w trakcie wywołania oraz rollback zapisu
+mapowania i ponowienie. Testy używają atrap Tink; istniejące testy adaptera
+obejmują konflikt/lost response i odzyskanie po external_user_id. Nie wykonano
+wywołań Sandbox ani nie potwierdzono uprawnień aplikacji Tink.
+
+Sprawdzono styl i whitespace zmienionych plików C#, `git diff --check`, JSON
+kolekcji i składnię 140 skryptów JavaScript. Nowe skrypty Postmana sprawdzono
+lokalnie dla odpowiedzi 204 i 503; nie uruchamiano kolekcji przeciw żywemu API.
+
+## Niezawodność połączeń Banking — 2026-11-04
+
+Kontrolery połączeń i callbacku mapują DbException / DbUpdateException przez
+lokalny filtr MVC na bezpieczne 503 BANKING_TEMPORARILY_UNAVAILABLE, bez treści
+wyjątku, z attemptId: null przy braku wyniku serwisu. Callback zachowuje
+Retry-After: 5 i Referrer-Policy: no-referrer. Anulowanie i błędy programistyczne
+nie są przechwytywane. Wszystkie akcje kontrolera połączeń mają no-store;
+odpowiedzi uwierzytelniania/routingu przed kontrolerem zachowują kontrakt hosta.
+
+BankingConnectionRepository tworzy i zwalnia kontekst z scoped fabryki na każdą
+operację, również odczyty wygaszające próby. Nie czyści trackera ani nie zapisuje
+zmian scoped kontekstu wywołującego. Próba i połączenie nadal są finalizowane
+atomowo we własnej transakcji. Refresh, odczyty i przypisania zachowują scoped
+BankingDbContext oraz dotychczasowe granice transakcji. Bez migracji, zmian
+publicznych interfejsów serwisów, automatycznego refreshu i integracji z Expense/Grouping.
+
+Weryfikacja 2026-11-04: build całej solucji Release bez ostrzeżeń i błędów;
+Banking.UnitTests 121/121, Banking.Tests 95/95, Banking.IntegrationTests 149/149
+na odizolowanym PostgreSQL 15, bez pominięć. Nowe testy potwierdzają oba rodzaje
+wyjątków bazy dla wszystkich endpointów połączeń i callbacku, bezpieczne treści
+oraz nagłówki, propagację innych wyjątków, DI fabryki i scoped kontekstu,
+zachowanie Added/Modified/Deleted i transakcji wywołującego oraz rollback po
+zapisie SQL, przed commitem finalizacji. Pełny zestaw obejmuje też istniejące
+testy współbieżności, replay, wygaśnięcia i własności credentials.
+Sprawdzono styl i formatowanie zmienionych plików C# oraz git diff --check.
+Tymczasowy kontener PostgreSQL usunięto po testach. Baza aplikacji pozostaje
+bez zmian; nie wykonywano wywołań Tink.
+
+## Serwis przypisań Banking — 2026-11-03
+
+Dodano scoped IBankTransactionAssignmentService, implementację i repozytorium.
+Serwis obsługuje odczyt snapshotu, idempotentne przypisanie oraz warunkowe zwolnienie
+po typie i ID konsumenta. Zapis wymaga jawnej transakcji BankingDbContext; SQL
+wykonuje się od razu, bez SaveChangesAsync, commitu lub rollbacku w serwisie.
+Repozytorium blokuje BankTransaction przez FOR UPDATE i obsługuje konflikt
+przypisania przez ON CONFLICT DO NOTHING. Szczegóły wyników i odpowiedzialności
+wywołującego są w [kontrakcie Banking](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#internal-assignment-service).
+Nie zmieniono schematu bazy, endpointów ani połączenia BankingDbContext.
+Integracja z przepływami Banking/Expense/Grouping i koordynacją transakcji
+pozostaje do implementacji; serwis nie sprawdza autoryzacji ani danych konsumenta.
+
+Weryfikacja 2026-11-03: kompilacja całej solucji bez błędów i ostrzeżeń;
+Banking.UnitTests 121/121, Banking.Tests 77/77 oraz Banking.IntegrationTests
+147/147 na PostgreSQL 15, bez pominięć. Nowe testy obejmują oba typy konsumenta,
+idempotencję, konflikty, brak transakcji wywołującego, commit/rollback przypisania
+i zwolnienia, brak zapisu/czyszczenia innych śledzonych zmian EF, a także
+równoległe przypisania i przypisanie ze zwolnieniem w obu kolejnościach.
+Testy współbieżności potwierdzają oczekiwanie na blokadę przez pg_stat_activity.
+Sprawdzono styl i formatowanie zmienionych plików C# oraz git diff --check.
+Operacje bazy wykonywano wyłącznie na tymczasowych bazach tworzonych przez testy;
+baza aplikacji pozostaje bez zmian.
+
+## Rejestr przypisań Banking — 2026-11-03
+
+Dodano migrację `20261103203528_AddBankTransactionAssignments`, model oraz
+filtry `settlementAssignment` / `expenseAssignment` istniejącej listy transakcji.
+[Kontrakt Banking](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#transaction-assignments--2026-11-03)
+opisuje tabelę, niezależne flagi nullable łączone przez AND i ograniczenia etapu.
+Seeder resetuje rejestr i odtwarza syntetyczne przypisania obu typów. Migracja
+nie przenosi istniejących powiązań. Nie dodano zapisu rejestru w serwisach
+Expense/Grouping ani API przypisań; filtr odzwierciedla wyłącznie stan rejestru.
+
+Weryfikacja 2026-11-03: kompilacja całej solucji bez ostrzeżeń i błędów;
+Banking.UnitTests 107/107 oraz Banking.Tests 77/77. Pełny przebieg
+Banking.IntegrationTests na PostgreSQL 15: 137/138; starszy test cofania migracji
+zakładał zachowanie wszystkich późniejszych migracji po odrzuceniu rollbacku
+Expense. Po dostosowaniu asercji do etapowego rollbacku EF, ponownej kompilacji
+i uruchomieniu tego testu: 1/1. Bez pominiętych testów. Testy obejmują wszystkie
+kombinacje flag, paginację, izolację właściciela, ograniczenia tabeli, Up/Down/Up
+i ponowne wykonanie seedera. Sprawdzono styl i formatowanie zmienionego kodu,
+`git diff --check` oraz JSON i opcjonalne parametry kolekcji Postmana.
+Migracje i seed wykonywano wyłącznie na osobnych bazach tworzonych przez testy;
+nie zmieniano bazy aplikacji ani nie potwierdzano integracji Tink.
+
 ## Zmiany po review — 2026-10-28
 
 - Seed dostosowano do migracji Receipt z 2026-10-28: zapisuje `storage_key`

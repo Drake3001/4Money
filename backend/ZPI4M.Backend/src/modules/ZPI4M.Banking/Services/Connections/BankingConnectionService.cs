@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ZPI4M.Banking.Models;
-using ZPI4M.Banking.Repositories;
+using ZPI4M.Banking.Repositories.BankingConnectionRepository;
 using ZPI4M.Banking.Services.Contracts;
 using ZPI4M.Banking.Tink;
 using ZPI4M.Banking.Tink.Http;

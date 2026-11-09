@@ -9,6 +9,7 @@ public static partial class BankingConfiguration
 	{
 		ConfigureConnections(modelBuilder);
 		ConfigureRefreshes(modelBuilder);
+		ConfigureAssignments(modelBuilder);
 		modelBuilder.Entity<BankAccount>(entity =>
 		{
 			entity.HasKey(e => e.Id).HasName("bank_account_pkey");

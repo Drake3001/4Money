@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
 using ZPI4M.Banking.Models;
-using ZPI4M.Banking.Repositories;
+using ZPI4M.Banking.Repositories.BankingConnectionRepository;
 using ZPI4M.Banking.Services.Connections;
 using ZPI4M.Banking.Services.Contracts;
 using ZPI4M.Banking.Tink;

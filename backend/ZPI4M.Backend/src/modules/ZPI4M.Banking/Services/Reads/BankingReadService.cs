@@ -75,6 +75,8 @@ public sealed class BankingReadService(IBankAccountRepository accounts, IBankTra
 		{
 			UserId = userId,
 			BankAccountId = query.BankAccountId,
+			SettlementAssignment = query.SettlementAssignment,
+			ExpenseAssignment = query.ExpenseAssignment,
 			DateFrom = query.DateFrom,
 			DateTo = query.DateTo,
 			MinAmount = query.MinAmount,

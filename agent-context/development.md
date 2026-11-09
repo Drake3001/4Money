@@ -15,7 +15,9 @@ ich jako nowej weryfikacji obecnej rewizji po rebase.
 
 Backend wymaga SDK .NET 10; baza lokalna Docker i Docker Compose. Narzędzia
 hooków wymagają Git, uv i Python 3.10+ zgodnego z projektem `tools`.
-Migracje wymagają narzędzia `dotnet-ef` zgodnego z EF Core 10.
+Migracje używają lokalnego `dotnet-ef` 10.0.4 z głównego `dotnet-tools.json`.
+Po clone lub zmianie manifestu wykonaj `dotnet tool restore`. Wrapper
+`tools/ef.cs` wymaga SDK .NET 10; Python nie jest potrzebny do migracji.
 Restore i instalacja narzędzi mogą pobierać zależności.
 
 ProjGraph.Cli 1.2.0 jest przypięty w głównym `dotnet-tools.json` jako lokalne
@@ -463,11 +465,11 @@ wymaga TargetEmail także dla tego rodzaju. Migracja nie jest stosowana automaty
 Jej Down usuwa oczekujące tokeny dezaktywacji przed przywróceniem CHECK dla 1–4;
 nie przywraca aktywności kont już dezaktywowanych.
 Opis w `../doc/Baza danych.txt` uwzględnia już purpose 5 i wymagany TargetEmail.
-Z katalogu `backend/ZPI4M.Backend/src/ZPI4M.Api`, po przygotowaniu właściwej
-lokalnej bazy i `.env`, migracje stosuje się poleceniem:
+Z katalogu głównego repozytorium, po przygotowaniu właściwej
+lokalnej bazy i `.env` API, migracje stosuje się poleceniem:
 
 ```bash
-dotnet ef database update --project ../ZPI4M.Database --startup-project . --context AppDbContext
+dotnet run --file tools/ef.cs -- database update
 ```
 
 1. `POST /api/users/profile/deactivate` z `Authorization: Bearer ACCESS_TOKEN`,
@@ -606,6 +608,17 @@ wskazanego konta. Nie tworzy brakujących użytkowników i nadal odrzuca ID nale
 do innego konta. Istniejące połączenia Banking zachowują swoją tożsamość Tink;
 po zmianie mapowania nowa tożsamość wymaga własnego przepływu Link.
 
+## Profile Tink z JSON bez resetu bazy — 2026-11-06
+
+[`tink_profiles.py`](../tools/scripts/tink_profiles/README.md) obsługuje
+`plan`, `apply` i `resume`. Domyślny `users.json` mapuje preset profilu na GUID
+istniejącego konta; `apply` tworzy świeże tożsamości i dane Tink, po weryfikacji
+zastępując wyłącznie wskazane `tink_user_id`. Baza musi działać z zastosowanym
+schematem, a cele muszą być aktywne i potwierdzone. Nakładka nie uruchamia
+migracji ani seedera SQL. Batch zatrzymuje się przy pierwszym błędzie; wznowienie
+korzysta z zamrożonych manifestów i zachowuje zakończone wpisy. Konfiguracja
+pozostaje w `tools/.env`, jak dla Connector. Blokada bazy jest wspólna z resetem.
+
 ## Łączny reset SQL i Connector
 
 [`reset_state.py`](../tools/scripts/reset_state.py) uruchamia istniejący seeder
@@ -687,23 +700,50 @@ notificationPageNumber, notificationPageSize i notificationId opisuje postman/RE
 ## Modele i migracje
 
 Zmiany wykonuj w modelach i konfiguracjach EF, uwzględniając kontekst modułu
-oraz wspólny `AppDbContext`. Z katalogu `backend/ZPI4M.Backend/src/`:
+oraz wspólny `AppDbContext`. Z katalogu głównego repozytorium:
 
 ```bash
-dotnet ef migrations add NazwaZmiany --project ZPI4M.Database --startup-project ZPI4M.Api --context AppDbContext --output-dir Migrations
+dotnet tool restore
+dotnet run --file tools/ef.cs -- migrations list
+dotnet run --file tools/ef.cs -- migrations has-pending-model-changes
+dotnet run --file tools/ef.cs -- migrations add NazwaZmiany
+dotnet run --file tools/ef.cs -- database update
 ```
 
-To polecenie tworzy pliki migracji i aktualizuje snapshot. Przejrzyj wygenerowane
-operacje, szczególnie usuwanie danych, zmiany typów i schematów. Dopiero dla
-właściwej lokalnej bazy zastosuj istniejące migracje:
+`list` pokazuje migracje i ich zastosowanie w skonfigurowanej bazie.
+`has-pending-model-changes` sprawdza zmiany modelu względem snapshotu,
+bez stosowania migracji. `add` tworzy migrację i aktualizuje snapshot;
+przejrzyj wygenerowane operacje. `database update` zmienia wskazaną bazę.
+Nowa baza wymaga SQL init → migracje → opcjonalny seed. Wrapper nie wykonuje
+init ani seeda automatycznie.
+
+Wrapper ustawia projekt `ZPI4M.Database`, startup `ZPI4M.Api` i `AppDbContext`.
+Uruchamia EF z katalogu API, aby host odnalazł lokalny `.env`. Nadal wymagane są
+poprawne opcje hosta (baza, JWT, storage); użyj lokalnej konfiguracji API lub
+zmiennych środowiskowych. Obecne `Env.Load()` nadpisuje jednak zmienne
+zdefiniowane również w `.env`. Aby jawnie wybrać inną bazę dla `migrations list`
+lub `database update`, przekaż opcję EF `--connection`. Względne ścieżki
+argumentów EF są liczone od API.
+Jawne `--project/-p`, `--startup-project/-s` i `--context/-c` zastępują domyślne.
+Wywołując z podkatalogu, dostosuj ścieżkę do pliku `tools/ef.cs`.
+
+`dotnet tool restore` przywraca dokładnie przypiętą wersję, bez nadpisania wersji.
+Jednorazowo można użyć innej wersji bez zmiany manifestu:
 
 ```bash
-dotnet ef database update --project ZPI4M.Database --startup-project ZPI4M.Api --context AppDbContext
+dotnet run --file tools/ef.cs -- --ef-version 10.0.5 migrations list
 ```
 
-Polecenie zmienia bazę. Przy uruchomieniu EF z katalogu `src` upewnij się, że
-`DB_LOCAL_CONNECTION_STRING` jest dostępne w środowisku procesu; nie zakładaj,
-że plik `.env` w podkatalogu API zostanie odnaleziony z dowolnego katalogu.
+Opcja korzysta z `dotnet tool exec`, które może pobrać narzędzie z NuGet.
+Wersja narzędzia nie zmienia wersji pakietów EF, SDK ani runtime aplikacji;
+powinna pozostać zgodna z EF Core projektu. Numer SDK nie musi być identyczny
+z wersją EF. Nie dodano `global.json`. Szczegóły i świadoma aktualizacja pinu:
+[instrukcja narzędzi](../tools/README.md#ef-core-migrations).
+
+Migracja `20261103203528_AddBankTransactionAssignments` tworzy rejestr przypisań
+Banking bez backfillu. Zastosuj ją przed `database/seed_local.sql`; seed resetuje
+i odtwarza przypisania syntetycznych wydatków i rozliczeń. Szczegóły zakresu są w
+[kontrakcie Banking](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#transaction-assignments--2026-11-03).
 
 Pierwsza migracja jest pusta: projekt zakłada strukturę utworzoną przez SQL
 inicjalizacyjny. Nie traktuj migracji jako samodzielnego sposobu zbudowania
@@ -1003,3 +1043,14 @@ tymczasową migrację, designer/snapshot, seed i testy. Samo usunięcie ostatnie
 migracji nie cofa zastosowanego schematu. Lokalna baza po starym łańcuchu wymaga
 kontrolowanego odtworzenia (SQL init → migracje → seed), bez kasowania kontenera
 lub wolumenu. Nie zmieniaj ręcznie pojedynczych wpisów historii EF.
+
+## Użytkownik Tink przy łączeniu banku — 2026-11-07
+
+Po `register` → `confirm-email` → `login` klient może rozpocząć połączenie przez
+`POST /api/banking/connection-attempts` z JWT User, bez body. Backend tworzy lub
+odzyskuje brakujące mapowanie Tink; sukces zwraca HTTP 201 z linkiem autoryzacji.
+Po 503 ponów rozpoczęcie połączenia w tej samej sesji: powstanie nowa próba,
+a zapisane mapowanie będzie użyte ponownie. Nie wykonuj ponownej rejestracji.
+Osobny endpoint `/api/banking/tink-user` usunięto. W kolekcji Banking po loginie
+10 następuje bezpośrednio rozpoczęcie połączenia 11.
+[Pełny kontrakt](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#tink-user-initialization-on-connection-start--2026-11-07).

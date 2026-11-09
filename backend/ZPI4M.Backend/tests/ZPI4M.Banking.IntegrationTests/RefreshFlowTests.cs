@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 using Xunit;
 using ZPI4M.Banking.Database;
 using ZPI4M.Banking.Models;
-using ZPI4M.Banking.Repositories;
+using ZPI4M.Banking.Repositories.BankRefreshRepository;
 using ZPI4M.Banking.Services.Refresh;
 using ZPI4M.Banking.Tink;
 using ZPI4M.Banking.Tink.Http;

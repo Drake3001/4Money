@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 using Npgsql;
 using Xunit;
 using ZPI4M.Banking.Database;
-using ZPI4M.Banking.Repositories;
+using ZPI4M.Banking.Repositories.BankingConnectionRepository;
 using ZPI4M.Banking.Services.Connections;
 using ZPI4M.Banking.Tink;
 using ZPI4M.Banking.Tink.Http;
@@ -97,6 +97,11 @@ public abstract class PostgresFixture : IAsyncLifetime
 
 	protected Session OpenSession() => new(ConnectionString, Tink, Clock);
 
+	protected sealed class BankingContextFactory(DbContextOptions<BankingDbContext> options) : IDbContextFactory<BankingDbContext>
+	{
+		public BankingDbContext CreateDbContext() => new(options);
+	}
+
 	protected sealed class Session : IDisposable
 	{
 		public BankingDbContext Database { get; }
@@ -106,7 +111,7 @@ public abstract class PostgresFixture : IAsyncLifetime
 		{
 			Database = new(new DbContextOptionsBuilder<BankingDbContext>().UseNpgsql(connectionString).Options);
 			_users = new(new DbContextOptionsBuilder<UserDbContext>().UseNpgsql(connectionString).Options);
-			var repository = new BankingConnectionRepository(Database, clock);
+			var repository = new BankingConnectionRepository(new BankingContextFactory(new DbContextOptionsBuilder<BankingDbContext>().UseNpgsql(connectionString).Options), clock);
 			Service = new(repository, repository, new UserBankingProfileService(_users), tink, clock,
 			 Options.Create(new BankingConnectionOptions()), NullLogger<BankingConnectionService>.Instance);
 		}

@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ZPI4M.Banking.DTOs;
-using ZPI4M.Banking.Repositories;
+using ZPI4M.Banking.Repositories.BankRefreshRepository;
 using ZPI4M.Banking.Services;
 using ZPI4M.Banking.Services.Refresh;
 using ZPI4M.Shared.CurrentUser;

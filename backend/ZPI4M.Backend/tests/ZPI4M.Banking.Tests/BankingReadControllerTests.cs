@@ -115,6 +115,29 @@ public sealed class BankingReadControllerTests
 	}
 
 	[Theory]
+	[InlineData(null, null)]
+	[InlineData(null, false)]
+	[InlineData(null, true)]
+	[InlineData(false, null)]
+	[InlineData(false, false)]
+	[InlineData(false, true)]
+	[InlineData(true, null)]
+	[InlineData(true, false)]
+	[InlineData(true, true)]
+	public async Task AssignmentFiltersBindIndependently(bool? settlement, bool? expense)
+	{
+		await using var host = await Host.StartAsync();
+		host.Authenticate(Id);
+		var parameters = new List<string>();
+		if (settlement.HasValue) parameters.Add($"settlementAssignment={settlement.Value}");
+		if (expense.HasValue) parameters.Add($"expenseAssignment={expense.Value}");
+		using var response = await host.Client.GetAsync("/api/banking/transactions?" + string.Join("&", parameters));
+		Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+		Assert.Equal(settlement, host.Service.TransactionQuery!.SettlementAssignment);
+		Assert.Equal(expense, host.Service.TransactionQuery.ExpenseAssignment);
+	}
+
+	[Theory]
 	[InlineData("accounts?pageNumber=0", "pageNumber")]
 	[InlineData("accounts?pageNumber=-1", "pageNumber")]
 	[InlineData("accounts?pageSize=101", "pageSize")]
@@ -125,6 +148,8 @@ public sealed class BankingReadControllerTests
 	[InlineData("accounts?sortBy=0", "sortBy")]
 	[InlineData("accounts?sortBy=unknown", "sortBy")]
 	[InlineData("accounts?isClosed=invalid", "isClosed")]
+	[InlineData("transactions?settlementAssignment=invalid", "settlementAssignment")]
+	[InlineData("transactions?expenseAssignment=1", "expenseAssignment")]
 	[InlineData("transactions?sortBy=0", "sortBy")]
 	[InlineData("transactions?pageSize=abc", "pageSize")]
 	[InlineData("transactions?pageNumber=0", "pageNumber")]

@@ -106,7 +106,7 @@ public abstract class PostgresFixture : IAsyncLifetime
 		await context.SaveChangesAsync();
 	}
 
-	protected async Task<TestHost> StartHostAsync()
+	protected async Task<TestHost> StartHostAsync(Action<IServiceCollection>? configureServices = null)
 	{
 		var builder = WebApplication.CreateBuilder();
 		builder.WebHost.UseTestServer();
@@ -135,6 +135,7 @@ public abstract class PostgresFixture : IAsyncLifetime
 		builder.Services.AddOptions<EmailChangeOptions>();
 		builder.Services.AddOptions<PasswordResetOptions>();
 		builder.Services.AddOptions<AccountDeactivationOptions>();
+		configureServices?.Invoke(builder.Services);
 		var app = builder.Build();
 		app.UseAuthentication();
 		app.UseAuthorization();

@@ -17,7 +17,7 @@
   "item": [
     {
       "name": "10 — Rozpoczęcie połączenia",
-      "description": "Logowanie 4Money, rozpoczęcie połączenia i kontrola PENDING. Runner zatrzymuje się po 12 przed ręcznym Tink Link.",
+      "description": "Logowanie 4Money, idempotentne przygotowanie użytkownika Tink, rozpoczęcie połączenia i kontrola PENDING. Runner zatrzymuje się po 12 przed ręcznym Tink Link.",
       "item": [
         {
           "name": "10 — Zaloguj użytkownika 4Money",
@@ -37,7 +37,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/users/login",
-            "description": "Wymaga baseUrl, userLogin i userPassword w wybranym środowisku oraz aktywnego konta z potwierdzonym e-mailem. Zapisuje tylko accessToken jako fourMoneyAccessToken. Nowy login zastępuje poprzednią sesję; stare tokeny są czyszczone przed wysłaniem. Po sukcesie Runner kontynuuje do 11; błąd zatrzymuje proces. Nie zapisuje refresh tokenu ani odpowiedzi jako przykładu.",
+            "description": "Wymaga baseUrl, userLogin i userPassword w wybranym środowisku oraz aktywnego konta z potwierdzonym e-mailem. Zapisuje tylko accessToken jako fourMoneyAccessToken. Nowy login zastępuje poprzednią sesję; stare tokeny są czyszczone przed wysłaniem. Po sukcesie Runner kontynuuje bezpośrednio do 11; błąd zatrzymuje proces. Nie zapisuje refresh tokenu ani odpowiedzi jako przykładu.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"login\": \"{{userLogin}}\",\n  \"password\": \"{{userPassword}}\"\n}",
@@ -7173,10 +7173,20 @@
                   "key": "status",
                   "value": "Booked",
                   "disabled": true
+                },
+                {
+                  "key": "settlementAssignment",
+                  "value": "false",
+                  "disabled": true
+                },
+                {
+                  "key": "expenseAssignment",
+                  "value": "false",
+                  "disabled": true
                 }
               ]
             },
-            "description": "Odczyt lokalny, właściciel z JWT; bez wywołań Tink i synchronizacji. Opcjonalne filtry są wyłączone; włącz je w zakładce Params. Pusta strona jest poprawna. Kwoty odpowiedzi są tekstem dziesiętnym."
+            "description": "Odczyt lokalny, właściciel z JWT; bez wywołań Tink i synchronizacji. Opcjonalne filtry są wyłączone; włącz je w zakładce Params. Pusta strona jest poprawna. Kwoty odpowiedzi są tekstem dziesiętnym. settlementAssignment i expenseAssignment są niezależnymi filtrami AND: brak = bez ograniczenia, true = wymagane przypisanie tego typu, false = wykluczenie tego typu. Włącz oba z false, aby pobrać wolne transakcje; oba true dają pustą listę."
           },
           "event": [
             {

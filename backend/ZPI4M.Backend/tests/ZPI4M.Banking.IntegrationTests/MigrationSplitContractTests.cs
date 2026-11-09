@@ -8,12 +8,12 @@ namespace ZPI4M.Banking.IntegrationTests;
 public sealed class MigrationSplitContractTests
 {
 	[Fact]
-	public void Grouping_target_keeps_baseline_expense_and_temporary_migration_is_last()
+	public void Grouping_target_keeps_baseline_expense_and_temporary_migration_only_changes_expense()
 	{
 		using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql("Host=localhost;Database=unused;Username=unused").Options);
 		var migrations = db.GetService<IMigrationsAssembly>();
 		var group = migrations.Migrations.Single(m => m.Key.EndsWith("_AddGroupingModel", StringComparison.Ordinal));
-		var temporary = migrations.Migrations.Last();
+		var temporary = migrations.Migrations.Single(m => m.Key.EndsWith("_AddTemporaryExpenseAggregationSupport", StringComparison.Ordinal));
 		Assert.EndsWith("_AddTemporaryExpenseAggregationSupport", temporary.Key);
 		var first = migrations.CreateMigration(group.Value, db.Database.ProviderName!);
 		var expense = first.TargetModel.FindEntityType("ZPI4M.Expense.Models.Expense")!;

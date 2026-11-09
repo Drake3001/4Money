@@ -9,6 +9,7 @@ namespace ZPI4M.Banking.ApiControllers;
 
 [ApiController]
 [AllowAnonymous]
+[TypeFilter(typeof(BankingDatabaseExceptionFilter))]
 [Route("api/banking/tink/callback")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class TinkCallbackController(IBankingCallbackService callbacks) : ControllerBase

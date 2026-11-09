@@ -8,6 +8,8 @@ public enum BankTransactionReadSortBy { Date, Amount, Status, CurrencyCode }
 public sealed class BankTransactionReadQuery : PagedQuery
 {
 	public Guid? BankAccountId { get; set; }
+	public bool? SettlementAssignment { get; set; }
+	public bool? ExpenseAssignment { get; set; }
 	public DateOnly? DateFrom { get; set; }
 	public DateOnly? DateTo { get; set; }
 	public decimal? MinAmount { get; set; }

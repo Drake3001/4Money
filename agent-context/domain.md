@@ -39,6 +39,7 @@ jawnie częścią MVP (2.10).
 | `BankAccount` | Rachunek bankowy przypisany użytkownikowi; Banking |
 | `BankConnectionAttempt` | Trwała próba połączenia z bankiem, skrót state, termin i wynik; Banking |
 | `BankConnection` | Lokalne połączenie z bankiem; stan połączenia odrębny od synchronizacji; Banking |
+| `BankTransactionAssignment` | Rejestr wykorzystania transakcji przez Expense albo GroupSettlement; Banking; szczegóły w sekcji poniżej |
 | `BankTransaction` | Transakcja zaimportowana z rachunku, odrębna od wydatku; Banking |
 | Limit / `GroupLimit`, `CategoryGroupLimit` | Ogólny limit grupy na okres oraz zachowany próg kategorii; Limits. |
 | `Notification` / `NotificationRecipient` | Treść powiadomienia z opcjonalnym FK grupy albo wydatku oraz odbiorcy z indywidualną datą odczytu; Notifications; migracja AddNotificationsAfterRebase |
@@ -126,8 +127,13 @@ udostępniają nowe DbSety; nowych repozytoriów CRUD, serwisów i endpointów n
   musi mieć tę samą walutę i właściwego właściciela (płatnik / nadawca).
 - Transakcja bankowa może być wykorzystana łącznie najwyżej raz jako źródło
   wydatku albo rozliczenia. Dwa osobne indeksy UNIQUE zapewniają wyłączność
-  jedynie wewnątrz każdej tabeli; wyłączność między tabelami wymaga przyszłej
-  koordynacji odpornej na współbieżność.
+  jedynie wewnątrz każdej tabeli. Od 2026-11-03 Banking ma wspólny rejestr
+  `BankTransactionAssignment` z PK na BankTransactionId i rodzajem konsumenta
+  Expense=1 / GroupSettlement=2. Zapewnia jedno przypisanie w rejestrze; atomowe
+  utrzymywanie go przez serwisy konsumentów pozostaje do implementacji.
+  Wewnętrzny serwis Banking obsługuje odczyt, idempotentne przypisanie i zwolnienie
+  zgodnego konsumenta; zapisy wymagają transakcji wywołującego.
+  Szczegóły schematu i filtrów są w [kontrakcie Banking](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#transaction-assignments--2026-11-03).
 - Zużycie zaproszenia wymaga atomowego sprawdzenia aktywności, wygaśnięcia
   i limitu użyć wraz z dodaniem członkostwa. CHECK nie realizuje przepływu zaproszeń.
 

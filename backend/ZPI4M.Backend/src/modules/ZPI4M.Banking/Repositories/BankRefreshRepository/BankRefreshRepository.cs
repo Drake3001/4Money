@@ -5,7 +5,7 @@ using ZPI4M.Banking.Models;
 using ZPI4M.Banking.Services.Refresh;
 using ZPI4M.Banking.Tink;
 
-namespace ZPI4M.Banking.Repositories;
+namespace ZPI4M.Banking.Repositories.BankRefreshRepository;
 
 public sealed class BankRefreshRepository(BankingDbContext database, TimeProvider clock, IOptions<BankRefreshOptions> options)
 {

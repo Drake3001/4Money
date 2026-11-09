@@ -4,9 +4,12 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using ZPI4M.Banking.ApiControllers;
 using ZPI4M.Banking.Database;
-using ZPI4M.Banking.Repositories;
 using ZPI4M.Banking.Repositories.BankAccountRepository;
+using ZPI4M.Banking.Repositories.BankingConnectionRepository;
+using ZPI4M.Banking.Repositories.BankRefreshRepository;
+using ZPI4M.Banking.Repositories.BankTransactionAssignmentRepository;
 using ZPI4M.Banking.Repositories.BankTransactionRepository;
+using ZPI4M.Banking.Services.Assignments;
 using ZPI4M.Banking.Services.Connections;
 using ZPI4M.Banking.Services.Reads;
 using ZPI4M.Banking.Services.Refresh;
@@ -117,10 +120,12 @@ builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
 builder.Services.AddScoped<IExpenseShareRepository, ExpenseShareRepository>();
 
 // Banking module
-builder.Services.AddDbContext<BankingDbContext>(options => options.UseNpgsql(dbConnectionString));
+builder.Services.AddDbContextFactory<BankingDbContext>(options => options.UseNpgsql(dbConnectionString), ServiceLifetime.Scoped);
 builder.Services.AddScoped<IBankAccountRepository, BankAccountRepository>();
 builder.Services.AddScoped<IBankTransactionRepository, BankTransactionRepository>();
 builder.Services.AddScoped<IBankingReadService, BankingReadService>();
+builder.Services.AddScoped<IBankTransactionAssignmentRepository, BankTransactionAssignmentRepository>();
+builder.Services.AddScoped<IBankTransactionAssignmentService, BankTransactionAssignmentService>();
 
 // Limits module
 builder.Services.AddDbContext<LimitsDbContext>(options => options.UseNpgsql(dbConnectionString));

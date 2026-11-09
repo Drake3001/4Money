@@ -1,8 +1,20 @@
-# komendy (z poziomu folderu src)
-1. stworzenie migracji:
-   `dotnet ef migrations add NAZWA --project ZPI4M.Database --startup-project ZPI4M.Api --context AppDbContext --output-dir Migrations`
-2. update bazy:
-   `dotnet ef database update --project ZPI4M.Database --startup-project ZPI4M.Api --context AppDbContext`
+# Migracje
+
+Aktualna procedura i wymagania: [praca w repo](../agent-context/development.md#modele-i-migracje).
+Skróty uruchamiaj z katalogu głównego repozytorium:
+
+```bash
+dotnet tool restore
+dotnet run --file tools/ef.cs -- migrations list
+dotnet run --file tools/ef.cs -- migrations has-pending-model-changes
+dotnet run --file tools/ef.cs -- migrations add NAZWA
+dotnet run --file tools/ef.cs -- database update
+```
+
+Nowa baza wymaga SQL init → istniejące migracje → opcjonalny seed.
+Nie twórz nowej migracji InitialMigration, nie czyść historycznych Up/Down
+ani historii EF w celu naprawy istniejącej bazy. Dalsze notatki o scaffoldingu
+są materiałem pomocniczym, a nie standardową procedurą tworzenia migracji.
 
 # lokalna baza danych
 1. Skopiujcie `containers/local/.env.example` do `containers/local/.env`, jeśli plik jeszcze
@@ -12,7 +24,7 @@
    2. `POSTGRES_PASSWORD`
 2. potem w folderze `containers/local`: `docker compose up -d postgres-db`
 3. pgadmin: servers -> register -> wypełniacie to (najlepiej zaznaczyć save password na przyszłość)
-4. potem zainstalujcie sobie (jeśli nie macie) EF globalnie, bo to się przyda do migracji: `dotnet tool install --global dotnet-ef`
+4. Z katalogu głównego odtwórzcie przypięte lokalne narzędzia: `dotnet tool restore`.
 
 # modele - ogólne info
 1. modele są wygenerowane komendami dotnet do orm
@@ -47,18 +59,6 @@
 	   }
       ```
 
-# migracje - CO KAŻDY ROBI LOKALNIE
-1. jak zrobicie połączenie z bazą to musicie zarejestrować pierwszą migrację
-2. z poziomu folderu `ZPI4M.Backend/src`, rejestrujecie stan bazy z ostatniej dostępnej migracji (initial będzie pusta - rejestrowanie połączenia z bazą):
-    `dotnet ef database update --project ZPI4M.Database --startup-project ZPI4M.Api --context AppDbContext`
-
-# migracje - ogólnie
-1. migracje trafiają do folderu `ZPI4M.Database/Migrations`, obok pliku `AppDbContext` (ten plik rejestruje wszystkie konfiguracje modeli)
-2. robimy zmiany w kodzie modeli C# (zawsze trzeba też spojrzeć do db context i tam coś dodać, najprostszy case z nową kolumną to po prostu dopisanie kolejnego `entity.Property().HasColumnName()` - i tu wpisujemy snake_case żeby zachować konwencję w bazie) i potem migrujemy, z poziomu `ZPI4M.Backend/src`:
-    `dotnet ef migrations add AddExpenseDescription --project ZPI4M.Database --startup-project ZPI4M.Api --context AppDbContext --output-dir Migrations`
-3. zatwierdzenie migracji:
-    `dotnet ef database update --project ZPI4M.Database --startup-project ZPI4M.Api --context AppDbContext`
-
 ## Klucz pliku paragonu
 
 Migracja `RenameReceiptS3LinkToStorageKeyAndMakeUnique` zmienia nazwę
@@ -72,11 +72,3 @@ Skrypty `database-init` tworzą schemat początkowy z kolumną `s3_link`.
 Po utworzeniu bazy należy zastosować migracje EF, aby uzyskać aktualny
 schemat. Nie zmieniamy tej nazwy w skryptach inicjalizujących ani
 w historycznych migracjach.
-
-## migracje - od zera jakby coś się zepsuło
-1. jak zrobicie połączenie z bazą to musicie zrobić pierwszą migrację
-2. z poziomu folderu `ZPI4M.Backend/src`:
-    `dotnet ef migrations add InitialMigration --project ZPI4M.Database --startup-project ZPI4M.Api --context AppDbContext --output-dir Migrations`
-3. wchodzicie do `InitialMigration.cs` i USUWACIE zawartości metod `Up()` i `Down()` - mają istnieć ale mieć psute w {}, bo baza już istnieje przecież
-4. z poziomu folderu `ZPI4M.Backend/src`, rejestrujecie pustą migrację initial w bazie (to jest stworzenie połączenie po prostu, w bazie nic się nie zmieni):
-    `dotnet ef database update --project ZPI4M.Database --startup-project ZPI4M.Api --context AppDbContext`

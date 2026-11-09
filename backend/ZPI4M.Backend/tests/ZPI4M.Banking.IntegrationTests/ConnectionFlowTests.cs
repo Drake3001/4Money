@@ -47,10 +47,13 @@ public sealed class ConnectionFlowTests : PostgresFixture
 		var stored = await session.Service.GetConnectionAttemptAsync(user, failed.AttemptId!.Value);
 		Assert.Equal(BankConnectionAttemptStatus.Failed, stored.Value!.Status);
 		Assert.Equal("TINK_UNAVAILABLE", stored.Value.FailureCode);
+		Tink.FailLink = false;
+		Assert.True((await session.Service.StartConnectionAsync(user)).IsSuccess);
+		Assert.Equal(1, Tink.CreateCalls); // The mapping survived link creation failure.
 		var denied = await session.Service.StartConnectionAsync(inactive);
 		Assert.Equal(BankingErrorCode.Forbidden, denied.Error);
 		Assert.Equal("USER_INACTIVE", (await session.Service.GetConnectionAttemptAsync(inactive, denied.AttemptId!.Value)).Value!.FailureCode);
-		Assert.Equal(2, await session.Database.ConnectionAttempts.CountAsync());
+		Assert.Equal(3, await session.Database.ConnectionAttempts.CountAsync());
 	}
 
 	[PostgresFact]

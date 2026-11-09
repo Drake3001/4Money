@@ -1,11 +1,12 @@
 -- Destructive local reset: run only after SQL init and all EF migrations, including
--- 20261102215328_AddTemporaryExpenseAggregationSupport (after AddGroupingModel).
+-- AddBankTransactionAssignments (after AddTemporaryExpenseAggregationSupport).
 -- Shared password for all seeded test accounts: TestPassword1!
 -- Storage keys are synthetic; this script does not upload images or call OCR/Tink.
 BEGIN;
 SET LOCAL timezone = 'UTC';
 
 TRUNCATE TABLE
+    banking.bank_transaction_assignment,
     grouping.group_settlements,
     grouping.group_invitation,
     limits.group_limit,
@@ -171,6 +172,11 @@ UPDATE grouping.group_user m SET
     total_settlements_sent = COALESCE((SELECT SUM(s.amount) FROM grouping.group_settlements s WHERE s.group_id = m.group_id AND s.from_user_id = m.user_id), 0),
     total_settlements_received = COALESCE((SELECT SUM(s.amount) FROM grouping.group_settlements s WHERE s.group_id = m.group_id AND s.to_user_id = m.user_id), 0);
 
+INSERT INTO banking.bank_transaction_assignment (bank_transaction_id, consumer_type, consumer_id)
+SELECT fk_bank_transaction_id, 1, _id FROM expense.expense WHERE fk_bank_transaction_id IS NOT NULL
+UNION ALL
+SELECT bank_transaction_id, 2, id FROM grouping.group_settlements WHERE bank_transaction_id IS NOT NULL;
+
 COMMIT;
 
 SELECT 'user.user' AS "table", COUNT(*) AS row_count FROM "user"."user"
@@ -190,6 +196,7 @@ UNION ALL SELECT 'banking.bank_connection', COUNT(*) FROM banking.bank_connectio
 UNION ALL SELECT 'banking.bank_connection_attempt', COUNT(*) FROM banking.bank_connection_attempt
 UNION ALL SELECT 'banking.bank_account', COUNT(*) FROM banking.bank_account
 UNION ALL SELECT 'banking.bank_transaction', COUNT(*) FROM banking.bank_transaction
+UNION ALL SELECT 'banking.bank_transaction_assignment', COUNT(*) FROM banking.bank_transaction_assignment
 UNION ALL SELECT 'receipt.receipt', COUNT(*) FROM receipt.receipt
 UNION ALL SELECT 'limits.category_group_limit', COUNT(*) FROM limits.category_group_limit
 UNION ALL SELECT 'notifications.notification', COUNT(*) FROM notifications.notification

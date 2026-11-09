@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "users": [
+    {
+      "fourMoneyUserId": "10000000-0000-0000-0000-000000000010",
+      "key": "postman-banking",
+      "preset": "basic-pln"
+    }
+  ]
+}

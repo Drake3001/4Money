@@ -63,6 +63,12 @@ public sealed class BankAccountReadRequest : BankingPageRequest
 
 public sealed class BankTransactionReadRequest : BankingPageRequest
 {
+	/// <summary>Null ignores settlement assignments; true requires one; false excludes them.</summary>
+	public bool? SettlementAssignment { get; set; }
+
+	/// <summary>Null ignores expense assignments; true requires one; false excludes them.</summary>
+	public bool? ExpenseAssignment { get; set; }
+
 	[NonEmptyGuid]
 	public Guid? BankAccountId { get; set; }
 
@@ -116,6 +122,8 @@ public sealed class BankTransactionReadRequest : BankingPageRequest
 	public BankTransactionReadQuery ToQuery() => new()
 	{
 		BankAccountId = BankAccountId,
+		SettlementAssignment = SettlementAssignment,
+		ExpenseAssignment = ExpenseAssignment,
 		DateFrom = DateFrom,
 		DateTo = DateTo,
 		MinAmount = MinAmount,

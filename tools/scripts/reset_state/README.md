@@ -12,6 +12,11 @@ tworzy świeże zasoby Tink i zapisuje ich ID do wskazanych użytkowników.
 Poprzednie zasoby Tink pozostają. Ingest nie tworzy zgód ani połączeń bankowych
 i nie importuje danych przez backend.
 
+Do odświeżenia samych profili i mapowań w istniejącej bazie służy
+[`tink_profiles`](../tink_profiles/README.md), z tym samym formatem JSON i bez
+uruchamiania seedera SQL. Obie nakładki współdzielą blokadę sesyjną bazy i nie
+wykonują batchy/resetów równocześnie.
+
 ## Uruchomienie
 
 Użyj środowiska uv opisanego w [instrukcji Connector](../tink_connector/README.md).

@@ -1,3 +1,59 @@
+# EF Core migrations
+
+The repository pins `dotnet-ef` 10.0.4 in [`dotnet-tools.json`](../dotnet-tools.json),
+matching EF Core Design. Restore local tools once after cloning or after a
+manifest update:
+
+```bash
+dotnet tool restore
+```
+
+The small C# wrapper requires .NET 10 SDK and needs no Python, separate project,
+or global tool installation. From the repository root:
+
+```bash
+dotnet run --file tools/ef.cs -- migrations list
+dotnet run --file tools/ef.cs -- migrations has-pending-model-changes
+dotnet run --file tools/ef.cs -- migrations add MigrationName
+dotnet run --file tools/ef.cs -- database update
+```
+
+The wrapper supplies `ZPI4M.Database`, startup `ZPI4M.Api` and `AppDbContext`.
+It runs EF in the API directory so the host can load its `.env`; exported
+configuration is inherited, but the host's current `Env.Load()` overwrites
+matching variables from `.env`. To select another database reliably for
+`migrations list` or `database update`, pass EF's explicit `--connection` option.
+Relative EF paths, including explicit project
+paths, are resolved from that directory. When calling from a subdirectory,
+adjust the path to `tools/ef.cs`. Checkout paths containing spaces are supported.
+Explicit `--project/-p`, `--startup-project/-s` and `--context/-c` override the
+defaults. Other arguments and exit codes pass through; arguments after `--`
+are forwarded to the startup application. No arguments or `--help` shows wrapper
+help; `migrations --help` shows EF help.
+
+`migrations list` checks which migrations the configured database has applied;
+`migrations has-pending-model-changes` compares the model to the snapshot and
+does not apply migrations. `database update` changes the configured database.
+Prepare SQL init before migrating a new database, then seed only if intended.
+See [development instructions](../agent-context/development.md#modele-i-migracje)
+for configuration and the existing migration chain.
+
+Tool restore uses the exact manifest version; it has no version override.
+To try another tool version without changing the manifest:
+
+```bash
+dotnet run --file tools/ef.cs -- --ef-version 10.0.5 migrations list
+```
+
+This uses `dotnet tool exec dotnet-ef@10.0.5 --yes`, downloading the explicitly
+selected tool without an interactive confirmation if necessary.
+Normal invocations still use the pinned version. To deliberately update the
+team's pin, use `dotnet tool update dotnet-ef --local --version VERSION` and
+review the manifest diff. Tool version, SDK version and application runtime
+are separate: changing the tool does not install an SDK/runtime or update EF
+packages. Keep the tool compatible with the application's EF Core version.
+There is no new `global.json`; SDK selection remains unchanged.
+
 # Architecture diagrams (ProjGraph)
 
 ProjGraph.Cli 1.2.0 is pinned as a repository-local .NET tool in
@@ -134,6 +190,19 @@ The Google Fire CLI accepts a run ID for `resume`/`verify` or an explicit
 keep manifests to locate created resources. API entitlement and a live Tink run
 are separate from the passing local tests. No update/delete or cleanup commands
 are provided.
+
+To refresh Tink identities from a JSON mapping while preserving existing database
+data, use [`tink_profiles.py`](scripts/tink_profiles.py). Its [guide](scripts/tink_profiles/README.md)
+covers `plan`, `apply`, and `resume`. Edit the default `users.json`, then run:
+
+```bash
+uv run --project tools --group pre-commit --group connector --locked \
+  --env-file tools/.env python tools/scripts/tink_profiles.py apply
+```
+
+The database must already be running with its schema applied. Each batch creates
+fresh synthetic Tink profiles and updates only the selected users' `tink_user_id`.
+Failed batches stop at the first error and resume from saved manifests.
 
 For a combined local reset, use
 [`reset_state.py`](scripts/reset_state.py): it runs `database/seed_local.sql`,

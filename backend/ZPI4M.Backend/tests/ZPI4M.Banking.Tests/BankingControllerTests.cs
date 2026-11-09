@@ -18,7 +18,7 @@ using ZPI4M.Shared.CurrentUser;
 
 namespace ZPI4M.Banking.Tests;
 
-public sealed class BankingControllerTests
+public sealed partial class BankingControllerTests
 {
 	[Theory]
 	[InlineData("POST", "/api/banking/connection-attempts")]
@@ -199,6 +199,7 @@ public sealed class BankingControllerTests
 			builder.Services.AddScoped<ICurrentUser, TestCurrentUser>();
 			var service = new FakeConnectionService();
 			builder.Services.AddSingleton<IBankingConnectionService>(service);
+			builder.Services.AddSingleton<IBankingCallbackService>(service);
 			var app = builder.Build();
 			app.UseAuthentication();
 			app.UseAuthorization();
@@ -235,13 +236,14 @@ public sealed class BankingControllerTests
 			? id : null;
 	}
 
-	private sealed class FakeConnectionService : IBankingConnectionService
+	private sealed class FakeConnectionService : IBankingConnectionService, IBankingCallbackService
 	{
 		public Guid OwnerId { get; } = Guid.NewGuid();
 		public Guid AttemptId { get; } = Guid.NewGuid();
 		public Guid ConnectionId { get; } = Guid.NewGuid();
 		public Guid LastUserId { get; private set; }
 		public int Calls { get; private set; }
+		public Exception? Failure { get; set; }
 		public BankingErrorCode? StartError { get; set; }
 		public BankConnectionAttemptStatus AttemptStatus { get; set; } = BankConnectionAttemptStatus.Pending;
 
@@ -250,6 +252,7 @@ public sealed class BankingControllerTests
 			token.ThrowIfCancellationRequested();
 			LastUserId = userId;
 			Calls++;
+			if (Failure is not null) throw Failure;
 		}
 
 		public Task<BankingResult<StartBankConnectionResult>> StartConnectionAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -290,6 +293,14 @@ public sealed class BankingControllerTests
 			 ? BankingResult<IReadOnlyList<BankConsentDetails>>.Failure(error)
 			 : BankingResult<IReadOnlyList<BankConsentDetails>>.Success(userId == OwnerId
 			  ? [new(ConnectionId, "UPDATED", null, null)] : []));
+		}
+
+		public Task<BankingResult<BankConnectionAttemptDetails>> CompleteAsync(BankingCallback callback, CancellationToken cancellationToken = default)
+		{
+			Record(OwnerId, cancellationToken);
+			return Task.FromResult(BankingResult<BankConnectionAttemptDetails>.Success(
+				new(AttemptId, BankConnectionAttemptStatus.Completed, ConnectionId, DateTimeOffset.UtcNow,
+					DateTimeOffset.UtcNow.AddMinutes(10), DateTimeOffset.UtcNow, null)));
 		}
 
 		private BankConnectionDetails Connection() => new(ConnectionId, "Demo Bank", BankConnectionStatus.Connected,

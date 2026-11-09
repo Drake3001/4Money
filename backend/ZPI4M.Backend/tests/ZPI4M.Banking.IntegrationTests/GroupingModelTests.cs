@@ -53,6 +53,10 @@ public sealed class GroupingModelTests : PostgresFixture
 		await SeedAsync();
 		await SeedAsync();
 		await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(migrations[approved - 1]));
+		// Newer migrations can be reverted before the Expense migration rejects historical rows.
+		var temporary = Array.FindIndex(migrations, m => m.EndsWith("_AddTemporaryExpenseAggregationSupport", StringComparison.Ordinal));
+		Assert.Equal(migrations[..(temporary + 1)], await db.Database.GetAppliedMigrationsAsync());
+		await migrator.MigrateAsync();
 		Assert.Equal(migrations, await db.Database.GetAppliedMigrationsAsync());
 	}
 

@@ -60,8 +60,8 @@ Reads include the user's entire local history: closed accounts, legacy rows
 without Tink identity and rows from previous Tink mappings. Account filters are
 name, currency, type and nullable `IsClosed` (null includes both states).
 Transaction filters are account ID, inclusive dates, inclusive signed amount
-bounds, currency, description and status. No status filter includes every stored
-status, including test/legacy Pending and Cancelled; consumers such as Expense
+bounds, currency, description, status and nullable assignment flags (described
+below). No status filter includes every stored status, including test/legacy Pending and Cancelled; consumers such as Expense
 can explicitly request `Booked`. Read amounts are not converted, rounded or
 treated as positive expense amounts.
 
@@ -85,9 +85,69 @@ unscoped repository detail methods remain available to existing code but are not
 used by this service. Ownership enforcement belongs to the service, not optional
 repository query filters.
 
-Expense owns creating expenses, linking their source transaction and deciding
-whether a transaction is already assigned. Banking reads have no Expense
-dependency or "unassigned transaction" filter.
+### Transaction assignments — 2026-11-03
+
+Banking owns `banking.bank_transaction_assignment`: `bank_transaction_id` is the
+primary key and a NoAction FK to the local transaction, `consumer_type` is a
+required integer (`Expense=1`, `GroupSettlement=2`, enforced by CHECK), and
+`consumer_id` is a required UUID. The polymorphic consumer ID has no FK to other
+modules. One transaction can have at most one assignment in this registry.
+`AddBankTransactionAssignments` creates an empty table without backfilling existing
+links. Apply it before running the local seed, which registers synthetic links.
+
+`settlementAssignment` and `expenseAssignment` are independent nullable boolean
+filters, combined with AND. Omission ignores that assignment type, true requires
+it and false excludes it. Both false return free transactions; both true return
+an empty page with 200 because a transaction cannot have both types. Without
+either flag, the list retains its existing behavior. Filtering uses SQL EXISTS /
+NOT EXISTS against the registry before counting and pagination, within the
+existing owner scope. Detail responses and list item fields are unchanged.
+
+#### Internal assignment service
+
+`IBankTransactionAssignmentService` / `BankTransactionAssignmentService` live in
+`Services/Assignments`; their repository lives in
+`Repositories/BankTransactionAssignmentRepository`. Both are scoped in host DI.
+`BankTransactionAssignmentDetails` is an immutable snapshot with transaction ID,
+consumer type and consumer ID. No EF entities cross the service contract.
+
+| Method | Result |
+| --- | --- |
+| `GetAsync(bankTransactionId)` | Snapshot or null when unassigned, including a missing transaction; no explicit transaction required |
+| `AssignAsync(bankTransactionId, consumerType, consumerId)` | `BankingResult<BankTransactionAssignmentDetails>`: assigns a free transaction or succeeds for an identical assignment; another consumer returns `Conflict`; a missing transaction returns `NotFound` |
+| `ReleaseAsync(bankTransactionId, consumerType, consumerId)` | `BankingResult<bool>`: true when an exact match is removed, false when already free; another consumer returns `Conflict`; a missing transaction returns `NotFound` |
+
+All methods support cancellation. Empty GUIDs and undefined consumer types throw
+`ArgumentException` subclasses before repository access. This is an internal
+contract for trusted services: user activity, ownership, currency and consumer
+existence must be validated by the calling business flow.
+
+Writes require an explicit transaction on the same scoped `BankingDbContext`;
+without it they throw `InvalidOperationException` before database access. The
+caller must begin/enlist the transaction, inspect results, and commit or roll back
+its whole operation. The service never starts, commits or rolls back a
+transaction. It does not call `SaveChangesAsync`, flush pending tracked changes,
+or clear the change tracker. Repository writes execute immediately in the
+caller's transaction; reads use `AsNoTracking`.
+
+Each mutation first locks the bank transaction row with `SELECT ... FOR UPDATE`
+until the caller ends its transaction. Insert uses parameterized `ON CONFLICT
+(bank_transaction_id) DO NOTHING`, then reads and compares the assignment;
+expected conflicts do not abort the transaction. Release checks the consumer and
+uses a conditional delete on all three fields. This serializes service writes
+for a given transaction, including repeated assignments and concurrent releases.
+Database failures (including deadlocks/serialization failures at stronger
+isolation levels) and cancellation propagate; the caller owns rollback and any
+retry of its entire unit of work. A free read does not reserve a transaction;
+an assignment result becomes durable only when the caller commits.
+
+There is no HTTP write API, overwrite/reassignment operation, or integration with
+Banking/Expense/Grouping workflows. Banking retains its separate connection;
+future coordinators must enlist its context in the business transaction before
+using the service. Those flows must maintain the registry atomically with their
+source record. Until then the filters reflect registry contents, not live joins
+to consumers. Banking has no dependency on Expense or Grouping. The registry
+alone does not enforce consistency with their existing source columns.
 
 ### HTTP account and transaction reads
 
@@ -103,7 +163,7 @@ List query parameters (optional):
 | Endpoint | Filters | Sorting |
 | --- | --- | --- |
 | `/accounts` | `name`, `currencyCode`, `type`, `isClosed` | `sortBy=name` (default), `currencyCode`, `isClosed`; `descending=false` by default |
-| `/transactions` | `bankAccountId`, `dateFrom`, `dateTo`, `minAmount`, `maxAmount`, `currencyCode`, `description`, `status` | `sortBy=date` (default), `amount`, `status`, `currencyCode`; `descending=true` by default |
+| `/transactions` | `bankAccountId`, `dateFrom`, `dateTo`, `minAmount`, `maxAmount`, `currencyCode`, `description`, `status`, `settlementAssignment`, `expenseAssignment` | `sortBy=date` (default), `amount`, `status`, `currencyCode`; `descending=true` by default |
 
 Both lists use `pageNumber=1`, `pageSize=20` (maximum 100). HTTP request DTOs
 inherit pagination fields and validation from `ZPI4M.Shared.Pagination.PagedQuery`;
@@ -131,6 +191,7 @@ end returns 200 with an empty `items` array and the actual total count.
 Examples:
 
 ```http
+GET /api/banking/transactions?settlementAssignment=false&expenseAssignment=false
 GET /api/banking/accounts?currencyCode=PLN&isClosed=false&pageSize=20
 GET /api/banking/transactions?bankAccountId=10000000-0000-0000-0000-000000000010&dateFrom=2026-01-01&dateTo=2026-01-31&minAmount=-200.00&maxAmount=0.00&status=Booked&sortBy=date&descending=true
 ```
@@ -160,6 +221,15 @@ the Banking Postman collection; see [Postman instructions](../../../../../notes/
 initialization of the existing `User.TinkUserId`. There is no duplicate mapping
 or dependency from User to Banking.
 
+Connection persistence uses `IDbContextFactory<BankingDbContext>` with a scoped
+factory registration. Each repository operation creates and disposes its own
+context, including reads that expire attempts. Writes commit independently of
+caller transactions and neither save nor detach unrelated changes in the scoped
+Banking context. Callback completion still locks the attempt and atomically
+commits its result and connection. Read results are untracked. The scoped context
+remains available for reads, refresh processing and caller-owned assignment
+transactions; their persistence contracts are unchanged.
+
 Each recognized user's start request saves a `BankConnectionAttempt` before
 calling Tink. Inactive users and integration failures leave failed attempts.
 An unknown user or unavailable database cannot produce a durable attempt.
@@ -180,6 +250,32 @@ This migration replaces this branch's `AddBankConnections` and `AddBankRefreshes
 Databases that already applied either old migration need recreation or a separately
 planned transition; see the development instructions above. Generating the migration
 does not apply it to a developer database.
+
+## Tink user initialization on connection start — 2026-11-07
+
+Registration, email confirmation and login do not call Tink. The client starts
+bank linking with authenticated `POST /api/banking/connection-attempts`, without
+an additional initialization request. The standalone `/api/banking/tink-user`
+endpoint has been removed; existing clients must use connection start instead.
+
+Connection start reuses an existing `TinkUserId` or creates/recovers and persists
+one through User's `EnsureTinkUserAsync` before generating the authorization link.
+The User boundary serializes initialization per user with a PostgreSQL advisory
+lock. The adapter uses a stable `external_user_id` to recover a remote identity
+after a lost response or local rollback. User does not depend on Banking.
+
+Provider errors, network failures, timeouts and invalid responses return safe
+503 `BANKING_TEMPORARILY_UNAVAILABLE` with `attemptId`. The attempt is marked
+`Failed` with `TINK_UNAVAILABLE`; failure persistence is best effort, and an
+unmodified Pending attempt expires on access. No invalid mapping is persisted.
+A mapping already saved before a link failure is retained. No bank connection
+is created until successful callback completion.
+
+After 503, retry connection start with the same session. Each request creates
+a new attempt and reuses or recovers the same Tink identity. Registration/login
+remain intact. Request cancellation propagates and attempts are marked failed
+best effort. Configuration gates, including `ContinuousAccessVerified`, remain
+unchanged; no schema migration is required.
 
 ## Identity and callback
 
@@ -213,6 +309,16 @@ registered Tink redirect URI to point at this backend endpoint. Do not log query
 strings or authorization URLs at application/proxy/observability boundaries.
 
 ## Errors and availability
+
+All connection controller actions explicitly set `Cache-Control: no-store`, as do
+the callback and existing account/transaction/refresh controllers. Authentication
+and routing failures produced before controller execution retain host behavior.
+Connection and callback database exceptions (`DbException` / `DbUpdateException`)
+map to safe 503 `application/problem+json` responses with code
+`BANKING_TEMPORARILY_UNAVAILABLE` and `attemptId: null` when no service result is
+available. Callback availability failures retain `Retry-After: 5` and
+`Referrer-Policy: no-referrer`. Cancellation and programming errors propagate;
+provider-returned failures keep their existing codes and known attempt IDs.
 
 Application errors return ProblemDetails with a stable `code`: 401
 `BANKING_UNAUTHENTICATED`, 403 `BANKING_FORBIDDEN`, 404 `BANKING_NOT_FOUND`,
@@ -254,6 +360,14 @@ and `ContinuousAccessVerified` gate. Neither user tokens nor results are cached
 or persisted. It does not update local `ConsentExpiresAt`, invoke a refresh or
 renew consent, and it is not part of callback completion. No schema change is
 needed. Existing local connection reads still operate independently of Tink.
+
+## Repository organization
+
+All Banking repositories use `Repositories/<Name>Repository/` with a matching
+namespace. `BankingConnectionRepository/` contains the shared implementation and
+both `IBankConnectionRepository` and `IBankConnectionAttemptRepository` interfaces.
+`BankRefreshRepository/` contains refresh persistence and its supporting types.
+Account, transaction and assignment repositories retain their existing folders.
 
 ## Tink integration structure
 

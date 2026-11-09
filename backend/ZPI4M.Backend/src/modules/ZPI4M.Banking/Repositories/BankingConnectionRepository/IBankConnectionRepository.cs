@@ -1,6 +1,6 @@
 using ZPI4M.Banking.Models;
 
-namespace ZPI4M.Banking.Repositories;
+namespace ZPI4M.Banking.Repositories.BankingConnectionRepository;
 
 public interface IBankConnectionRepository
 {

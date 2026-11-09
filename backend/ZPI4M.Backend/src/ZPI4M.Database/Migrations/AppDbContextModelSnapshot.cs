@@ -416,6 +416,29 @@ namespace ZPI4M.Database.Migrations
                     b.ToTable("bank_transaction", "banking");
                 });
 
+            modelBuilder.Entity("ZPI4M.Banking.Models.BankTransactionAssignment", b =>
+                {
+                    b.Property<Guid>("BankTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bank_transaction_id");
+
+                    b.Property<Guid>("ConsumerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("consumer_id");
+
+                    b.Property<int>("ConsumerType")
+                        .HasColumnType("integer")
+                        .HasColumnName("consumer_type");
+
+                    b.HasKey("BankTransactionId")
+                        .HasName("bank_transaction_assignment_pkey");
+
+                    b.ToTable("bank_transaction_assignment", "banking", t =>
+                        {
+                            t.HasCheckConstraint("c_bank_transaction_assignment_consumer_type", "consumer_type IN (1, 2)");
+                        });
+                });
+
             modelBuilder.Entity("ZPI4M.Expense.Models.Category", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1162,6 +1185,16 @@ namespace ZPI4M.Database.Migrations
                         .HasConstraintName("c_bank_transaction_fk_bank_account_id");
 
                     b.Navigation("FkBankAccount");
+                });
+
+            modelBuilder.Entity("ZPI4M.Banking.Models.BankTransactionAssignment", b =>
+                {
+                    b.HasOne("ZPI4M.Banking.Models.BankTransaction", null)
+                        .WithOne()
+                        .HasForeignKey("ZPI4M.Banking.Models.BankTransactionAssignment", "BankTransactionId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("c_bank_transaction_assignment_bank_transaction_id");
                 });
 
             modelBuilder.Entity("ZPI4M.Expense.Models.Expense", b =>

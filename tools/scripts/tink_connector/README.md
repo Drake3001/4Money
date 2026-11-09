@@ -8,6 +8,10 @@ Nie wymaga uruchomionego backendu ani auth 4Money.
 Zakres obejmuje `plan`, `seed`, `resume`, `verify` oraz `link-db`; aktualizacja i usuwanie
 zasobów pozostają poza zakresem. Ingest nie testuje Tink Link, SCA ani zgody bankowej.
 
+Do odświeżenia profili według mapowania JSON w istniejącej bazie użyj
+[`tink_profiles`](../tink_profiles/README.md). Tworzy świeże tożsamości Tink i dane,
+aktualizuje wyłącznie wskazane mapowania i nie resetuje bazy.
+
 Do jednego uruchomienia SQL seedera, utworzenia świeżych danych Tink i zapisania
 powiązań użyj [`reset_state`](../reset_state/README.md). Mapowanie JSON domyślnie
 obejmuje tylko `postman.banking`; manifest zbiorczy umożliwia wznowienie bez

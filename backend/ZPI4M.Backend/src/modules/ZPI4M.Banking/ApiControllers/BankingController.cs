@@ -12,6 +12,8 @@ namespace ZPI4M.Banking.ApiControllers;
 [ApiController]
 [Authorize]
 [Route("api/banking")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+[TypeFilter(typeof(BankingDatabaseExceptionFilter))]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -23,7 +25,6 @@ public sealed class BankingController(
 {
 	[HttpPost("connection-attempts")]
 	[ProducesResponseType(typeof(StartBankConnectionResponse), StatusCodes.Status201Created)]
-	[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 	public async Task<ActionResult<StartBankConnectionResponse>> StartConnectionAsync(
 		CancellationToken cancellationToken)
 	{
@@ -88,7 +89,6 @@ public sealed class BankingController(
 
 	[HttpGet("consents")]
 	[ProducesResponseType(typeof(IReadOnlyList<BankConsentResponse>), StatusCodes.Status200OK)]
-	[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 	public async Task<ActionResult<IReadOnlyList<BankConsentResponse>>> GetConsentsAsync(CancellationToken cancellationToken)
 	{
 		if (!TryGetUserId(out var userId))

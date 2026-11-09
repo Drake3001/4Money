@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using ZPI4M.Banking.ApiControllers;
 using ZPI4M.Banking.Database;
-using ZPI4M.Banking.Repositories;
+using ZPI4M.Banking.Repositories.BankRefreshRepository;
 using ZPI4M.Banking.Services;
 using ZPI4M.Banking.Services.Refresh;
 using ZPI4M.Banking.Tink;

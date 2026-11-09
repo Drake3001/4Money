@@ -10,6 +10,8 @@ public partial class BankingDbContext : DbContext
 	{
 	}
 
+	public DbSet<BankTransactionAssignment> BankTransactionAssignments => Set<BankTransactionAssignment>();
+
 	public DbSet<BankRefresh> Refreshes => Set<BankRefresh>();
 
 	public DbSet<BankRefreshAccount> RefreshAccounts => Set<BankRefreshAccount>();

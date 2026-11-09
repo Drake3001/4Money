@@ -7,6 +7,8 @@ public enum BankTransactionSortBy { Date, Amount, Status, CurrencyCode }
 public class BankTransactionQuery : PagedQuery
 {
 	public Guid? BankAccountId { get; set; }
+	public bool? SettlementAssignment { get; set; }
+	public bool? ExpenseAssignment { get; set; }
 	public Guid? UserId { get; set; }
 	public string? Status { get; set; }
 	public string? Description { get; set; }

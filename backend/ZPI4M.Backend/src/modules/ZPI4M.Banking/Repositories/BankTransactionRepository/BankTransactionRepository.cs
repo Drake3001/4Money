@@ -68,6 +68,12 @@ public class BankTransactionRepository : IBankTransactionRepository
 			itemsQuery = itemsQuery.Where(e => e.FkBankAccountId == query.BankAccountId.Value);
 		if (query.UserId.HasValue)
 			itemsQuery = itemsQuery.Where(e => e.FkBankAccount.FkUserId == query.UserId.Value);
+		if (query.SettlementAssignment.HasValue)
+			itemsQuery = itemsQuery.Where(e => _context.BankTransactionAssignments.Any(a =>
+				a.BankTransactionId == e.Id && a.ConsumerType == BankTransactionConsumerType.GroupSettlement) == query.SettlementAssignment.Value);
+		if (query.ExpenseAssignment.HasValue)
+			itemsQuery = itemsQuery.Where(e => _context.BankTransactionAssignments.Any(a =>
+				a.BankTransactionId == e.Id && a.ConsumerType == BankTransactionConsumerType.Expense) == query.ExpenseAssignment.Value);
 		if (!string.IsNullOrWhiteSpace(query.Status))
 		{
 			var status = query.Status.Trim();

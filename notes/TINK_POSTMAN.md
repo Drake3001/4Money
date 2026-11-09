@@ -74,7 +74,10 @@ e-mailem oraz aplikacji Tink. Konto z lokalnego seedera nie wymaga rejestracji/S
 1. Wybierz środowisko 4Money i ustaw `baseUrl`, `userLogin` i `userPassword`.
 2. Uruchom folder **10 — Rozpoczęcie połączenia**. Żądanie 10 loguje użytkownika
    (200), zapisuje wyłącznie `accessToken` jako `fourMoneyAccessToken` i przechodzi
-   do żądania 11. POST rozpoczynający połączenie musi zwrócić 201.
+   bezpośrednio do żądania 11 rozpoczynającego połączenie (HTTP 201).
+   Backend sam tworzy lub odzyskuje brakującego użytkownika Tink. Po 503 ponów
+   żądanie 11 w tej samej sesji; nie rejestruj konta ponownie. Każde ponowienie
+   tworzy nową próbę, ale wykorzystuje istniejące lub odzyskane mapowanie Tink.
    Skrypt zapisze `attemptId`, `attemptExpiresAt`, `authorizationUrl` i
    `callbackState`, po wcześniejszym usunięciu danych starej próby.
 3. Następne żądanie sprawdza stan `PENDING`. Runner zatrzymuje się po nim.

@@ -91,6 +91,28 @@ public sealed class BankingReadServiceTests
 		Assert.Equal((dependencies.UserId, query.BankAccountId.Value), dependencies.Accounts.DetailRequest);
 	}
 
+	[Theory]
+	[InlineData(null, null)]
+	[InlineData(null, false)]
+	[InlineData(null, true)]
+	[InlineData(false, null)]
+	[InlineData(false, false)]
+	[InlineData(false, true)]
+	[InlineData(true, null)]
+	[InlineData(true, false)]
+	[InlineData(true, true)]
+	public async Task AssignmentFiltersArePassedToRepository(bool? settlement, bool? expense)
+	{
+		var dependencies = new Dependencies();
+		await dependencies.Service.GetTransactionsAsync(dependencies.UserId, new()
+		{
+			SettlementAssignment = settlement,
+			ExpenseAssignment = expense
+		});
+		Assert.Equal(settlement, dependencies.Transactions.Query!.SettlementAssignment);
+		Assert.Equal(expense, dependencies.Transactions.Query.ExpenseAssignment);
+	}
+
 	[Fact]
 	public async Task DetailsUseScopedRepositoryMethodsAndMissingResourcesReturnNotFound()
 	{
