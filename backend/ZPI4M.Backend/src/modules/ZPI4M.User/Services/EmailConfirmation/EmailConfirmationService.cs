@@ -77,7 +77,7 @@ public sealed class EmailConfirmationService : IEmailConfirmationService
 	{
 		ArgumentNullException.ThrowIfNull(request);
 
-		var user = await _users.GetByEmailAsync(request.Email, cancellationToken);
+		var user = await _users.GetActiveByEmailAsync(request.Email, cancellationToken);
 		if (user is null || !user.IsActive || user.IsEmailConfirmed)
 		{
 			return ResendEmailConfirmationResult.Accepted;

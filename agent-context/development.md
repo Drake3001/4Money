@@ -83,7 +83,8 @@ Tink wpisuj wyłącznie lokalnie jako `Tink__ClientSecret`; nie umieszczaj ich
 w `appsettings.json` ani szablonach. Żądania Banking w Postmanie potrzebują
 JWT User, nie sekretu aplikacji Tink. Integracja Tink pozostaje wyłączona przez
 `Tink__ContinuousAccessVerified=false` na etapie przygotowania bazy.
-Od 2026-10-29 szablon API zawiera tylko poświadczenia. Domyślne adresy OCR
+Szablon API zawiera poświadczenia i klucz dowodu OCR, a od zmian User także
+opcjonalną konfigurację Google oraz prefiksów storage. Domyślne adresy OCR
 i storage, bucket, region, timeouty, callback Tink oraz niesekretne ustawienia
 SMTP są w `appsettings.json`. SMTP ma domyślny host i tryb połączenia;
 adres nadawcy i poświadczenia uzupełnij lokalnie oraz dopasuj serwer przed wysyłką.
@@ -152,15 +153,25 @@ Kontrolery zwracają błędy biznesowe przez `Problem(statusCode: ..., title: ..
 Odpowiedź zawiera standardowe pola, np. `type`, `title`, `status` i `traceId`;
 `detail` i `instance` mogą wystąpić, jeśli zostały ustawione.
 Automatyczna walidacja DTO zwraca standardowy `ValidationProblemDetails`.
+Google i blokada zmiany e-maila konta Google dodają pole `code`; szczegóły
+opisuje [kontrakt Google](#rejestracja-i-logowanie-google).
 Puste błędy HTTP (np. 404, 405 i 429) i nieobsłużone wyjątki korzystają
 z domyślnej obsługi `ProblemDetails`, bez dostosowywania pól.
 Rejestracja zwraca 201 z `RegisterUserResponse`: `id`, `login`, `name`, `surname`,
 `email`, `birthDate`, `isEmailConfirmed` i `createdAt`. Odpowiedź nie zawiera
 hasła, skrótu hasła ani tokenów. Sukcesy 202 i 204 nie zawierają body.
+Zapis nowego konta tworzy też zwykłą grupę „Wydatki osobiste” w PLN z jednym
+członkiem będącym administratorem. Robi to trigger PostgreSQL w transakcji
+rejestracji, przed potwierdzeniem e-maila. Kontrakt odpowiedzi nie zawiera grupy;
+po potwierdzeniu i logowaniu jest dostępna przez zwykłe API Grouping.
+Błąd zapisu grupy lub członkostwa wycofuje rejestrację. Awaria późniejszej
+wysyłki SMTP pozostawia konto i grupę, tak jak dotychczas pozostawiała konto.
 
 1. Wywołaj `POST /api/users/register` z polami `login`, `name`, `surname`,
    `email`, `password`, `birthDate` (data w formacie `YYYY-MM-DD`).
-   Sukces zwraca 201, błędne dane 400, zajęty login lub e-mail 409.
+   Login ma 3–100 znaków i nie może zawierać `@` (również przy edycji profilu).
+   Sukces zwraca 201, błędne dane 400, zajęty login lub e-mail aktywnego konta 409.
+   E-mail konta nieaktywnego jest dostępny; jego login pozostaje zajęty.
 2. Odczytaj token z wiadomości i przekaż go w JSON-ie
    `{"token":"TOKEN_Z_WIADOMOSCI"}` do `POST /api/users/confirm-email`.
    Sukces zwraca 204 i ustawia `IsEmailConfirmed = true`. Błędny, wygasły,
@@ -218,10 +229,17 @@ UserAuthentication__RefreshTokenLifetimeDays=7
 ```
 
 - `POST /api/users/login`: JSON `{"login":"LOGIN","password":"HASLO"}`.
-  Login jest przycinany i zamieniany na małe litery tak jak przy rejestracji.
-  Wymagane aktywne konto z potwierdzonym e-mailem. Nieznany login, błędne hasło
-  i niepotwierdzone konto zwracają jednakowe 401. Dezaktywowane konto po podaniu
-  poprawnego hasła zwraca 403 z tytułem `Account is deactivated.`; błędne hasło
+  Pole `login` przyjmuje login lub aktualny e-mail (3–254 znaki), np.
+  `{"login":"anna@example.test","password":"HASLO"}`. Wartość jest przycinana
+  i zamieniana na małe litery tak jak przy rejestracji. Wartość zawierająca `@`
+  jest wyszukiwana wyłącznie po e-mailu, a pozostałe wartości wyłącznie po loginie.
+  Po zablokowaniu rekordu serwis
+  ponownie sprawdza zgodność identyfikatora z aktualnym loginem lub e-mailem.
+  Wymagane aktywne konto z potwierdzonym e-mailem. Nieznany login/e-mail, błędne hasło
+  i niepotwierdzone konto zwracają jednakowe 401. E-mail jest wyszukiwany tylko
+  wśród aktywnych kont; adres występujący wyłącznie na nieaktywnych kontach daje 401.
+  Dezaktywowane konto po podaniu loginu i poprawnego hasła zwraca 403
+  z tytułem `Account is deactivated.`; błędne hasło
   nadal daje ogólne 401. Sukces aktualizuje LastLoginTime
   i w razie potrzeby odświeża hash hasła przez IPasswordHasher.
 - `POST /api/users/refresh`: JSON `{"refreshToken":"TOKEN"}`. Każde udane
@@ -258,7 +276,7 @@ z limitem 5/min/IP.
 Wywołania można wykonywać ręcznie w Postmanie.
 
 Kolekcja [4Money.User](../postman/collections/4Money.User.postman_collection.json) zawiera
-14 żądań obejmujących obecne API User. Korzysta ze wspólnego środowiska
+21 żądań obejmujących obecne API User, w tym operacje Google i zdjęcia profilu. Korzysta ze wspólnego środowiska
 `postman/environments/4Money.Local.example.postman_environment.json`.
 Login zapisuje tokeny, a tokeny z maili wklejamy ręcznie. Każde żądanie
 zatrzymuje Runner; nie jest to automatyczny test całego przepływu.
@@ -282,6 +300,108 @@ Dezaktywacja wymaga migracji opisanej w swojej sekcji.
 Zmiana hasła po podaniu aktualnego hasła pozostaje do implementacji.
 Odczyt i edycję profilu, zmianę e-maila, reset hasła i dezaktywację opisano poniżej.
 
+## Rejestracja i logowanie Google
+
+Backend przyjmuje ID token Google Identity Services, a następnie wydaje własne
+JWT i refresh tokeny. Nie przyjmuje access tokenu Google ani kodu OAuth.
+Frontend z przyciskiem Google i formularzem danych nie jest jeszcze podłączony.
+Google nie zastępuje lokalnej obsługi sesji, haseł i poczty.
+
+Integracja jest domyślnie wyłączona. W `containers/local/.env` dla Compose lub
+`src/ZPI4M.Api/.env` przy uruchamianiu bez Dockera ustaw:
+
+```dotenv
+GOOGLEAUTHENTICATION__ENABLED=true
+GOOGLEAUTHENTICATION__CLIENTID=REPLACE_WITH_WEB_CLIENT_ID.apps.googleusercontent.com
+```
+
+Client ID jest publicznym identyfikatorem klienta OAuth typu Web application,
+nie client secret. Frontend musi użyć tego samego ID. W Google Cloud ustaw
+dozwolone JavaScript origins odpowiadające faktycznym adresom frontendu
+(schemat, host, port; bez ścieżki). Dla lokalnego i wdrożonego środowiska można
+używać osobnych klientów. Ten przepływ nie wymaga client secret ani callbacku API.
+Walidacja opcji blokuje start przy włączonej integracji bez poprawnego ClientId.
+
+1. `POST /api/users/google/challenge` bez body zwraca 200:
+
+   ```json
+   {
+     "clientId": "REPLACE_WITH_WEB_CLIENT_ID.apps.googleusercontent.com",
+     "nonce": "SERVER_GENERATED_NONCE",
+     "expiresAt": "2026-11-10T12:05:00Z"
+   }
+   ```
+
+   Jednocześnie ustawia cookie `4m_google_challenge`: HttpOnly, SameSite=Strict,
+   Path=/api/users/google i Secure przy HTTPS. Cookie nie trafia do JSON-a.
+   Frontend przekazuje nonce do Google Identity Services i wysyła cookie
+   automatycznie przy kolejnych żądaniach do API. Przy różnych originach fetch
+   wymaga `credentials: 'include'` i jawnej konfiguracji CORS dopuszczającej
+   właściwy origin oraz credentials. Obecny host nie konfiguruje CORS; integracja
+   frontendu musi to zapewnić albo użyć proxy pod wspólnym originem.
+   SameSite=Strict wymaga wspólnego site; mieszanie HTTP i HTTPS może go naruszyć.
+   Za reverse proxy trzeba poprawnie obsłużyć zaufane forwarded headers, aby API
+   rozpoznawało HTTPS. Nie przesyłaj browser tokenu jako pola JSON.
+
+2. `POST /api/users/google/login` przyjmuje `{ "idToken": "GOOGLE_ID_TOKEN" }`.
+   Token musi mieć podpis RS256 z klucza Google, właściwego wystawcę, audience
+   równe ClientId, ważny termin, sub, poprawny e-mail i zgodne nonce. Metadane
+   oraz klucze są pobierane przez HTTPS i buforowane przez IdentityModel;
+   nieznany klucz zleca odświeżenie na kolejną próbę.
+   Sukces 200 ma ten sam `AuthenticationResponse` co login hasłem.
+   Brak konta dla sub daje 409 z `code=google_registration_required`; challenge
+   pozostaje dostępny do rejestracji z tym samym ID tokenem przed wygaśnięciem.
+
+3. `POST /api/users/google/register` przyjmuje:
+
+   ```json
+   {
+     "idToken": "GOOGLE_ID_TOKEN",
+     "login": "google.user",
+     "name": "Anna",
+     "surname": "Testowa",
+     "birthDate": "2000-01-01"
+   }
+   ```
+
+   E-mail i GoogleSubject pochodzą wyłącznie ze zweryfikowanego tokenu. Pozostałe
+   dane mają walidację jak lokalna rejestracja; login jest wymagany, bez `@`.
+   Odpowiedź 201 zawiera `user` (`RegisterUserResponse`), `authentication`
+   (`AuthenticationResponse` albo null) i `requiresEmailConfirmation`.
+   `email_verified=true` oraz adres @gmail.com albo niepuste hd Google Workspace
+   pozwalają od razu potwierdzić adres i utworzyć sesję. Inne adresy wymagają
+   naszego SMTP: authentication=null, requiresEmailConfirmation=true; użyj
+   confirm-email/resend-confirmation, a następnie nowego logowania Google.
+   Awaria SMTP daje 503 z `code=email_delivery_failed`, ale konto i token już
+   istnieją. Konto bez hasła nie może się zalogować lokalnie przed ustawieniem
+   pierwszego hasła przez forgot-password/reset-password.
+
+Konto jest odnajdywane wyłącznie po GoogleSubject, również gdy adres w Google
+się zmieni. Zapisany e-mail nie jest automatycznie nadpisywany. Nie ma łączenia
+istniejącego konta lokalnego po zgodnym adresie ani odłączania Google.
+Zajęty login/aktywny e-mail lub już zarejestrowany sub daje 409 z kodem
+`login_or_email_in_use` lub `google_account_already_exists`. Nieaktywne konto
+daje 403 (`account_inactive`); niepotwierdzony e-mail przy loginie daje 403
+(`email_confirmation_required`). Błędny token, brak cookie, użyty lub wygasły
+challenge daje 401 (`invalid_google_credentials`). Wyłączona integracja lub
+niedostępne metadane Google zwracają 503. Walidacja DTO zwraca 400.
+
+Wszystkie trzy endpointy mają Cache-Control: no-store. Challenge i login dzielą
+limit user-login, rejestracja używa user-email; przekroczenie daje 429.
+Challenge jest jednorazowo zużywany przed zapisem konta/sesji. Po błędzie zapisu
+lub konflikcie wykrytym dopiero przez bazę trzeba pobrać nowy challenge i token.
+Przy skutecznym logowaniu/rejestracji cookie jest usuwane. Domyślne opcje:
+ChallengeLifetimeMinutes=5, MaxPendingChallenges=10000, HttpTimeoutSeconds=10.
+Magazyn challenge jest ograniczony i lokalny dla procesu: restart unieważnia
+próby, wiele instancji wymaga sticky sessions lub przyszłego wspólnego magazynu.
+
+`IUserSessionService` tworzy wspólną sesję dla logowania Google i hasłem.
+Wywołujący blokuje rekord konta i zatwierdza transakcję; nowe logowanie usuwa
+poprzednią sesję. Rejestracja Google zapisuje konto, grupę startową i sesję
+atomowo. SMTP działa po commit. Model i warunki cofania migracji opisuje
+[domena](domain.md#konto-i-tokeny-użytkownika), a ręczną pracę z tokenem i cookie
+[Postman](../postman/README.md#google).
+
 ## Odczyt i edycja własnego profilu
 
 `UserProfileController` udostępnia `GET /api/users/profile` i `PUT /api/users/profile`.
@@ -290,7 +410,8 @@ ID użytkownika pochodzi wyłącznie z claimu `sub`; klient nie wskazuje konta d
 Brak ważnej sesji albo niedostępne konto zwracają 401.
 
 GET zwraca 200 z `id`, `login`, `name`, `surname`, `email`, `phone`, `birthDate`,
-`icon`, `isEmailConfirmed`, `createdAt` i `lastLoginTime`. Odpowiedź nie zawiera
+`icon`, `isEmailConfirmed`, `createdAt`, `lastLoginTime`, `hasPassword`, `isGoogleLinked`
+i `iconStorageKey`. Odpowiedź nie zawiera
 hasha hasła, tokenów ani identyfikatora integracji bankowej. Odpowiedzi profilu
 mają Cache-Control: no-store.
 
@@ -307,12 +428,15 @@ PUT przyjmuje kompletny zestaw edytowalnych danych profilu:
 }
 ```
 
-Login (3–100 znaków) jest przycinany i zamieniany na małe litery; imię i nazwisko
+Login (3–100 znaków, bez `@`) jest przycinany i zamieniany na małe litery; imię i nazwisko
 są wymagane, przycinane i mają maksymalnie 100 znaków, zgodnie z rejestracją.
 Data urodzenia jest wymagana i nie może być domyślną datą 0001-01-01 ani datą
 przyszłą (według daty UTC). Telefon jest opcjonalny, walidowany przez `[Phone]`,
-do 30 znaków. Ikona to opcjonalny tekst do 2048 znaków; endpoint nie obsługuje
-uploadu obrazu. Pominięcie, null lub pusty tekst telefonu/ikony czyści dane pole.
+do 30 znaków. Pominięcie, null lub pusty tekst telefonu czyści telefon.
+`icon` to opcjonalny klucz presetu do 2048 znaków, zweryfikowany w storage.
+Pominięcie, null lub pusty tekst ikony zachowuje obecne zdjęcie; do usunięcia
+służy jawne `removeIcon=true`. Jest to zmiana wcześniejszego zachowania User,
+zgodna z aktualizacją ikon grup. Upload opisano poniżej.
 Niepoprawne dane zwracają 400 z ValidationProblemDetails. E-mail, hasło, flagi
 konta i dane integracyjne nie należą do kontraktu edycji i nie są aktualizowane.
 
@@ -322,14 +446,81 @@ uzupełnione obsługą naruszenia indeksu w bazie przy równoległych żądaniac
 Serwis blokuje rekord konta przez GetByIdForUpdateAsync, a repozytorium
 UpdateProfileAsync wykonuje natychmiastowy UPDATE wyłącznie pól profilu,
 w transakcji zarządzanej przez serwis. Zmiana loginu zachowuje aktualną sesję;
-przy następnym logowaniu należy podać nowy login. Migracja nie jest wymagana.
+przy następnym logowaniu należy podać nowy login. Zdjęcia wymagają migracji
+`20261109191600_UserImprovements`.
 
 Ręczna weryfikacja w Postmanie: po loginie pobierz profil (200), wyślij PUT
 i ponownie GET (200 z nowymi danymi). Sprawdź ten sam login (200), login innego
 konta (409), brak imienia/datę przyszłą/błędny telefon (400) oraz brak tokenu
 lub token po logout (401).
 
+## Zdjęcia profilu i prefiksy storage
+
+`GET /api/users/profile/icon-presets` wymaga Bearer i zwraca tablicę
+`{ key, url, expiresAt }`. Lista pochodzi z S3, z rozszerzeniami PNG/JPG/JPEG/WebP,
+sortowana po kluczu; pusta lista daje 200 z `[]`. Presety muszą być wcześniej
+umieszczone w skonfigurowanym bucketcie; aplikacja i seed ich nie uploadują.
+
+`GET /api/users/profile/icon` zwraca `{ url, expiresAt }` dla aktualnego zdjęcia.
+Brak wyboru lub nieistniejący preset daje 404. URL własnego pliku jest podpisywany
+bez zapytania HEAD; nie potwierdza to jego istnienia w S3. Brak sesji/dostępnego
+konta daje 401, awaria storage 503. URL-e są czasowe (domyślnie 15 minut), a oba
+endpointy i odpowiedzi profilu mają Cache-Control: no-store.
+
+`PUT /api/users/profile` nadal przyjmuje cały zestaw danych profilu. Wybór zdjęcia:
+
+| Instrukcja | JSON | multipart/form-data |
+| --- | --- | --- |
+| Zachowaj zdjęcie | pomiń icon i removeIcon | pomiń pola zdjęcia |
+| Wybierz preset | icon = key z listy presetów | pole tekstowe icon = key |
+| Wgraj własne | niedostępne | plik iconFile |
+| Usuń wybór | removeIcon = true | pole tekstowe removeIcon = true |
+
+Jednoczesny plik, preset lub usunięcie daje 400. Klient nie może ustawiać
+iconStorageKey, IconContent ani IconContentType przez JSON. W multipart pola
+login/name/surname/birthDate pozostają wymagane, phone jest opcjonalne.
+Nie ustawiaj ręcznie Content-Type multipart bez boundary — klient HTTP generuje
+ten nagłówek. Całe żądanie ma limit 6 MiB, sam plik 5 MiB. Pusty plik daje 400,
+przekroczenie limitu 413, niezgodny MIME/sygnatura albo nieobsługiwany typ 415.
+Dozwolone MIME: image/png, image/jpeg, image/webp; walidacja sprawdza początek
+pliku jak w Grouping, nie dekoduje całego obrazu. Błędne dane/preset dają 400,
+zajęty login 409, awaria storage 503. Obie reprezentacje PUT zwracają profil 200.
+
+Własne pliki mają klucze `users/{userId}/icons/{guid}` generowane przez serwer.
+User.Icon przechowuje klucz presetu, User.IconStorageKey klucz własnego pliku;
+CHECK c_user_icon_source zabrania ustawienia obu naraz. ID bierze ICurrentUser.
+Zapis blokuje użytkownika, więc podmiany tego samego profilu są szeregowane.
+Plik z nieudanego uploadu jest sprzątany; przy błędzie zapisu bazy nowy plik
+jest usuwany dopiero po udanym rollbacku. Stare własne zdjęcie jest usuwane
+dopiero po potwierdzonym commit, wyłącznie z własnego prefiksu użytkownika.
+Presetów nie usuwamy. Błąd usuwania jest logowany bez szczegółów poświadczeń
+i nie cofa zapisanego profilu; może pozostawić osierocony plik. Niepewny wynik
+commita zachowuje oba pliki, aby nie usunąć zdjęcia wskazywanego przez bazę.
+Nie ma wspólnej transakcji S3/PostgreSQL ani automatycznego workera sprzątania.
+
+W obu szablonach `.env` i mapowaniu Compose dostępne są:
+
+```dotenv
+USER_ICON_PRESET_PREFIX=icons/presets/users/
+GROUP_ICON_PRESET_PREFIX=icons/presets/groups/
+RECEIPT_STORAGE_PREFIX=receipts/
+```
+
+To prefiksy kluczy w jednym skonfigurowanym STORAGE_BUCKET, nie osobne buckety.
+Brak ustawień zachowuje powyższe wartości domyślne. Prefiksy presetów kończ `/`;
+Receipt sam normalizuje końcowy ukośnik. Zmiana RECEIPT_STORAGE_PREFIX dotyczy
+nowych paragonów; odczyt/usuwanie korzystają z zapisanego StorageKey.
+Zmiana prefiksu presetów zmienia katalog dostępnych wyborów. Po zmianie `.env`
+uruchom ponownie API, a w Compose odtwórz kontener backendu.
+
+Archiwizacja grupy pozostawia jej plik w S3. Podmiana/removeIcon grupy sprząta
+stare własne zdjęcie po końcowym commit; presetów grup również nie usuwamy.
+
 ## Zmiana adresu e-mail
+
+Konta z `GoogleSubject` nie mogą zmieniać e-maila, również po ustawieniu hasła.
+Żądanie zwraca 403 z `code=google_account_email_change_forbidden`.
+Potwierdzenie wcześniej wystawionego tokenu zmiany adresu jest odrzucane (400).
 
 1. `POST /api/users/profile/change-email` wymaga aktywnej sesji
    (`Authorization: Bearer ACCESS_TOKEN`) i aktualnego hasła w JSON-ie:
@@ -366,6 +557,7 @@ Potwierdzenie zwraca 400 dla tokenu niepoprawnego, wygasłego, zastąpionego,
 zużytego lub innego przeznaczenia oraz 409, gdy adres został już zajęty.
 Adres oczekujący nie jest rezerwowany, więc unikalność jest sprawdzana ponownie
 przy potwierdzeniu, z obsługą konfliktu indeksu c_user_unique_email w bazie.
+Zajętość adresu dotyczy tylko aktywnych kont; adres nieaktywnego konta jest dostępny.
 Konflikt wycofuje transakcję, również zużycie tokenu; obecny adres się nie zmienia.
 
 Token ma Purpose = EmailChange i nowy adres w TargetEmail. W bazie zapisujemy
@@ -418,6 +610,11 @@ Oba endpointy PasswordResetController są anonimowe i mają Cache-Control: no-st
    równy aktualnemu adresowi, CreatedAt i ExpiresAt. SMTP działa po zatwierdzeniu
    transakcji. Wiadomość zawiera token do ręcznego skopiowania do Postmana;
    link do frontendu nie jest jeszcze zaimplementowany.
+
+   Dla konta Google bez hasła ten sam przepływ ustawia pierwsze hasło lokalne.
+   SMTP wysyła wtedy `UserEmailMessages.PasswordSetup`; dalszy krok to zwykły
+   `reset-password`. Hasło Google pozostaje niezależne. Po zatwierdzeniu wszystkie
+   sesje są unieważniane; można zalogować się przez Google albo login/e-mail i hasło.
 
    Poprawne żądanie zwraca 202 bez body również dla nieznanego adresu,
    nieaktywnego lub niepotwierdzonego konta i w okresie między wysyłkami.
@@ -519,7 +716,8 @@ i wspólny limit `user-email` (5/min/IP).
 
 W Postmanie po 202 sprawdź, że profil nadal działa. Po 204 sprawdź stare JWT
 na profilu (401), stary refresh token (401), ponowne potwierdzenie (400)
-oraz logowanie poprawnym hasłem (403, `Account is deactivated.`).
+oraz logowanie loginem i poprawnym hasłem (403, `Account is deactivated.`).
+Logowanie e-mailem wyszukuje tylko aktywne konta i daje 401, jeśli żadne go nie używa.
 W bazie konto powinno mieć IsActive = false i zero tokenów niezależnie od rodzaju.
 Profil, zmiana e-maila, potwierdzanie e-maila, reset hasła i refresh sprawdzają
 aktywność konta; walidacja JWT sprawdza sesję oraz IsActive przy każdym
@@ -534,7 +732,7 @@ Enum `SmtpSecurityMode` jest zdefiniowany w pliku `SmtpOptions.cs`.
 Wysyła wiadomości tekstowe; każda wysyłka tworzy osobne połączenie SMTP.
 Wszystkie przepływy konta korzystają bezpośrednio z tego samego IEmailSender.
 Tematy i treści są w Integrations/Smtp/UserEmailMessages.cs: EmailConfirmation,
-EmailChange, PasswordReset i AccountDeactivation zwracają EmailMessage (Subject, Body), którego
+EmailChange, PasswordReset, PasswordSetup i AccountDeactivation zwracają EmailMessage (Subject, Body), którego
 rekord jest w tym samym pliku UserEmailMessages.cs. Nie ma osobnego EmailMessage.cs,
 folderu Services/Email ani senderów i interfejsów dla rodzajów wiadomości.
 Obsługa EmailDeliveryException należy do serwisu danego przepływu: rejestracja,
@@ -655,6 +853,11 @@ ani aktualizacja przyrostowa. Obecny seed tworzy pięć syntetycznych kont:
 seed_anna, seed_bartek, seed_celina, seed_dawid i postman.banking. Wspólne hasło
 testowe to `TestPassword1!`; seed_dawid jest celowo nieaktywny. Te dane są
 wyłącznie lokalne. Nie zmieniaj hasła bazy PostgreSQL na hasło kont aplikacji.
+Po migracji `20261109191600_UserImprovements` INSERT-y seeda tworzą
+również pięć grup startowych i członkostw (także dla seed_dawid).
+Seed zachowuje je obok dwóch współdzielonych przykładów „Dom” i „Wyjazd”:
+łącznie siedem grup. ID grup startowych są generowane, a ID dotychczasowych
+przykładów pozostają stałe. Ponowne wykonanie seeda nie kumuluje grup.
 Zmiana pliku seed nie modyfikuje istniejących rekordów; aktualizację danych
 wykonuje się osobno, a pełny seed tylko po zaakceptowaniu utraty lokalnych danych.
 
@@ -803,6 +1006,12 @@ odtwarza schematu ani historii migracji, więc nie zastępuje odtworzenia bazy.
 Pierwsza migracja nadal zakłada SQL init; `AddBanking` nie jest nowym baseline.
 
 Nie edytuj SQL init ani zastosowanych migracji w ramach kolejnej zmiany modelu.
+Migracja `20261109191600_UserImprovements` zastępuje globalną unikalność
+e-maila indeksem częściowym `WHERE is_active = true`. Obsługuje ograniczenie
+UNIQUE z SQL init i sam indeks. Cofnięcie migracji wymaga globalnie unikalnych
+adresów; przy ponownie użytym adresie Down kończy się błędem bez usuwania danych.
+Przy cofaniu wielu migracji EF może wcześniej zatwierdzić udane kroki Down;
+błąd jednej migracji nie oznacza przywrócenia całego łańcucha do punktu startu.
 Snapshot i plik Designer są generowane wraz z nową migracją i trafiają do Git.
 Przy zmianie typu timestamp sprawdź strefę dotychczasowych danych. Sam typ
 `DateTime` w C# nie określa typu SQL — decyduje konfiguracja EF.

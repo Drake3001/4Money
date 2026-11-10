@@ -39,6 +39,7 @@ using ZPI4M.Shared.CurrentUser;
 using ZPI4M.Shared.Storage;
 using ZPI4M.User.ApiControllers;
 using ZPI4M.User.Database;
+using ZPI4M.User.Integrations.Google;
 using ZPI4M.User.Integrations.Smtp;
 using ZPI4M.User.Repositories.UserRepository;
 using ZPI4M.User.Repositories.UserTokenRepository;
@@ -173,6 +174,7 @@ builder.Services.AddObjectStorage(builder.Configuration);
 
 // User module
 builder.Services.AddUserAuthentication(builder.Configuration);
+builder.Services.AddUserGoogleAuthentication(builder.Configuration);
 builder.Services.AddScoped<IAccountDeactivationService, AccountDeactivationService>();
 builder.Services.AddOptions<AccountDeactivationOptions>()
 	.Bind(builder.Configuration.GetSection(AccountDeactivationOptions.SectionName))
@@ -186,6 +188,7 @@ builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
 builder.Services.AddScoped<IPasswordHasher<ZPI4M.User.Models.User>, PasswordHasher<ZPI4M.User.Models.User>>();
 builder.Services.AddScoped<IUserRegistrationService, UserRegistrationService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
+builder.Services.AddScoped<IUserIconService, UserIconService>();
 builder.Services.AddSingleton<IUserTokenGenerator, UserTokenGenerator>();
 builder.Services.AddScoped<IEmailConfirmationService, EmailConfirmationService>();
 builder.Services.AddOptions<EmailConfirmationOptions>();

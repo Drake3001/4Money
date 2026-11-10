@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
@@ -347,7 +348,7 @@ public sealed class ReceiptServiceTests
 		var existing = await fixture.SeedAsync();
 		var error = new InvalidOperationException("sensitive repository failure");
 		var repository = new FailingAddRepository(fixture.Context, error);
-		var service = new ReceiptService(repository, fixture.Context, fixture.Analysis, fixture.Storage, fixture.Logger, fixture.Clock);
+		var service = new ReceiptService(repository, fixture.Context, fixture.Analysis, fixture.Storage, fixture.Logger, fixture.Clock, new ConfigurationBuilder().Build());
 		using var input = new MemoryStream([1]);
 
 		var actual = await Record.ExceptionAsync(() => service.CreateAsync(input, "image/png", runOcr: runOcr));
@@ -537,6 +538,33 @@ public sealed class ReceiptServiceTests
 		Assert.False(File.Exists(path));
 	}
 
+	[Theory]
+	[InlineData(null, "receipts/")]
+	[InlineData("", "receipts/")]
+	[InlineData("documents/receipts", "documents/receipts/")]
+	[InlineData("documents/receipts/", "documents/receipts/")]
+	public async Task ReceiptKeysUseConfiguredPrefixAndExistingKeysRemainReadable(string? prefix, string expected)
+	{
+		using var fixture = new Fixture(prefix: prefix);
+		using var content = new MemoryStream([1, 2, 3]);
+		var result = await fixture.Service.CreateAsync(content, "image/png", runOcr: false);
+		Assert.StartsWith(expected, fixture.Storage.Key);
+		var receipt = await fixture.Context.Receipts.SingleAsync(r => r.Id == result.ReceiptId);
+		Assert.Equal(fixture.Storage.Key, receipt.StorageKey);
+		var existing = await fixture.SeedAsync();
+		existing.StorageKey = "historic/location/original";
+		await fixture.Context.SaveChangesAsync();
+		await fixture.Service.GetFileUrlAsync(existing, CancellationToken.None);
+		Assert.Equal("historic/location/original", fixture.Storage.UrlKey);
+		await using var expenseContent = new FileStream(Path.Combine(Path.GetTempPath(), $"expense-receipt-test-{Guid.NewGuid():N}"),
+			FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 4096, FileOptions.DeleteOnClose);
+		await expenseContent.WriteAsync(new byte[] { 4, 5, 6 });
+		expenseContent.Position = 0;
+		var expenseReceipt = await fixture.Service.UploadForExpenseAsync(expenseContent, "image/png", null, CancellationToken.None);
+		Assert.StartsWith(expected, expenseReceipt.StorageKey);
+		Assert.Equal(expenseReceipt.StorageKey, fixture.Storage.Key);
+	}
+
 	private sealed class Fixture : IDisposable
 	{
 		public SaveInterceptor Interceptor { get; } = new();
@@ -548,14 +576,15 @@ public sealed class ReceiptServiceTests
 		public ReceiptService Service { get; }
 		public FakeTimeProvider Clock { get; } = new();
 
-		public Fixture(IReceiptAnalysisService? analysis = null)
+		public Fixture(IReceiptAnalysisService? analysis = null, string? prefix = null)
 		{
 			ContextOptions = new DbContextOptionsBuilder<ReceiptDbContext>()
 				.UseInMemoryDatabase(Guid.NewGuid().ToString())
 				.AddInterceptors(Interceptor)
 				.Options;
 			Context = new ReceiptDbContext(ContextOptions);
-			Service = new ReceiptService(new ReceiptRepository(Context), Context, analysis ?? Analysis, Storage, Logger, Clock);
+			Service = new ReceiptService(new ReceiptRepository(Context), Context, analysis ?? Analysis, Storage, Logger, Clock,
+				new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["RECEIPT_STORAGE_PREFIX"] = prefix }).Build());
 		}
 
 		public async Task<Models.Receipt> SeedAsync()
@@ -667,6 +696,11 @@ public sealed class ReceiptServiceTests
 
 		public Task<FileUrlResult> GetReadUrlAsync(string key, CancellationToken cancellationToken = default)
 		{
+			UrlKey = key;
+			UrlToken = cancellationToken;
+			cancellationToken.ThrowIfCancellationRequested();
+			if (UrlError is not null)
+				throw UrlError;
 			return Task.FromResult(UrlResult);
 		}
 

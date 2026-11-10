@@ -93,7 +93,15 @@ modelu i migracji.
 
 ## Zatwierdzony model grup — 2026-10-28
 
-Migracja `AddGroupingModel` zmienia `grouping.group._id` na `id`, usuwa
+Od `20261109191600_UserImprovements` każde nowo dodane konto
+otrzymuje zwykłą grupę „Wydatki osobiste” z walutą PLN. Użytkownik jest jej
+jedynym początkowym członkiem i administratorem, agregaty wynoszą zero.
+Nazwa nie identyfikuje specjalnego rodzaju grupy: można ją zmienić, zaprosić
+inne osoby i archiwizować grupę zgodnie ze zwykłymi regułami Grouping.
+Istniejące konta nie dostają grup wstecznie. Implementację transakcyjną opisuje
+[architektura](architecture.md#grupa-startowa-nowego-konta).
+
+Migracja `ApprovedGroupingModel` zmienia `grouping.group._id` na `id`, usuwa
 trzy limity grupy i dodaje wymagane `AdminUserId` / `admin_user_id` oraz
 `CurrencyCode` / `currency_code` (dokładnie trzy wielkie litery ASCII).
 Administrator pochodzi wyłącznie z grupy; `GroupMember.IsAdmin` znika.
@@ -128,17 +136,21 @@ Year=3), dodatnia amount numeric(18,2), unikalność `(group_id, period)`.
 `CategoryGroupLimit` zachowuje wcześniejszy model i tabelę.
 
 Nowe relacje mają NoAction. Relacje między modułami definiuje wyłącznie
-AppDbContext, bez nowych referencji projektów modułów. Konteksty modułowe
-udostępniają nowe DbSety; nowych repozytoriów CRUD, serwisów i endpointów nie dodano.
+AppDbContext. Etap zatwierdzenia modelu obejmował DbSety i konfiguracje;
+obecnie Grouping ma również repozytoria, serwisy i API. Ich bieżący zakres
+opisuje [status](implementation-status.md).
 
-### Przyszłe niezmienniki serwisów — jeszcze niezaimplementowane
+### Niezmienniki serwisów i pozostałe ograniczenia — 2026-11-10
 
 - Administrator, płatnik, uczestnicy udziałów i obie strony rozliczenia muszą
-  należeć do właściwej grupy. Sam FK użytkownika nie zapewnia członkostwa.
+  spełniać reguły członkostwa właściwej grupy. Serwisy Grouping i Expense
+  egzekwują je; sam FK użytkownika nie zapewnia członkostwa. Edycja i usuwanie
+  uwzględniają historyczne członkostwa zgodnie z kontraktami modułów.
 - Suma kwot udziałów musi równać się kwocie wydatku; agregaty członków muszą być
-  aktualizowane atomowo ze źródłami przy utworzeniu, edycji i usunięciu oraz
-  mieć mechanizm pełnego przeliczenia i uzgadniania. Default 0 i CHECK >= 0
-  nie utrzymują sald. Seed przelicza je wyłącznie dla danych syntetycznych.
+  aktualizowane atomowo ze źródłami przy utworzeniu, edycji i usunięciu.
+  Zapewnia to koordynator Grouping; pełne przeliczenie i uzgadnianie pozostają
+  do implementacji. Default 0 i CHECK >= 0 nie utrzymują sald. Seed przelicza
+  je wyłącznie dla danych syntetycznych.
 - Waluta wydatku i rozliczenia jest walutą grupy; powiązana transakcja bankowa
   musi mieć tę samą walutę i właściwego właściciela (płatnik / nadawca).
 - Transakcja bankowa może być wykorzystana łącznie najwyżej raz jako źródło
@@ -146,12 +158,15 @@ udostępniają nowe DbSety; nowych repozytoriów CRUD, serwisów i endpointów n
   jedynie wewnątrz każdej tabeli. Od 2026-11-03 Banking ma wspólny rejestr
   `BankTransactionAssignment` z PK na BankTransactionId i rodzajem konsumenta
   Expense=1 / GroupSettlement=2. Zapewnia jedno przypisanie w rejestrze; atomowe
-  utrzymywanie go przez serwisy konsumentów pozostaje do implementacji.
+  utrzymywanie go przez Expense jest zaimplementowane. Grouping nadal odrzuca
+  nowe bankowe powiązania rozliczeń; pełna integracja tego konsumenta pozostaje
+  do implementacji.
   Wewnętrzny serwis Banking obsługuje odczyt, idempotentne przypisanie i zwolnienie
   zgodnego konsumenta; zapisy wymagają transakcji wywołującego.
   Szczegóły schematu i filtrów są w [kontrakcie Banking](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#transaction-assignments--2026-11-03).
 - Zużycie zaproszenia wymaga atomowego sprawdzenia aktywności, wygaśnięcia
-  i limitu użyć wraz z dodaniem członkostwa. CHECK nie realizuje przepływu zaproszeń.
+  i limitu użyć wraz z dodaniem członkostwa. Realizuje to serwis Grouping
+  w transakcji koordynatora; sam CHECK nie realizuje przepływu zaproszeń.
 
 ## Kontrakt ręcznego Expense
 
@@ -230,14 +245,40 @@ ich zastosowania na konkretnej bazie.
 
 ## Konto i tokeny użytkownika
 
-`User.Email` jest wymagany (`NOT NULL`) i unikalny. Data urodzenia jest wymagana.
+`User.Email` jest wymagany (`NOT NULL`) i unikalny wśród aktywnych kont.
+Migracja `20261109191600_UserImprovements` zastępuje globalne UNIQUE
+indeksem częściowym `c_user_unique_email` z filtrem `is_active = true`.
+Wiele nieaktywnych kont może zachować ten sam adres. Login pozostaje unikalny
+globalnie. Nowe konto z ponownie użytym adresem otrzymuje nowe ID i nie przejmuje
+historii ani danych poprzedniego konta. Data urodzenia jest wymagana.
 `User.IsEmailConfirmed` jest mapowane na `user.user.is_email_confirmed`
 (`boolean NOT NULL DEFAULT false`) i dotyczy aktualnego adresu. Pole występuje
 w opisie bazy, diagramie logicznym, konfiguracji EF i snapshocie. Dodaje je
-migracja `20261018151534_AddUserTokenTable`. Rejestracja ustawia `false`,
+migracja `20261018151534_AddUserTokenTable`. Lokalna rejestracja ustawia `false`,
 a poprawne potwierdzenie tokenem ustawia `true`. Pola `RefreshToken` oraz
 `RefreshTokenExpiryTime` zostały usunięte z `User`; tokeny należą do osobnej
 tabeli `user.user_token`.
+
+Od `20261109191600_UserImprovements` `PasswordHash` jest opcjonalny,
+a `GoogleSubject` to nullable text: trwały identyfikator konta Google z claimu
+`sub`, niezależny od adresu e-mail. Indeks `c_user_unique_google_subject` jest
+unikalny globalnie, także dla nieaktywnych kont; wiele NULL jest dozwolonych.
+CHECK `c_user_authentication_method` wymaga hasła lub GoogleSubject. Nie ma
+osobnej tabeli tożsamości. Down blokuje tabelę i odmawia cofnięcia, jeżeli
+pozostały konta bez lokalnego hasła; nie generuje im zastępczych haseł.
+
+Rejestracja Google tworzy konto bez hasła. Potwierdzony adres Gmail lub
+Google Workspace może otrzymać IsEmailConfirmed=true i sesję od razu;
+pozostałe adresy przechodzą potwierdzenie SMTP. GoogleSubject jest wyłącznym
+kluczem dopasowania konta przy logowaniu Google. Zgodny e-mail nie łączy kont,
+zmiana e-maila w Google nie nadpisuje User.Email, a nieaktywny sub nie może być
+ponownie zarejestrowany. Konto Google zachowuje zwykły, wymagany login.
+Nie ma odłączania Google ani zmiany adresu przez aplikację, również po ustawieniu
+hasła. Pierwsze hasło wykorzystuje istniejący PasswordReset i SMTP, bez nowego
+purpose/tabeli; wymaga aktywnego konta z potwierdzonym adresem. Po ustawieniu
+hasła obie metody logowania działają. Profil ujawnia tylko hasPassword oraz
+isGoogleLinked, bez hasha i GoogleSubject. Kontrakt i ograniczenia wdrożenia
+opisuje [development](development.md#rejestracja-i-logowanie-google).
 
 Relacja `User` → `UserToken` jest 1:N. `FkUserId` jest wymagany, a usunięcie
 użytkownika kaskadowo usuwa jego tokeny. Pola tokenu:
@@ -297,6 +338,22 @@ rotuje hash tokenu, zachowując ID i bezwzględny termin sesji (domyślnie 7 dni
 Nowe logowanie nadaje nowe ID sesji; wylogowanie usuwa sesję. Oba zdarzenia
 unieważniają także wcześniejsze JWT. Konfigurację i kontrakty opisuje development.md.
 
+## Zdjęcie profilu
+
+Migracja `20261109191600_UserImprovements` dodaje opcjonalny text
+User.IconStorageKey i CHECK `c_user_icon_source`:
+`icon IS NULL OR icon_storage_key IS NULL`. Icon oznacza klucz presetu,
+IconStorageKey klucz własnego zdjęcia w S3; oba NULL oznaczają brak zdjęcia.
+Nie zapisujemy podpisanych URL-i w bazie. Nie migrujemy dawnych dowolnych
+wartości Icon do presetów ani nie uploadujemy plików. Odczyt dawnego Icon,
+które nie jest dostępnym presetem, zwraca 404. Down usuwa nową kolumnę i CHECK,
+nie usuwa obiektów S3; traci powiązania do własnych zdjęć użytkowników.
+
+Edycja bez instrukcji ikony zachowuje zdjęcie; removeIcon jawnie je usuwa.
+Presety są współdzielone i nie podlegają usuwaniu przy zmianie wyboru.
+Zasady uploadu, kompensacji i konfiguracji prefiksów opisuje
+[development](development.md#zdjęcia-profilu-i-prefiksy-storage).
+
 ## Dezaktywacja konta
 
 Dezaktywacja wymaga aktywnej sesji do wysłania tokenu na aktualny e-mail.
@@ -305,7 +362,9 @@ z odstępem 60 sekund między wysyłkami. Potwierdzenie jest anonimowe i wymaga
 zgodności TargetEmail z aktualnym adresem aktywnego, potwierdzonego konta.
 W jednej transakcji zużywa token, ustawia IsActive = false i usuwa wszystkie
 pozostałe tokeny konta. Rekord User i dane finansowe pozostają w bazie;
-login i e-mail nadal są zajęte, brak reaktywacji. JWT nie jest usuwany z klienta,
+login nadal jest zajęty, a e-mail można ponownie wykorzystać przy rejestracji
+lub zmianie adresu aktywnego konta. Brak reaktywacji; przyszła reaktywacja musi
+uwzględniać zajętość adresu. JWT nie jest usuwany z klienta,
 ale kolejne uwierzytelnienie odrzuca go po sprawdzeniu sesji i IsActive w bazie.
 Purpose 5 i rozszerzone ograniczenia CHECK dodaje migracja
 `20261023131244_AddAccountDeactivationTokens`. Aktualny opis `Baza danych.txt`,
@@ -402,11 +461,14 @@ odpowiedź HTTP 200 może nadal wymagać ręcznej korekty.
 
 ## Kwestie wymagające ustalenia przy zadaniu
 
-Otwarte decyzje Expense zbiera [sekcja 16 ustaleń](../notes/EXPENSE_DECISIONS.md#16-kwestie-otwarte--nie-uzupełniać-domysłem).
-Do ustalenia pozostają też algorytm sald oraz szczegółowe progi i okresy alertów.
-Przy pracach nad MVP nie rozszerzaj podziału kosztów na produkty. FkUserId
-usunięto z ExpenseItem; pole płatnika znajduje się w Expense. Ewidencję
-płatności między użytkownikami realizuje Grouping.
+Wydatki osobiste korzystają ze zwykłych grup, w tym grupy startowej opisanej
+powyżej; nie ma odrębnego typu ani blokad grupy osobistej.
+Dokumentacja nie rozstrzyga zaokrąglania udziałów, obsługi wielu walut,
+szczegółowych progów i okresów alertów ani zasad deduplikacji importu.
+Przy pracach nad MVP nie rozszerzaj podziału kosztów na produkty tylko dlatego,
+że ExpenseItem ma opcjonalny FkUserId. To osobna funkcjonalność rozszerzająca.
+Zatwierdzony model płatnika i ewidencji rozliczeń opisano powyżej; nadal brakuje
+serwisów realizujących te przepływy.
 Nie dodawaj tych reguł wyłącznie na podstawie nazw kolumn.
 
 Opis bazy zawiera zapis `ExpenceShare`; aktualna klasa to `ExpenseShare`.
@@ -511,33 +573,19 @@ niepuste BankTransactionId. Edycja/null i DELETE historycznych powiązań
 pozostają dozwolone; wymagają zastąpienia claim/release przy wdrożeniu Banking.
 Walidacja wskazuje konkretne pola zamiast wspólnego komunikatu bankowego.
 
-## Podział migracji Grouping i Expense — 2026-11-02
-Aktualny koniec łańcucha:
-1. 20261102215301_AddGroupingModel — docelowy model Grouping i zachowane Limits.
-2. 20261102215328_AddTemporaryExpenseAggregationSupport — tymczasowe minimum Expense.
+## Podział migracji Grouping i Expense — stan po rebase 2026-11-10
 
-Zastępują usunięte migracje 20261028191002_ApprovedGroupingModel i
-20261031165114_AddGroupDescriptionIconsAndArchive. Wcześniejsze opisy tych
-migracji są historyczne; nie wykonuj ich procedur cofania na nowym łańcuchu.
-
-Expense zachowuje Id/_id, Name/name, TransactionTime/transaction_time,
-fk_group_id, fk_receipt_id, fk_bank_transaction_id i udziały z fk_expense_id,
-fk_user_id. Tymczasowe rozszerzenia: FkPayerId/fk_payer_id (wymagany,
-indeks ix_expense_fk_payer_id, FK User) oraz Amount/amount numeric(18,2)
-zamiast Percentage. Nie ma zmian nazw kolumn niezwiązanych z agregacją.
-Grouping nie zależy od encji Expense; jego ExpenseContribution nadal używa
-PaidByUserId jako nazwy kontraktu wartości.
-
-Migracja Grouping nie zmienia tabel Expense. Jej Up/Down wymagają pustych
-grup i członkostw. Tymczasowa Expense wymaga pustych wydatków/udziałów przy
-Up/Down; nie konwertuje historycznych danych ani nie zgaduje płatnika.
-Seed działa dopiero po obu migracjach i przelicza agregaty z danych syntetycznych.
-
-Przy integracji właściwego PR Expense należy uzgodnić model, relacje, repozytoria,
-tymczasową migrację, designer/snapshot, seed i testy. Samo usunięcie ostatniej
-migracji nie cofa zastosowanego schematu. Lokalna baza po starym łańcuchu wymaga
-kontrolowanego odtworzenia (SQL init → migracje → seed), bez kasowania kontenera
-lub wolumenu. Nie zmieniaj ręcznie pojedynczych wpisów historii EF.
+Po `20261102215301_AddGroupingModel` następują
+`20261103165622_CompleteExpenseModel`,
+`20261103203528_AddBankTransactionAssignments` oraz
+`20261109191600_UserImprovements`. Usunięta tymczasowa migracja
+`AddTemporaryExpenseAggregationSupport` nie należy do bieżącego łańcucha.
+ExpenseShare przechowuje Percentage, a ExpenseItem nie ma FkUserId.
+Szczegóły modelu są w sekcji [relacji](#relacje-i-reprezentacja), a osłony
+Up/Down i postępowanie ze starszą bazą w
+[instrukcji migracji](development.md#migracje-po-rebase-expensegrouping--2026-11-03).
+Nowa baza wymaga SQL init → wszystkie migracje → seed. Usunięcie pliku migracji
+nie cofa schematu ani historii istniejącej bazy.
 
 ## Sugestie rozliczeń — 2026-11-02
 GET /api/groups/{groupId}/settlements/suggestions: aktywny członek

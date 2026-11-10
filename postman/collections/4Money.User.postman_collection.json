@@ -27,7 +27,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/users/register",
-            "description": "Nowy login i dostępna skrzynka. Hasło: 8–128 znaków, wielka litera, cyfra i znak specjalny. Po 201 potwierdź e-mail. Zajęty login/e-mail: 409. Przy awarii SMTP konto może już istnieć; użyj resend-confirmation.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
+            "description": "Nowy login i dostępna skrzynka. Hasło: 8–128 znaków, wielka litera, cyfra i znak specjalny. Rejestracja tworzy zwykłą grupę Wydatki osobiste w PLN z użytkownikiem jako jedynym członkiem i administratorem. Po 201 potwierdź e-mail; po zalogowaniu grupa jest dostępna w API Grouping. Zajęty login/e-mail: 409. Przy awarii SMTP konto może już istnieć; użyj resend-confirmation.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"login\": \"{{userLogin}}\",\n  \"name\": \"{{userName}}\",\n  \"surname\": \"{{userSurname}}\",\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\",\n  \"birthDate\": \"{{userBirthDate}}\"\n}",
@@ -235,7 +235,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/users/login",
-            "description": "Wymaga aktywnego konta z potwierdzonym e-mailem. Błędne dane: 401. Nieaktywne konto z poprawnym hasłem: 403, Account is deactivated. Nowy login zastępuje poprzednią sesję. Przed wysłaniem usuwa stare tokeny lokalne.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
+            "description": "W userLogin podaj login albo aktualny e-mail (3–254 znaki; spacje na brzegach i wielkość liter są ignorowane). Wartość z @ jest wyszukiwana po e-mailu, a bez @ po loginie. Wymaga aktywnego konta z potwierdzonym e-mailem. Błędne dane: 401. Nieaktywne konto po loginie z poprawnym hasłem: 403, Account is deactivated. E-mail wyszukuje tylko aktywne konto; brak aktywnego konta: 401. Nowy login zastępuje poprzednią sesję. Przed wysłaniem usuwa stare tokeny lokalne.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"login\": \"{{userLogin}}\",\n  \"password\": \"{{userPassword}}\"\n}",
@@ -452,7 +452,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/users/profile",
-            "description": "Odczyt własnego profilu. ID pochodzi z JWT.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady."
+            "description": "Odczyt własnego profilu. ID pochodzi z JWT.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. Odpowiedzi nie są eksportowane jako przykłady. Profil zawiera hasPassword, isGoogleLinked i iconStorageKey; nie zwraca GoogleSubject. Podpisany URL zdjęcia pobiera żądanie 34."
           },
           "event": [
             {
@@ -516,7 +516,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/users/profile",
-            "description": "Pełny zestaw pól. Pusty telefon/ikona zapisują null. Nie zmienia hasła ani e-maila. Zajęty login: 409. Zmiana loginu zachowuje sesję; do kolejnego logowania użyj nowego loginu.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
+            "description": "Pełny zestaw pól. Pusty telefon zapisuje null; puste userIcon zachowuje obecne zdjęcie. userIcon przyjmuje klucz presetu z listy, nie dowolny URL. Usuwanie: osobne żądanie 36. Nie zmienia hasła ani e-maila. Zajęty login: 409. Zmiana loginu zachowuje sesję; do kolejnego logowania użyj nowego loginu.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"login\": \"{{userLogin}}\",\n  \"name\": \"{{userName}}\",\n  \"surname\": \"{{userSurname}}\",\n  \"phone\": \"{{userPhone}}\",\n  \"birthDate\": \"{{userBirthDate}}\",\n  \"icon\": \"{{userIcon}}\"\n}",
@@ -564,6 +564,256 @@
             }
           ],
           "response": []
+        },
+        {
+          "name": "33 — Lista presetów zdjęcia",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{fourMoneyAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/profile/icon-presets",
+            "description": "Lista presetów wymaga Bearer i ma Cache-Control: no-store. Odpowiedź to tablica {key, url, expiresAt}; pusty katalog zwraca 200 z []. Skopiuj wybrany key do userIcon i wyślij żądanie 32. Presety trzeba wcześniej wgrać do storage. Awaria storage zwraca 503."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"fourMoneyAccessToken\"];",
+                  "const missing = required.filter(key => !String(pm.environment.get(key) || '').trim());",
+                  "if (missing.length) { pm.test('Required variables', () => { throw new Error('Fill: ' + missing.join(', ')); }); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.equal(200));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "34 — Aktualne zdjęcie - URL",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{fourMoneyAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/profile/icon",
+            "description": "URL aktualnego zdjęcia własnego profilu; wymaga Bearer i ma Cache-Control: no-store. Zwraca {url, expiresAt} i zapisuje userIconUrl oraz userIconUrlExpiresAt. Brak zdjęcia lub niedostępny preset zwraca 404, awaria storage 503. Podpisany URL własnego pliku nie potwierdza jego istnienia w S3."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"fourMoneyAccessToken\"];",
+                  "const missing = required.filter(key => !String(pm.environment.get(key) || '').trim());",
+                  "if (missing.length) { pm.test('Required variables', () => { throw new Error('Fill: ' + missing.join(', ')); }); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) { const body = pm.response.json(); pm.environment.set('userIconUrl', body.url); pm.environment.set('userIconUrlExpiresAt', body.expiresAt); }"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "35 — Wgraj zdjęcie profilu",
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{fourMoneyAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/profile",
+            "description": "Przed Send wybierz lokalny plik w Body > form-data > iconFile. PNG/JPEG/WebP, maksymalnie 5 MiB; całe żądanie 6 MiB. Wymaga kompletu pól profilu. Nie ustawiaj Content-Type ręcznie: Postman generuje multipart boundary. Nie łącz iconFile z icon/removeIcon. 400: błędny wybór, 413: za duży plik, 415: błędny format, 503: storage niedostępne.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "login",
+                  "value": "{{userLogin}}",
+                  "type": "text"
+                },
+                {
+                  "key": "name",
+                  "value": "{{userName}}",
+                  "type": "text"
+                },
+                {
+                  "key": "surname",
+                  "value": "{{userSurname}}",
+                  "type": "text"
+                },
+                {
+                  "key": "phone",
+                  "value": "{{userPhone}}",
+                  "type": "text"
+                },
+                {
+                  "key": "birthDate",
+                  "value": "{{userBirthDate}}",
+                  "type": "text"
+                },
+                {
+                  "key": "iconFile",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"fourMoneyAccessToken\", \"userLogin\", \"userName\", \"userSurname\", \"userBirthDate\"];",
+                  "const missing = required.filter(key => !String(pm.environment.get(key) || '').trim());",
+                  "if (missing.length) { pm.test('Required variables', () => { throw new Error('Fill: ' + missing.join(', ')); }); pm.execution.skipRequest(); }",
+                  "const file = pm.request.body.formdata.one('iconFile');",
+                  "if (!file || !file.src || (Array.isArray(file.src) && file.src.length === 0)) { pm.test('Image selected', () => { throw new Error('Select iconFile in Body > form-data.'); }); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) { const body = pm.response.json(); pm.environment.set('userIcon', body.icon || ''); pm.environment.set('userIconStorageKey', body.iconStorageKey || ''); pm.environment.unset('userIconUrl'); pm.environment.unset('userIconUrlExpiresAt'); }"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "36 — Usuń zdjęcie profilu",
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{fourMoneyAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/profile",
+            "description": "Jawne removeIcon=true usuwa wybór zdjęcia. Współdzielony preset pozostaje w S3. Stary własny plik jest sprzątany po potwierdzonym commit; błąd sprzątania nie cofa profilu. Wymaga kompletu pól profilu.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{userLogin}}\",\n  \"name\": \"{{userName}}\",\n  \"surname\": \"{{userSurname}}\",\n  \"phone\": \"{{userPhone}}\",\n  \"birthDate\": \"{{userBirthDate}}\",\n  \"removeIcon\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.execution.setNextRequest(null);",
+                  "const required = [\"baseUrl\", \"fourMoneyAccessToken\", \"userLogin\", \"userName\", \"userSurname\", \"userBirthDate\"];",
+                  "const missing = required.filter(key => !String(pm.environment.get(key) || '').trim());",
+                  "if (missing.length) { pm.test('Required variables', () => { throw new Error('Fill: ' + missing.join(', ')); }); pm.execution.skipRequest(); }",
+                  "if (!missing.length) { pm.request.body.update(JSON.stringify({\"login\": pm.environment.get(\"userLogin\") || \"\", \"name\": pm.environment.get(\"userName\") || \"\", \"surname\": pm.environment.get(\"userSurname\") || \"\", \"phone\": pm.environment.get(\"userPhone\") || \"\", \"birthDate\": pm.environment.get(\"userBirthDate\") || \"\", removeIcon: true})); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) { const body = pm.response.json(); pm.environment.set('userIcon', body.icon || ''); pm.environment.set('userIconStorageKey', body.iconStorageKey || ''); pm.environment.unset('userIconUrl'); pm.environment.unset('userIconUrlExpiresAt'); }"
+                ]
+              }
+            }
+          ],
+          "response": []
         }
       ]
     },
@@ -596,7 +846,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/users/profile/change-email",
-            "description": "Aktualne hasło i nowy, wolny adres inny od obecnego. Do potwierdzenia adres pozostaje bez zmian. Ważność tokenu 24 h, cooldown 60 s.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
+            "description": "Aktualne hasło i nowy adres inny od obecnego, niezajęty przez aktywne konto. Adres konta nieaktywnego można ponownie wykorzystać. Do potwierdzenia adres pozostaje bez zmian. Ważność tokenu 24 h, cooldown 60 s. Konto powiązane z Google zwraca 403 z code=google_account_email_change_forbidden, także po ustawieniu hasła.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"newEmail\": \"{{userNewEmail}}\",\n  \"currentPassword\": \"{{userPassword}}\"\n}",
@@ -740,7 +990,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/users/forgot-password",
-            "description": "Bez logowania. 202 także dla nieznanego/nieaktywnego/niepotwierdzonego konta, cooldownu lub awarii SMTP. 202 nie gwarantuje wysyłki. Token ważny 30 min, cooldown 60 s.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
+            "description": "Bez logowania. 202 także dla nieznanego/nieaktywnego/niepotwierdzonego konta, cooldownu lub awarii SMTP. 202 nie gwarantuje wysyłki. Token ważny 30 min, cooldown 60 s.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady. Dla konta Google bez hasła wysyła token ustawienia pierwszego hasła; wymaga potwierdzonego maila. Dalszy krok: reset-password. Po ustawieniu hasła Google nadal działa.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{userEmail}}\"\n}",
@@ -943,7 +1193,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/users/confirm-deactivation",
-            "description": "Bez Bearer. Ręcznie potwierdza is_active=false i usunięcie WSZYSTKICH tokenów konta w transakcji. Dane pozostają. Powtórne użycie: 400; stare JWT/refresh: 401; login poprawnym hasłem: 403.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
+            "description": "Bez Bearer. Ręcznie potwierdza is_active=false i usunięcie WSZYSTKICH tokenów konta w transakcji. Dane pozostają. E-mail jest dostępny dla nowego konta, login pozostaje zajęty. Powtórne użycie: 400; stare JWT/refresh: 401; login poprawnym hasłem: 403.\n\nUruchamiaj ręcznie przez Send. Runner zatrzymuje się po każdym żądaniu. JSON jest kodowany ze zmiennych środowiska przez skrypt wstępny. Odpowiedzi nie są eksportowane jako przykłady.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"token\": \"{{userDeactivationToken}}\"\n}",
@@ -989,6 +1239,188 @@
                   "pm.environment.unset('fourMoneyRefreshToken');",
                   "pm.environment.unset('userDeactivationToken');",
                   "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "70 — Rejestracja i logowanie Google",
+      "description": "Ręczny przepływ z ID tokenem Google Identity Services i cookie jar. Kolekcja sama nie otwiera logowania Google. Testuj wyłącznie na koncie testowym. Instrukcja: postman/README.md.",
+      "item": [
+        {
+          "name": "71 — Pobierz challenge Google",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/google/challenge",
+            "description": "Wymaga włączonej integracji. Postman zapisuje cookie HttpOnly w cookie jar. Odpowiedź zawiera clientId i nonce; wygeneruj ID token Google z dokładnie tym nonce i clientId na stronie z Google Identity Services pod dozwolonym originem. Wklej credential lokalnie do googleIdToken. Nie używaj tokenu z innego challenge. Nie eksportuj tokenów ani cookies. Nie zmieniaj hosta/http/https w trakcie próby."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.execution.setNextRequest(null);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) { const body = pm.response.json();",
+                  "pm.environment.set('googleClientId', body.clientId);",
+                  "pm.environment.set('googleNonce', body.nonce);",
+                  "pm.environment.set('googleChallengeExpiresAt', body.expiresAt);",
+                  "pm.environment.unset('googleIdToken');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "72 — Zaloguj przez Google",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/google/login",
+            "description": "Wymaga cookie z 71 i ID tokenu z odpowiadającym nonce. 200 zapisuje sesję; 409 z google_registration_required oznacza przejście do 73 z tym samym tokenem/cookie przed wygaśnięciem. 401: pobierz nowy challenge i nowy token. 403: konto nieaktywne lub niepotwierdzony e-mail. Bez automatycznego łączenia kont po mailu.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idToken\": \"{{googleIdToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.execution.setNextRequest(null);",
+                  "const fields = {\"idToken\": \"googleIdToken\"};",
+                  "const missing = ['baseUrl', ...Object.values(fields)].filter(key => !String(pm.environment.get(key) || '').trim());",
+                  "if (missing.length) { pm.test('Required variables', () => { throw new Error('Fill: ' + missing.join(', ')); }); pm.execution.skipRequest(); }",
+                  "else { pm.request.body.update(JSON.stringify(Object.fromEntries(Object.entries(fields).map(([key, variable]) => [key, pm.environment.get(variable)])))); }",
+                  "pm.environment.unset('fourMoneyAccessToken');",
+                  "pm.environment.unset('fourMoneyRefreshToken');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('Login or registration required', () => { pm.expect([200, 409]).to.include(pm.response.code); if (pm.response.code === 409) pm.expect(pm.response.json().code).to.equal('google_registration_required'); });",
+                  "if (pm.response.code === 200) { const authentication = pm.response.json();",
+                  "pm.environment.set('fourMoneyAccessToken', authentication.accessToken);",
+                  "pm.environment.set('fourMoneyRefreshToken', authentication.refreshToken);",
+                  "pm.environment.unset('googleIdToken');",
+                  "pm.environment.unset('googleNonce');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "73 — Zarejestruj przez Google",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/google/register",
+            "description": "GoogleSubject i email pochodzą wyłącznie z ID tokenu. Login bez @ pozostaje wymagany. 201: user + authentication (lub null) + requiresEmailConfirmation. Dla adresu wymagającego SMTP użyj potwierdzania maila z folderu 10, potem nowego challenge i logowania Google. Konto nie ma hasła; folder resetu hasła ustawia pierwsze hasło. Zmiana maila zawsze 403, odłączania Google brak. 503 email_delivery_failed może oznaczać utworzone konto: użyj resend-confirmation.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idToken\": \"{{googleIdToken}}\",\n  \"login\": \"{{userLogin}}\",\n  \"name\": \"{{userName}}\",\n  \"surname\": \"{{userSurname}}\",\n  \"birthDate\": \"{{userBirthDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.execution.setNextRequest(null);",
+                  "const fields = {\"idToken\": \"googleIdToken\", \"login\": \"userLogin\", \"name\": \"userName\", \"surname\": \"userSurname\", \"birthDate\": \"userBirthDate\"};",
+                  "const missing = ['baseUrl', ...Object.values(fields)].filter(key => !String(pm.environment.get(key) || '').trim());",
+                  "if (missing.length) { pm.test('Required variables', () => { throw new Error('Fill: ' + missing.join(', ')); }); pm.execution.skipRequest(); }",
+                  "else { pm.request.body.update(JSON.stringify(Object.fromEntries(Object.entries(fields).map(([key, variable]) => [key, pm.environment.get(variable)])))); }",
+                  "pm.environment.unset('fourMoneyAccessToken');",
+                  "pm.environment.unset('fourMoneyRefreshToken');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.execution.setNextRequest(null);",
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) { const body = pm.response.json();",
+                  "pm.environment.set('userEmail', body.user.email);",
+                  "if (body.authentication) { const authentication = body.authentication;",
+                  "pm.environment.set('fourMoneyAccessToken', authentication.accessToken);",
+                  "pm.environment.set('fourMoneyRefreshToken', authentication.refreshToken);",
+                  "}",
+                  "pm.environment.unset('googleIdToken');",
+                  "pm.environment.unset('googleNonce');",
+                  "}"
                 ]
               }
             }

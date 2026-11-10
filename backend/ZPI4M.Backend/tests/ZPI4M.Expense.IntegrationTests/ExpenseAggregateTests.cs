@@ -413,7 +413,7 @@ public sealed class ExpenseAggregateTests : PostgresFixture
 			Receipts = new(new DbContextOptionsBuilder<ReceiptDbContext>().UseNpgsql(connectionString).Options);
 			var receiptDependencies = new ReceiptTestDependencies();
 			var receiptService = new ReceiptService(new ReceiptRepository(Receipts), Receipts, receiptDependencies, receiptDependencies,
-				NullLogger<ReceiptService>.Instance, TimeProvider.System);
+				NullLogger<ReceiptService>.Instance, TimeProvider.System, new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
 			Transactions = new(Grouping, Inbox, NullLogger<GroupingTransactionCoordinator>.Instance);
 			Groups = new GroupRepository(Grouping);
 			var members = new GroupMemberRepository(Grouping);

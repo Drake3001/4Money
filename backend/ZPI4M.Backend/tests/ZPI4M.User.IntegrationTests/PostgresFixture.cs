@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -10,8 +11,10 @@ using Npgsql;
 using Xunit;
 using ZPI4M.Database;
 using ZPI4M.Shared.CurrentUser;
+using ZPI4M.Shared.Storage;
 using ZPI4M.User.ApiControllers;
 using ZPI4M.User.Database;
+using ZPI4M.User.Integrations.Google;
 using ZPI4M.User.Integrations.Smtp;
 using ZPI4M.User.Repositories.UserRepository;
 using ZPI4M.User.Repositories.UserTokenRepository;
@@ -53,6 +56,7 @@ public abstract class PostgresFixture : IAsyncLifetime
 	private bool _created;
 	protected string ConnectionString { get; private set; } = "";
 	protected RecordingEmailSender Email { get; } = new();
+	protected RecordingObjectStorage Storage { get; } = new();
 
 	public async Task InitializeAsync()
 	{
@@ -106,20 +110,30 @@ public abstract class PostgresFixture : IAsyncLifetime
 		await context.SaveChangesAsync();
 	}
 
-	protected async Task<TestHost> StartHostAsync(Action<IServiceCollection>? configureServices = null)
+	protected async Task<TestHost> StartHostAsync(IGoogleIdTokenValidator? googleValidator = null, IInterceptor? interceptor = null,
+		Action<IServiceCollection>? configureServices = null)
 	{
 		var builder = WebApplication.CreateBuilder();
 		builder.WebHost.UseTestServer();
 		builder.Logging.ClearProviders();
 		builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 		{
-			["UserAuthentication:SigningKey"] = "integration-test-signing-key-at-least-32-bytes"
+			["UserAuthentication:SigningKey"] = "integration-test-signing-key-at-least-32-bytes",
+			["GoogleAuthentication:Enabled"] = (googleValidator is not null).ToString(),
+			["GoogleAuthentication:ClientId"] = "test.apps.googleusercontent.com"
 		});
 		builder.Services.AddHttpContextAccessor();
 		builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 		builder.Services.AddControllers().AddApplicationPart(typeof(UsersController).Assembly);
 		builder.Services.AddUserAuthentication(builder.Configuration);
-		builder.Services.AddDbContext<UserDbContext>(options => options.UseNpgsql(ConnectionString));
+		builder.Services.AddUserGoogleAuthentication(builder.Configuration);
+		if (googleValidator is not null)
+			builder.Services.AddSingleton(googleValidator);
+		builder.Services.AddDbContext<UserDbContext>(options =>
+		{
+			options.UseNpgsql(ConnectionString);
+			if (interceptor is not null) options.AddInterceptors(interceptor);
+		});
 		builder.Services.AddScoped<IUserRepository, UserRepository>();
 		builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
 		builder.Services.AddScoped<IPasswordHasher<Models.User>, PasswordHasher<Models.User>>();
@@ -128,6 +142,8 @@ public abstract class PostgresFixture : IAsyncLifetime
 		builder.Services.AddScoped<IUserRegistrationService, UserRegistrationService>();
 		builder.Services.AddScoped<IEmailConfirmationService, EmailConfirmationService>();
 		builder.Services.AddScoped<IUserProfileService, UserProfileService>();
+		builder.Services.AddScoped<IUserIconService, UserIconService>();
+		builder.Services.AddSingleton<IObjectStorage>(Storage);
 		builder.Services.AddScoped<IEmailChangeService, EmailChangeService>();
 		builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 		builder.Services.AddScoped<IAccountDeactivationService, AccountDeactivationService>();

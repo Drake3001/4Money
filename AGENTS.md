@@ -79,7 +79,7 @@ analiza poszczególnych produktów, a także podział kosztów między użytkown
 - Zachowuj konwencje z `backend/.editorconfig` i istniejących hooków.
   Konwencje gałęzi i commitów ClickUp opisuje [instrukcja narzędzi](tools/README.md#clickup-branch-and-commit-conventions).
 
-## Orientacja w implementacji — 2026-10-29
+## Orientacja w implementacji — 2026-11-10
 
 Przegląd statyczny kodu i konfiguracji; nie oznacza nowego przebiegu testów ani
 potwierdzenia działania usług zewnętrznych.
@@ -105,6 +105,13 @@ potwierdzenia działania usług zewnętrznych.
 - Banking ma integrację Tink, odczyty i worker importu, a User obsługuje tożsamość,
   sesje oraz operacje konta. Aktualne ograniczenia są w statusie; nie cofaj ich
   opisu do samych modeli na podstawie starszych fragmentów sprzed rebase.
+- User obsługuje login lub e-mail, Google Identity Services, pierwsze hasło konta
+  Google oraz zdjęcie profilu (preset albo własny upload). Google jest domyślnie
+  wyłączone; nie łączy kont po e-mailu i blokuje zmianę adresu powiązanego konta.
+  Migracja `20261109191600_UserImprovements` scala częściową unikalność aktywnego
+  e-maila, trigger zwykłej grupy startowej „Wydatki osobiste” w PLN, GoogleSubject
+  i IconStorageKey. Nie odtwarza grup istniejącym kontom. Kontrakty i ograniczenia:
+  [development](agent-context/development.md#rejestracja-i-logowanie-google).
 - Expense ma repozytoria Category, Expense, ExpenseItem i ExpenseShare,
   Grouping repozytoria Group/GroupMember,
   a Limits repozytorium CategoryGroupLimit.
@@ -165,9 +172,10 @@ potwierdzenia działania usług zewnętrznych.
   nie podawaj localhost jako adresu zależności wewnątrz kontenera.
   Domyślny profil lokalnego API to HTTP na 5283;
   Postman `baseUrl` musi odpowiadać rzeczywiście uruchomionemu profilowi.
-- Szablon ZPI4M.Api/.env.example zawiera tylko poświadczenia (baza, JWT,
-  storage, Tink i SMTP). Niesekretne wartości domyślne są w appsettings.json;
-  zmienne środowiskowe je nadpisują. Sekrety uzupełniaj wyłącznie lokalnie.
+- Szablon ZPI4M.Api/.env.example zawiera poświadczenia (baza, JWT, storage,
+  Tink i SMTP), klucz dowodu OCR oraz opcjonalną konfigurację Google i prefiksów
+  storage. Domyślne wartości są w appsettings.json; zmienne środowiskowe je
+  nadpisują. Sekrety uzupełniaj wyłącznie lokalnie.
 
 ## Utrzymanie kontekstu
 

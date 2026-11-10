@@ -21,12 +21,13 @@ public sealed class BankTransactionAssignmentTests : PostgresFixture
 	{
 		await using var db = Model();
 		var migrations = db.Database.GetMigrations().ToArray();
-		Assert.EndsWith("_AddBankTransactionAssignments", migrations[^1]);
+		var assignmentMigration = Array.FindIndex(migrations, m => m.EndsWith("_AddBankTransactionAssignments", StringComparison.Ordinal));
+		Assert.True(assignmentMigration > 0);
 		await SeedAsync();
 		await using var bank = Banking();
 		var transactions = await bank.BankTransactions.OrderBy(t => t.Id).Select(t => t.Id).ToArrayAsync();
 		var migrator = db.GetService<IMigrator>();
-		await migrator.MigrateAsync(migrations[^2]);
+		await migrator.MigrateAsync(migrations[assignmentMigration - 1]);
 		Assert.True(await db.Database.SqlQueryRaw<bool>(
 			"SELECT to_regclass('banking.bank_transaction_assignment') IS NULL AS \"Value\"").SingleAsync());
 		await migrator.MigrateAsync();

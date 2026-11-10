@@ -13,6 +13,11 @@ public class UserRepository : IUserRepository
 		_context = context;
 	}
 
+	public Task<Models.User?> GetByGoogleSubjectAsync(string subject, CancellationToken cancellationToken = default)
+	{
+		return _context.Users.SingleOrDefaultAsync(u => u.GoogleSubject == subject, cancellationToken);
+	}
+
 	public void Add(Models.User entity)
 	{
 		_context.Users.Add(entity);
@@ -51,7 +56,7 @@ public class UserRepository : IUserRepository
 		return _context.Users.AnyAsync(u => u.Login == login, cancellationToken);
 	}
 
-	public Task RecordLoginAsync(Guid userId, string passwordHash, DateTime utcNow, CancellationToken cancellationToken = default)
+	public Task RecordLoginAsync(Guid userId, string? passwordHash, DateTime utcNow, CancellationToken cancellationToken = default)
 	{
 		return _context.Users.Where(u => u.Id == userId)
 			.ExecuteUpdateAsync(setters => setters
@@ -59,9 +64,9 @@ public class UserRepository : IUserRepository
 				.SetProperty(u => u.LastLoginTime, utcNow), cancellationToken);
 	}
 
-	public Task<Models.User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
+	public Task<Models.User?> GetActiveByEmailAsync(string email, CancellationToken cancellationToken = default)
 	{
-		return _context.Users.SingleOrDefaultAsync(u => u.Email == email, cancellationToken);
+		return _context.Users.SingleOrDefaultAsync(u => u.Email == email && u.IsActive, cancellationToken);
 	}
 
 	public Task UpdateProfileAsync(Models.User user, CancellationToken cancellationToken = default)
@@ -73,12 +78,13 @@ public class UserRepository : IUserRepository
 				.SetProperty(u => u.Surname, user.Surname)
 				.SetProperty(u => u.Phone, user.Phone)
 				.SetProperty(u => u.BirthDate, user.BirthDate)
-				.SetProperty(u => u.Icon, user.Icon), cancellationToken);
+				.SetProperty(u => u.Icon, user.Icon)
+				.SetProperty(u => u.IconStorageKey, user.IconStorageKey), cancellationToken);
 	}
 
-	public Task<bool> ExistsByEmailAsync(string email, CancellationToken cancellationToken = default)
+	public Task<bool> ExistsActiveByEmailAsync(string email, CancellationToken cancellationToken = default)
 	{
-		return _context.Users.AnyAsync(u => u.Email == email, cancellationToken);
+		return _context.Users.AnyAsync(u => u.Email == email && u.IsActive, cancellationToken);
 	}
 
 	public Task<Models.User?> GetByTinkUserIdAsync(string tinkUserId, CancellationToken cancellationToken = default)
@@ -97,7 +103,7 @@ public class UserRepository : IUserRepository
 	public async Task<bool> TryChangeEmailAsync(Guid userId, string currentEmail, string newEmail, CancellationToken cancellationToken = default)
 	{
 		var affectedRows = await _context.Users
-			.Where(u => u.Id == userId && u.Email == currentEmail && u.IsActive && u.IsEmailConfirmed)
+			.Where(u => u.Id == userId && u.Email == currentEmail && u.IsActive && u.IsEmailConfirmed && u.GoogleSubject == null)
 			.ExecuteUpdateAsync(setters => setters
 				.SetProperty(u => u.Email, newEmail)
 				.SetProperty(u => u.IsEmailConfirmed, true), cancellationToken);
@@ -107,7 +113,8 @@ public class UserRepository : IUserRepository
 	public async Task<bool> TryResetPasswordAsync(Guid userId, string email, string passwordHash, CancellationToken cancellationToken = default)
 	{
 		var affectedRows = await _context.Users
-			.Where(u => u.Id == userId && u.Email == email && u.IsActive && u.IsEmailConfirmed)
+			.Where(u => u.Id == userId && u.Email == email && u.IsActive && u.IsEmailConfirmed &&
+				(u.PasswordHash != null || u.GoogleSubject != null))
 			.ExecuteUpdateAsync(setters => setters.SetProperty(u => u.PasswordHash, passwordHash), cancellationToken);
 		return affectedRows == 1;
 	}

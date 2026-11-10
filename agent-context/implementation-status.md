@@ -1,5 +1,44 @@
 # Stan implementacji i kwestie otwarte
 
+## Weryfikacja po rebase — 2026-11-10
+
+Przegląd User, testów, AGENTS.md, agent-context i opisów Postmana wykrył
+pozostałości łączenia gałęzi. Naprawiono sygnaturę fixture User z callbackiem
+konfiguracji usług, wywołania konstruktora Receipt w testach Expense oraz
+test odczytu URL paragonu. Testy migracji wskazują właściwe migracje po nazwie,
+zamiast zakładać usuniętą tymczasową Expense albo ostatnią pozycję Banking.
+Designer UserImprovements zsynchronizowano z bieżącym snapshotem EF: zachowuje
+pełny model Expense i BankTransactionAssignment dołączony przez master.
+SQL Up/Down migracji User nie zmieniano.
+
+UploadForExpenseAsync używa teraz RECEIPT_STORAGE_PREFIX tak jak CreateAsync;
+test sprawdza oba uploady i odczyt historycznego klucza. Oba szablony env
+domyślnie wyłączają opcjonalne Google, aby pusty ClientId nie blokował startu.
+Poprawiono nieaktualne opisy modelu, migracji, konfiguracji i żądań Postmana.
+
+Release build całej solucji: 0 błędów i ostrzeżeń. Końcowe wyniki 15 projektów:
+1028 zaliczonych, 0 błędów, 1 pominięty ręczny test rzeczywistego S3.
+User: UnitTests 52/52, Tests 101/101, IntegrationTests 81/81;
+Banking.IntegrationTests 151/151, Expense.IntegrationTests 110/110,
+Notifications.IntegrationTests 13/13, Receipt.UnitTests 108/108.
+Testy User potwierdzają lokalne logowanie, Google, pierwsze hasło, sesje,
+zdjęcia profilu, grupę startową oraz migracje na prawdziwym PostgreSQL 15.
+Google, SMTP, OCR i storage w testach przepływu są zastępowane atrapami.
+Nie potwierdza to rzeczywistych usług zewnętrznych ani integracji frontendu.
+
+Pierwszy przebieg ograniczał sandbox Windows; uruchomienie poza nim usunęło
+błędy dostępu hostów testowych do dziennika zdarzeń. Równoległa regresja
+zgłosiła też timeouty bazy. Cztery projekty PostgreSQL uruchomiono ponownie
+kolejno, z maksymalnie dwoma wątkami xUnit; wszystkie przeszły bez pominięć.
+Kontrole stylu i whitespace zmienionych plików C# oraz git diff --check przeszły.
+Postman: poprawny JSON 8 plików, składnia 214 skryptów, 42 skrypty User
+wykonane na syntetycznych danych; 73 istniejące testy skryptów Banking przeszły.
+Sprawdzono istnienie lokalnych odnośników w AGENTS.md, agent-context i README
+Postmana. Raporty TRX i logi: `.cache/backend-results/rebase-20261110-final/`.
+Jednorazowy kontener PostgreSQL i jego anonimowy wolumen usunięto po testach;
+nie pozostały procesy testhost. Nie migrowano ani seedowano bazy aplikacji.
+Starsze wyniki poniżej dotyczą wcześniejszych rewizji i przebiegów.
+
 ## Expense i integracja Receipt — stan 2026-11-10
 
 Działa 10 operacji opisanych w [kontrakcie Expense](../notes/EXPENSE_API.md):
@@ -118,163 +157,217 @@ swoich weryfikacji.
 
 ## Narzędzia migracji — weryfikacja 2026-11-07
 
-`dotnet-tools.json` przypina `dotnet-ef` 10.0.4. Wrapper `tools/ef.cs`
-ustawia projekty i kontekst migracji; `--ef-version` pozwala jednorazowo
-uruchomić inną wersję bez zmiany manifestu. Nie dodano global.json ani zależności
-Pythona. [Użycie i konfiguracja](development.md#modele-i-migracje).
+Przed dołączeniem Expense solucja miała trzynaście projektów testowych: po trzy
+User, Banking i Notifications, dwa Receipt oraz Shared.UnitTests i Grouping.Tests.
+Obecnie ma piętnaście. Historyczne wyniki z poprzednich rewizji: 152 testy .NET
+(User + Notifications, w tym 45 Notifications, PostgreSQL 17.6) oraz opisane
+w kontekście Banking 223 testy .NET i 45 testów Pythona dla ówczesnego zakresu.
+Nie sumuj tych wyników ani nie przedstawiaj ich jako przebiegu aktualnej solucji
+po rebase, zmianie migracji i seeda. Aktualny zestaw wymaga ponownego uruchomienia.
+CI dostarcza PostgreSQL 15 i jedną zmienną TEST_POSTGRES_CONNECTION_STRING
+dla wszystkich trzech modułów. Ostatnie częściowe przebiegi opisano poniżej;
+nie zastępują pełnego uruchomienia solucji z PostgreSQL.
 
-Sprawdzono restore, kompilację wrappera na SDK 10.0.113, pomoc, wersje 10.0.4
-oraz 10.0.5 i zachowanie pinu, przekazywanie argumentów i kodów zakończenia,
-wywołanie z podkatalogu i checkout ze spacjami w ścieżce. Kontrola modelu
-nie wykazała zmian względem snapshotu. W jednorazowym PostgreSQL 15 wykonano
-SQL init i wszystkie 14 istniejących migracji; listowanie potwierdziło brak
-oczekujących migracji. Operacje zapisu używały jawnego --connection do bazy
-testowej; nie stosowano migracji do bazy aplikacji. Nie testowano innych SDK.
+## Scalona migracja UserImprovements — 2026-11-10
 
-## Profile Tink z JSON — weryfikacja 2026-11-06
+Zmiany unikalności aktywnego e-maila, triggera grupy startowej, tożsamości Google
+i zdjęcia użytkownika są połączone w `20261109191600_UserImprovements`.
+Osobne migracje z zakresu od unikalności e-maila do IconStorageKey usunięto;
+designer pochodzi z końcowego modelu, snapshot pozostaje bez zmian.
+Up wykonuje wszystkie cztery zmiany. Down najpierw blokuje tabelę i odrzuca
+konta bez lokalnego hasła, a następnie cofa zmiany; powtórzone e-maile blokują
+przywrócenie globalnego UNIQUE. Całość jednej migracji podlega transakcji EF.
+Testy nie odwołują się już do usuniętych stanów pośrednich.
 
-Nowa nakładka `tools/scripts/tink_profiles.py` obsługuje `plan`, `apply` i `resume`
-z mapowaniem GUID → preset w JSON. Działa na istniejącej lokalnej bazie i tworzy
-świeże tożsamości/dane Tink, zastępując wyłącznie wskazane `tink_user_id` po
-weryfikacji. Nie uruchamia SQL init, migracji ani seedera. Konfigurację,
-mapowanie i blokadę sesyjną wydzielono do wspólnego `tink_batch.py`; istniejący
-reset zachowuje swój kontrakt i manifesty. [Instrukcja](../tools/scripts/tink_profiles/README.md).
+Historia EF bazy z zastosowanymi wcześniejszymi migracjami nie jest automatycznie
+przepisywana. Dla lokalnej bazy przeznaczonej do odtworzenia użyj SQL init →
+aktualne migracje → seed. Nie uruchamiano tych operacji na bazie aplikacji.
+Weryfikacja po scaleniu: Release build API i User.IntegrationTests bez błędów
+i ostrzeżeń; EF has-pending-model-changes potwierdza zgodność modelu.
+Pięć testów migracji na jednorazowym PostgreSQL 15 zaliczonych: Up/Down/Up,
+blokady cofania przy powtórzonych e-mailach i kontach bez haseł, brak backfillu
+grup oraz zachowanie ograniczeń. git diff --check zaliczony.
+Historyczne wyniki poniżej dotyczą wcześniejszych przebiegów.
 
-Wykonano 73 testy Python narzędzi bez błędów i pominięć, w tym 14 nowych testów
-profili. PostgreSQL 15 działał w jednorazowym kontenerze; przypadki tworzyły
-własne bazy, a migracje EF wygenerowano do pliku i zastosowano wyłącznie w bazach
-testów regresji resetu. Sprawdzono aktualizację wielu istniejących kont,
-zachowanie pozostałych danych i niewybranych mapowań, świeże ID dla nowego
-batcha, preflight wszystkich celów, konflikt unikalności, dezaktywację,
-częściowy sukces, utratę checkpointu po commicie, zamrożone wejście wznowienia,
-zmianę środowiska/mapowania oraz blokady i niezgodny manifest Connector.
-HTTP korzystał ze stanowej atrapy Tink; rzeczywiste wywołania i uprawnienia
-Sandbox pozostają niezweryfikowane. Baza aplikacji nie była modyfikowana.
-Po końcowym zabezpieczeniu niepoprawnego manifestu ponownie wykonano 14/14
-testów profili. Hooki higieny i `git diff --check` przeszły; kontener testowy
-usunięto. Testy Python narzędzi nadal nie są częścią workflow backendu.
+## Zdjęcia profilu i prefiksy storage — weryfikacja 2026-11-10
 
-## Użytkownik Tink przy łączeniu banku — 2026-11-07
+User obsługuje własne zdjęcie w S3 albo wybór współdzielonego presetu, analogicznie
+do Grouping. UserIconService korzysta z IObjectStorage bez zależności User → Grouping.
+Migracja `20261109191600_UserImprovements` dodaje nullable text IconStorageKey
+i CHECK rozłączności z Icon. W bazie pozostają klucze, odczyt zwraca podpisany URL.
+Presety trzeba wgrać osobno; seed nie tworzy obiektów w S3. Dawne dowolne Icon
+nie są automatycznie zamieniane na dostępne presety.
 
-Usunięto osobny endpoint inicjalizacji i dedykowany serwis. Rejestracja,
-potwierdzenie e-maila i login nie wywołują Tink. Rozpoczęcie połączenia zapewnia
-mapowanie przez istniejący kontrakt User i adapter. Przy awarii zwraca 503
-z attemptId, zapisuje nieudaną próbę best effort i pozwala ponowić rozpoczęcie
-w tej samej sesji. Zachowuje poprawnie zapisane ID po błędzie tworzenia linku.
-Nie ma migracji ani inicjalizacji w tle.
-[Kontrakt](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#tink-user-initialization-on-connection-start--2026-11-07).
+GET profile/icon-presets listuje obrazy z katalogu presetów, GET profile/icon
+podpisuje aktualny klucz. PUT profilu obsługuje JSON i multipart z iconFile.
+Własny plik: PNG/JPEG/WebP, limit 5 MiB, kontrola MIME i sygnatury; cały multipart
+ma limit 6 MiB. Brak instrukcji zdjęcia zachowuje wybór (zmiana wcześniejszej
+semantyki User); removeIcon usuwa wybór. Sprzeczne instrukcje dają 400.
+Profil zwraca iconStorageKey. Klucza uploadu ani streamu nie ustawia klient JSON.
+GET i PUT pozostają autoryzowane przez ICurrentUser i mają no-store.
 
-Weryfikacja 2026-11-07: build Release całej solucji bez ostrzeżeń i błędów.
-Przeszło 485 testów .NET bez błędów i pominięć: Banking.UnitTests 121,
-Banking.Tests 95, Banking.IntegrationTests 152, User.UnitTests 18,
-User.Tests 64, User.IntegrationTests 35. Testy używały odizolowanego
-PostgreSQL 15 i atrap Tink. Pełny przepływ HTTP obejmuje brak wywołań Tink
-przy rejestracji/loginie, usunięcie endpointu inicjalizacji, 503 przy błędzie
-upstream/sieci/timeout/odpowiedzi, brak mapowania po awarii i udane ponowienie.
-Sprawdzono też zachowanie ID po awarii linku, współbieżne starty, dezaktywację
-i odzyskanie po błędzie zapisu. Sprawdzono styl i whitespace zmienionych C#,
-git diff --check, JSON kolekcji i składnię 136 skryptów JavaScript oraz trzy
-pliki testów skryptów kolekcji (login, odczyty, refresh). Nie wykonywano wywołań
-Tink Sandbox ani zmian w bazie aplikacji.
+Zapis blokuje rekord użytkownika. Potwierdzony rollback usuwa nowy upload;
+potwierdzony commit pozwala sprzątnąć zastąpiony własny plik. Presety pozostają.
+Błąd sprzątania nie cofa profilu, niepewny wynik commita zachowuje oba pliki.
+Nie ma atomowej transakcji S3/PostgreSQL ani automatycznej rekonsyliacji.
+Archiwizacja grup nadal pozostawia ich zdjęcia w S3.
 
-## Użytkownik Tink po rejestracji — weryfikacja 2026-11-06 (historyczne)
+Oba szablony env i Compose przekazują USER_ICON_PRESET_PREFIX,
+GROUP_ICON_PRESET_PREFIX i RECEIPT_STORAGE_PREFIX. Receipt używa konfiguracji
+dla nowych kluczy, zachowując odczyt historycznych StorageKey. Domyślne wartości,
+kontrakty, błędy i ograniczenia opisuje
+[development](development.md#zdjęcia-profilu-i-prefiksy-storage).
 
-Na rewizji z 2026-11-06 Banking miał autoryzowany `POST /api/banking/tink-user`, wywoływany przez klienta
-po rejestracji, potwierdzeniu e-maila i zalogowaniu. HTTP 204 oznacza zapisane
-mapowanie, bez ujawniania ID Tink i tworzenia próby połączenia/importu.
-Usługa korzysta z istniejącej blokady i adaptera; nie dodano zależności User →
-Banking ani migracji. Aktualny przepływ opisuje sekcja powyżej.
+Weryfikacja na jednorazowym PostgreSQL 15: User.UnitTests 52/52, User.Tests 101/101,
+User.IntegrationTests 77/77. Nowe przypadki sprawdzają formaty i limit pliku,
+presety, signed URL, autoryzację, multipart i pola serwerowe, wybór/zachowanie/
+usunięcie, błędy storage i bazy, równoległe podmiany, błąd commita przed oraz
+po faktycznym zatwierdzeniu, CHECK i Up/Down/Up. Storage jest atrapą; PostgreSQL,
+migracje, repozytoria, serwisy i JWT są rzeczywiste. Receipt.UnitTests 111/111,
+w tym cztery warianty prefiksu i odczyt starego klucza.
 
-Wykonano build Release całej solucji bez ostrzeżeń i błędów oraz 500 testów
-bez błędów i pominięć: Banking.UnitTests 130/130, Banking.Tests 104/104,
-Banking.IntegrationTests 152/152, User.UnitTests 18/18, User.Tests 64/64,
-User.IntegrationTests 32/32. Testy bazy używały odizolowanego PostgreSQL 15; tymczasowy kontener usunięto
-po zakończeniu testów. Nie zmieniano bazy aplikacji.
-Nowe przypadki obejmują pełne HTTP register → confirm-email → login → provision
-z prawdziwym JWT, błąd Tink i ponowienie w tej samej sesji, ponowne użycie
-mapowania przy rozpoczęciu połączenia, współbieżną inicjalizację, wyścig z
-rozpoczęciem połączenia, dezaktywację w trakcie wywołania oraz rollback zapisu
-mapowania i ponowienie. Testy używają atrap Tink; istniejące testy adaptera
-obejmują konflikt/lost response i odzyskanie po external_user_id. Nie wykonano
-wywołań Sandbox ani nie potwierdzono uprawnień aplikacji Tink.
+Test HTTP wykrył niejednoznaczny PUT bez Content-Type; endpoint multipart ma
+teraz niższy priorytet niż JSON. Test Google Down dostosowano do częściowego
+cofnięcia późniejszych migracji przed zadziałaniem blokady Google.
+Pełna regresja 13 projektów: 769 zaliczonych, 0 błędów, 1 pominięty ręczny test S3.
+Release build API: 0 błędów/ostrzeżeń. Whitespace zmienionych testów i
+git diff --check zaliczone. Postman User: 21 żądań, 42 skrypty ze sprawdzoną
+składnią; nowe cztery skrypty zdjęć wykonane na danych syntetycznych.
+Zaktualizowano kolekcję, środowisko i instrukcje.
 
-Sprawdzono styl i whitespace zmienionych plików C#, `git diff --check`, JSON
-kolekcji i składnię 140 skryptów JavaScript. Nowe skrypty Postmana sprawdzono
-lokalnie dla odpowiedzi 204 i 503; nie uruchamiano kolekcji przeciw żywemu API.
+Nie wykonano rzeczywistego uploadu do S3 ani prac na bazie aplikacji.
+Frontend zdjęć nie jest częścią tej zmiany; nie ma dekodowania/reskalowania
+obrazu ani workera usuwającego osierocone pliki. Cofnięcie migracji usuwa
+powiązania do własnych zdjęć, ale pozostawia pliki S3.
 
-## Niezawodność połączeń Banking — 2026-11-04
+## Rejestracja i logowanie Google — weryfikacja 2026-11-10
 
-Kontrolery połączeń i callbacku mapują DbException / DbUpdateException przez
-lokalny filtr MVC na bezpieczne 503 BANKING_TEMPORARILY_UNAVAILABLE, bez treści
-wyjątku, z attemptId: null przy braku wyniku serwisu. Callback zachowuje
-Retry-After: 5 i Referrer-Policy: no-referrer. Anulowanie i błędy programistyczne
-nie są przechwytywane. Wszystkie akcje kontrolera połączeń mają no-store;
-odpowiedzi uwierzytelniania/routingu przed kontrolerem zachowują kontrakt hosta.
+User obsługuje Google Identity Services przez challenge z nonce i cookie
+HttpOnly oraz endpointy google/login i google/register. Backend sprawdza podpis
+RS256, issuer, audience, expiry i nonce ID tokenu; wydaje własny JWT i refresh
+token. Integracja jest domyślnie wyłączona; wymaga publicznego Web ClientId.
+Kontrakt, konfigurację i kody błędów opisuje
+[development](development.md#rejestracja-i-logowanie-google).
 
-BankingConnectionRepository tworzy i zwalnia kontekst z scoped fabryki na każdą
-operację, również odczyty wygaszające próby. Nie czyści trackera ani nie zapisuje
-zmian scoped kontekstu wywołującego. Próba i połączenie nadal są finalizowane
-atomowo we własnej transakcji. Refresh, odczyty i przypisania zachowują scoped
-BankingDbContext oraz dotychczasowe granice transakcji. Bez migracji, zmian
-publicznych interfejsów serwisów, automatycznego refreshu i integracji z Expense/Grouping.
+Migracja `20261109191600_UserImprovements` dodaje nullable, globalnie
+unikalny GoogleSubject typu text i dopuszcza brak PasswordHash z CHECK wymagającym
+co najmniej jednej metody logowania. Down odmawia cofnięcia przy kontach bez
+lokalnego hasła. Nie ma nowej tabeli ani automatycznego łączenia po mailu.
+Nieaktywnego GoogleSubject nie można zarejestrować ponownie. Zmiana adresu
+w Google nie nadpisuje zapisanego adresu aplikacji.
 
-Weryfikacja 2026-11-04: build całej solucji Release bez ostrzeżeń i błędów;
-Banking.UnitTests 121/121, Banking.Tests 95/95, Banking.IntegrationTests 149/149
-na odizolowanym PostgreSQL 15, bez pominięć. Nowe testy potwierdzają oba rodzaje
-wyjątków bazy dla wszystkich endpointów połączeń i callbacku, bezpieczne treści
-oraz nagłówki, propagację innych wyjątków, DI fabryki i scoped kontekstu,
-zachowanie Added/Modified/Deleted i transakcji wywołującego oraz rollback po
-zapisie SQL, przed commitem finalizacji. Pełny zestaw obejmuje też istniejące
-testy współbieżności, replay, wygaśnięcia i własności credentials.
-Sprawdzono styl i formatowanie zmienionych plików C# oraz git diff --check.
-Tymczasowy kontener PostgreSQL usunięto po testach. Baza aplikacji pozostaje
-bez zmian; nie wykonywano wywołań Tink.
+Nowe konto Google wymaga zwykłego loginu i danych profilu. Gmail/Workspace
+z email_verified mogą otrzymać potwierdzony adres i sesję od razu; pozostałe
+adresy przechodzą SMTP. Konto, grupa startowa i ewentualna sesja powstają
+w jednej transakcji. Wysyłka SMTP następuje po commit; jej błąd pozostawia
+konto i token, dostępny jest resend-confirmation. Wspólny IUserSessionService
+utrzymuje jedną sesję dla logowania Google i hasłem.
 
-## Serwis przypisań Banking — 2026-11-03
+Google user może ustawić pierwsze hasło przez istniejący
+forgot-password/reset-password i nasz SMTP. Wymagany jest potwierdzony e-mail;
+po ustawieniu hasła sesje są usuwane i działają obie metody logowania.
+Zmiana maila jest blokowana także po ustawieniu hasła oraz przy potwierdzaniu
+wcześniej wystawionego tokenu. Odłączania Google nie ma.
+Profil zwraca hasPassword/isGoogleLinked, bez GoogleSubject i hasha hasła.
 
-Dodano scoped IBankTransactionAssignmentService, implementację i repozytorium.
-Serwis obsługuje odczyt snapshotu, idempotentne przypisanie oraz warunkowe zwolnienie
-po typie i ID konsumenta. Zapis wymaga jawnej transakcji BankingDbContext; SQL
-wykonuje się od razu, bez SaveChangesAsync, commitu lub rollbacku w serwisie.
-Repozytorium blokuje BankTransaction przez FOR UPDATE i obsługuje konflikt
-przypisania przez ON CONFLICT DO NOTHING. Szczegóły wyników i odpowiedzialności
-wywołującego są w [kontrakcie Banking](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#internal-assignment-service).
-Nie zmieniono schematu bazy, endpointów ani połączenia BankingDbContext.
-Integracja z przepływami Banking/Expense/Grouping i koordynacją transakcji
-pozostaje do implementacji; serwis nie sprawdza autoryzacji ani danych konsumenta.
+Weryfikacja na jednorazowym PostgreSQL 15: User.UnitTests 40/40,
+User.Tests 90/90 i User.IntegrationTests 66/66, bez pominięć. Sprawdzono lokalną
+walidację podpisu RSA przez atrapę discovery/JWKS, błędy tokenu i metadanych,
+cookie/nonce, wygaśnięcie i współbieżne zużycie challenge, walidację DTO,
+statusy/no-store/limity, oba logowania i unieważnienie sesji, pierwsze hasło,
+SMTP/resend, brak łączenia kont, blokady adresu, współbieżną rejestrację/logowanie,
+rollback konta i grupy przy błędzie sesji, UNIQUE/CHECK i Up/Down/Up migracji.
+Starszy test triggera dostosowano do zapisu w schemacie sprzed GoogleSubject.
 
-Weryfikacja 2026-11-03: kompilacja całej solucji bez błędów i ostrzeżeń;
-Banking.UnitTests 121/121, Banking.Tests 77/77 oraz Banking.IntegrationTests
-147/147 na PostgreSQL 15, bez pominięć. Nowe testy obejmują oba typy konsumenta,
-idempotencję, konflikty, brak transakcji wywołującego, commit/rollback przypisania
-i zwolnienia, brak zapisu/czyszczenia innych śledzonych zmian EF, a także
-równoległe przypisania i przypisanie ze zwolnieniem w obu kolejnościach.
-Testy współbieżności potwierdzają oczekiwanie na blokadę przez pg_stat_activity.
-Sprawdzono styl i formatowanie zmienionych plików C# oraz git diff --check.
-Operacje bazy wykonywano wyłącznie na tymczasowych bazach tworzonych przez testy;
-baza aplikacji pozostaje bez zmian.
+Regresja wszystkich 13 projektów zaliczona. Końcowe wyniki projektów po dodaniu
+pięciu dodatkowych przypadków HTTP: 731 zaliczonych, 0 błędów, 1 pominięty ręczny
+test S3. Release build API: 0 błędów i ostrzeżeń. Kontrola whitespace zmienionych
+testów i git diff --check zaliczone. Kolekcja User ma 17 żądań: JSON i składnia
+34 skryptów zweryfikowane; nowe skrypty Google wykonano na danych syntetycznych.
 
-## Rejestr przypisań Banking — 2026-11-03
+Nie wykonano rzeczywistego logowania w Google Identity Services ani wysyłki
+SMTP. Frontend (przycisk Google, uzupełnienie profilu, hint ustawienia hasła)
+nie jest podłączony. Przy odrębnym originie potrzebne będzie CORS z credentials
+lub wspólne proxy. Cookie wymaga wspólnego site; HTTPS za reverse proxy wymaga
+poprawnej konfiguracji zaufanych forwarded headers. Magazyn challenge działa
+w pamięci jednej instancji; restart unieważnia próby, skalowanie wymaga sticky
+sessions albo wspólnego magazynu. Bazy aplikacji nie zmieniano.
 
-Dodano migrację `20261103203528_AddBankTransactionAssignments`, model oraz
-filtry `settlementAssignment` / `expenseAssignment` istniejącej listy transakcji.
-[Kontrakt Banking](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#transaction-assignments--2026-11-03)
-opisuje tabelę, niezależne flagi nullable łączone przez AND i ograniczenia etapu.
-Seeder resetuje rejestr i odtwarza syntetyczne przypisania obu typów. Migracja
-nie przenosi istniejących powiązań. Nie dodano zapisu rejestru w serwisach
-Expense/Grouping ani API przypisań; filtr odzwierciedla wyłącznie stan rejestru.
+## Zwykła grupa startowa przy rejestracji — 2026-11-09
 
-Weryfikacja 2026-11-03: kompilacja całej solucji bez ostrzeżeń i błędów;
-Banking.UnitTests 107/107 oraz Banking.Tests 77/77. Pełny przebieg
-Banking.IntegrationTests na PostgreSQL 15: 137/138; starszy test cofania migracji
-zakładał zachowanie wszystkich późniejszych migracji po odrzuceniu rollbacku
-Expense. Po dostosowaniu asercji do etapowego rollbacku EF, ponownej kompilacji
-i uruchomieniu tego testu: 1/1. Bez pominiętych testów. Testy obejmują wszystkie
-kombinacje flag, paginację, izolację właściciela, ograniczenia tabeli, Up/Down/Up
-i ponowne wykonanie seedera. Sprawdzono styl i formatowanie zmienionego kodu,
-`git diff --check` oraz JSON i opcjonalne parametry kolekcji Postmana.
-Migracje i seed wykonywano wyłącznie na osobnych bazach tworzonych przez testy;
-nie zmieniano bazy aplikacji ani nie potwierdzano integracji Tink.
+Migracja `20261109191600_UserImprovements` dodaje funkcję
+`grouping.create_user_starter_group()` i trigger AFTER INSERT na tabeli User.
+Każdy nowy użytkownik otrzymuje zwykłą grupę „Wydatki osobiste” w PLN i jedno
+aktywne członkostwo administratora z zerowymi agregatami. Nie ma specjalnego
+typu, blokad ani oznaczenia grupy osobistej; nazwa i członkostwa mogą się zmieniać.
+Trigger działa w transakcji INSERT użytkownika, także dla seeda i ręcznego SQL.
+Nie tworzy grup wstecznie; Down usuwa wyłącznie trigger i funkcję.
+Nie zmieniono kodu rejestracji, kontraktu odpowiedzi ani zależności modułów.
+
+Seed zachowuje pięć wygenerowanych grup startowych obok „Dom” i „Wyjazd”
+(siedem grup łącznie); istniejące stałe ID przykładów pozostają zachowane.
+Zaktualizowano opis rejestracji w kolekcji Postmana, instrukcję testów oraz
+architecture.md, domain.md i development.md. Testy migracji e-maila wskazują
+teraz właściwą migrację zamiast zakładać, że jest ostatnia; testy Grouping
+uwzględniają dodatkowe grupy i członkostwa oraz częściowo zakończone cofanie EF.
+Weryfikacja na tymczasowym PostgreSQL: pięć nowych przypadków triggera zaliczonych;
+regresja User.IntegrationTests 51/51 i Notifications.IntegrationTests 13/13.
+Po doprecyzowaniu zapytań członkostwa i założeń o historii EF ponowiono
+odpowiednie zestawy: User 8/8 (trigger i unikalność e-maila), Banking 35/35
+(model grup, seed i migracje). Pozostałe testy jednostkowe i HTTP regresji
+zaliczone; jedyny pominięty przypadek to ręczny test S3.
+Sprawdzono rollback konta, tokenu, grupy i członkostwa, brak wysyłki e-maila
+przy błędzie zapisu, brak backfillu, zachowanie grup przy Down i ponowienie seeda.
+Bazy aplikacji nie zmieniano; migracja wymaga osobnego zastosowania.
+
+## Ponowne użycie e-maila po dezaktywacji — 2026-11-09
+
+Migracja `20261109191600_UserImprovements` zastępuje globalną unikalność
+e-maila indeksem częściowym `c_user_unique_email WHERE is_active = true`.
+Obsługuje ograniczenie UNIQUE z SQL init oraz sam indeks. Login nadal jest
+unikalny globalnie. Nowe konto otrzymuje nowe ID bez przejmowania historii.
+GetActiveByEmailAsync i ExistsActiveByEmailAsync filtrują IsActive; korzystają
+z nich rejestracja, logowanie, reset hasła, ponowna wysyłka potwierdzenia oraz
+oba etapy zmiany e-maila. Logowanie e-mailem bez aktywnego konta daje 401;
+login nieaktywnego konta z poprawnym hasłem nadal daje 403. Szczegóły i warunki
+cofnięcia migracji: domain.md i development.md.
+
+Weryfikacja: User.IntegrationTests 46/46 na tymczasowym PostgreSQL, bez pominięć.
+Obejmuje ponowną rejestrację po dezaktywacji, zachowanie starego loginu,
+nową tożsamość, lookup sesji i tokenów, zmianę adresu na adres nieaktywnego konta,
+wiele nieaktywnych kont z jednym adresem, odrzucenie drugiego aktywnego konta
+i reaktywacji, Up/Down/Up oraz rollback nieudanego Down przy powtórzonych adresach.
+User.Tests 72/72, User.UnitTests 21/21. Regresja pozostałych projektów bez
+konfiguracji usług zewnętrznych ujawniła test zakładający, że migracja Expense
+musi być ostatnia; zastąpiono to sprawdzeniem kolejności migracji Grouping/Expense.
+Ponowny przebieg Banking.IntegrationTests: 19 zaliczonych, 60 PostgreSQL pominiętych.
+Pozostałe projekty regresji zaliczone; Notifications PostgreSQL i ręczny test S3
+pominięto bez konfiguracji. Tymczasowy serwer PostgreSQL zatrzymano po testach.
+Bazy aplikacji nie zmieniano; migracja jest przygotowana do osobnego zastosowania.
+
+## Logowanie loginem lub e-mailem — 2026-11-09
+
+`POST /api/users/login` przyjmuje w dotychczasowym polu `login` login albo
+aktualny adres e-mail. Limit pola wynosi 254 znaki; normalizacja i wymagania
+dotyczące hasła, aktywności konta oraz potwierdzenia e-maila pozostają zachowane.
+Wartość z `@` jest wyszukiwana wyłącznie po e-mailu, a bez `@` po loginie.
+Kontrakt opisuje development.md.
+Nie zmieniono modelu ani migracji.
+
+Rejestracja i edycja profilu odrzucają login zawierający `@` przez walidację
+DTO (400 z błędem pola Login). Pole `login` przy uwierzytelnianiu nadal dopuszcza
+adres e-mail. Istniejących loginów w bazie nie zmieniono; historyczny login
+z `@` nie jest używany do uwierzytelniania — takie konto może użyć swojego e-maila.
+
+Weryfikacja: User.UnitTests 21/21 i User.Tests 72/72 zaliczone, w tym cztery
+przypadki HTTP odrzucenia `@` przy rejestracji i edycji profilu oraz cztery
+przypadki odrzucenia e-maila bez `@` przez istniejące `[EmailAddress]`
+(rejestracja, zmiana e-maila, ponowna wysyłka potwierdzenia i reset hasła).
+User.IntegrationTests skompilowano; testy PostgreSQL pominięto bez
+TEST_POSTGRES_CONNECTION_STRING. Dodano scenariusze logowania e-mailem,
+normalizacji, odrzucenia niedostępnych kont, wyszukiwania wyłącznie po e-mailu
+dla wartości z `@` oraz zmiany adresu.
+Nie potwierdzono ich wykonania na bazie; nie zmieniano bazy aplikacji.
 
 ## Zmiany po review — 2026-10-28
 
@@ -710,8 +803,7 @@ Nie zmieniano bazy deweloperskiej i nie wykonywano wywołań rzeczywistego Tink.
 | Opis bazy używa `ExpenceShare` | Aktualna nazwa klasy to `ExpenseShare`; nie kopiuj literówki do nowych kontraktów |
 | SQL init nie ma UNIQUE dla FK paragonu i transakcji w Expense; aktualny opis bazy, EF i snapshot już je uwzględniają | Migracja 20261021162958_AddUniqueExpenseSourceReferences tworzy dwa osobne unikalne indeksy; po jej zastosowaniu jeden paragon lub transakcja mogą należeć do najwyżej jednego wydatku |
 | Nie wszystkie FK między modułami i domyślne ograniczenia z SQL init są odwzorowane w EF | Przy zmianie schematu porównuj SQL, migracje i snapshot; szczegóły opisuje domain.md |
-| Snapshot deklaruje indeksy FK ExpenseItem, których nie tworzą SQL init ani stary łańcuch migracji | Historyczny brak indeksów nie wpływa na kolejność zapisu; MapExpenseShareRelationship odwzorowuje wyłącznie istniejący FK udziału do wydatku, bez zmiany indeksów |
-| Expense wymaga grupy, ale grupa osobista nie jest zaimplementowana | Ustalono jednoosobową grupę; realizacja należy do Grouping |
+| Expense wymaga grupy także dla wydatków osobistych | Nowe konto otrzymuje zwykłą grupę startową „Wydatki osobiste” w PLN; może ją normalnie zmieniać i rozszerzać. Istniejące konta bez backfillu |
 | Historyczny SQL init i diagramy mogą nadal zawierać ExpenseItem.fk_user_id | Migracja CompleteExpenseModel usuwa pole i FK; MVP obejmuje podział całego wydatku. Schemat docelowy opisuje domena |
 | Dokumentacja stosu wymienia Swagger, mobile i Python OCR | Backend .NET udostępnia OpenAPI w Development; worker FastAPI ma UI /docs i zaimplementowany OCR. Aplikacji web/mobile nadal nie ma |
 | SQL init Receipt nadal używa s3_link; model i seed używają unikalnego storage_key | Migracja 20261028184348_RenameReceiptS3LinkToStorageKeyAndMakeUnique zmienia nazwę kolumny i dodaje indeks; seed wymaga jej zastosowania. Migracja nie konwertuje historycznych URL-i na klucze i wymaga braku duplikatów |
@@ -878,6 +970,10 @@ rzeczywisty lookup Banking właściciela i administratora oraz regresja CRUD,
 agregatów i współbieżności. Bazy aplikacji nie zmieniano.
 
 ## Rozdzielenie migracji Grouping/Expense — 2026-11-02
+
+Opis historyczny. Tymczasową migrację poniżej zastąpiła CompleteExpenseModel;
+bieżący łańcuch opisuje [development](development.md#migracje-po-rebase-expensegrouping--2026-11-03).
+
 Dwie wcześniejsze migracje brancha zastąpiono:
 20261102215301_AddGroupingModel (Grouping/Limits) oraz
 20261102215328_AddTemporaryExpenseAggregationSupport (płatnik i kwotowe udziały).

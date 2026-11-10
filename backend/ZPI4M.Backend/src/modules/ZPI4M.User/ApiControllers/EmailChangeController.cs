@@ -19,6 +19,7 @@ public sealed class EmailChangeController(IEmailChangeService emailChangeService
 	[ProducesResponseType(StatusCodes.Status202Accepted)]
 	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
 	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
 	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
 	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
 	[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
@@ -32,6 +33,9 @@ public sealed class EmailChangeController(IEmailChangeService emailChangeService
 			ChangeEmailResult.Accepted => Accepted(),
 			ChangeEmailResult.UserUnavailable => Problem(
 				statusCode: StatusCodes.Status401Unauthorized, title: "Account is no longer available."),
+			ChangeEmailResult.GoogleAccountEmailChangeForbidden => Problem(
+				statusCode: StatusCodes.Status403Forbidden, title: "Email cannot be changed for an account linked to Google.",
+				extensions: new Dictionary<string, object?> { ["code"] = "google_account_email_change_forbidden" }),
 			ChangeEmailResult.InvalidPassword => Problem(
 				statusCode: StatusCodes.Status400BadRequest, title: "Current password is incorrect."),
 			ChangeEmailResult.EmailUnchanged => Problem(

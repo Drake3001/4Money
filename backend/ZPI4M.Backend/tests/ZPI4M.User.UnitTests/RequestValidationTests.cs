@@ -26,6 +26,27 @@ public sealed class RequestValidationTests
 	}
 
 	[Theory]
+	[InlineData(" TEST.USER ", "test.user")]
+	[InlineData(" TEST@EXAMPLE.TEST ", "test@example.test")]
+	public void LoginNormalizesIdentifierWithoutChangingPassword(string identifier, string expected)
+	{
+		var request = new LoginRequest { Login = identifier, Password = " Password1! " };
+		Assert.Equal(expected, request.Login);
+		Assert.Equal(" Password1! ", request.Password);
+		Assert.True(IsValid(request));
+	}
+
+	[Fact]
+	public void LoginAcceptsMaximumEmailLengthAndRejectsInvalidIdentifierLengths()
+	{
+		var email = new string('a', 64) + "@" + new string('b', 63) + "." + new string('c', 63) + "." + new string('d', 56) + ".test";
+		Assert.Equal(254, email.Length);
+		Assert.True(IsValid(new LoginRequest { Login = email, Password = "Password1!" }));
+		foreach (var identifier in new[] { "", "   ", "ab", new string('a', 255) })
+			Assert.False(IsValid(new LoginRequest { Login = identifier, Password = "Password1!" }));
+	}
+
+	[Theory]
 	[InlineData("short1!")]
 	[InlineData("password1!")]
 	[InlineData("Password!")]

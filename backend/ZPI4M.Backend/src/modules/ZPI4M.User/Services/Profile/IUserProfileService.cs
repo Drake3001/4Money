@@ -13,5 +13,6 @@ public enum UpdateUserProfileResult
 {
 	Updated,
 	UserUnavailable,
-	LoginAlreadyInUse
+	LoginAlreadyInUse,
+	InvalidRequest
 }

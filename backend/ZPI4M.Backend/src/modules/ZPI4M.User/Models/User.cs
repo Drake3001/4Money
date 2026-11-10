@@ -13,7 +13,9 @@ public partial class User
 
 	public string Surname { get; set; } = null!;
 
-	public string PasswordHash { get; set; } = null!;
+	public string? PasswordHash { get; set; }
+
+	public string? GoogleSubject { get; set; }
 
 	public string Email { get; set; } = null!;
 
@@ -30,6 +32,8 @@ public partial class User
 	public bool IsActive { get; set; }
 
 	public string? Icon { get; set; }
+
+	public string? IconStorageKey { get; set; }
 
 	public string? TinkUserId { get; set; }
 

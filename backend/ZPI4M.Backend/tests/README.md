@@ -6,7 +6,8 @@ Moduły User i Notifications mają po trzy projekty xUnit:
 - `ZPI4M.User.Tests`: kontrakt HTTP kontrolerów z atrapami serwisów, walidacja,
   autoryzacja, identyfikacja właściciela i mapowanie błędów na ProblemDetails.
 - `ZPI4M.User.IntegrationTests`: prawdziwy PostgreSQL, repozytoria, serwisy,
-  kontrolery i uwierzytelnianie JWT; tylko wysyłka SMTP jest zastępowana atrapą.
+  kontrolery i uwierzytelnianie JWT; SMTP, storage i zewnętrzna tożsamość Google
+  są zastępowane atrapami.
 - `ZPI4M.Notifications.UnitTests`: walidacja i deduplikacja w NotifyAsync,
   przygotowanie odbiorców, mapowanie inboxa i przekazanie tożsamości/czasu do repozytorium.
   Zapis jest przechwytywany; te testy nie potwierdzają transakcji PostgreSQL.
@@ -22,7 +23,7 @@ Uruchom z katalogu `backend/ZPI4M.Backend`:
 dotnet test ZPI4M.Backend.slnx --configuration Release
 ```
 
-Testy integracyjne User, Banking i Notifications używają jednej zmiennej
+Testy integracyjne User, Banking, Expense i Notifications używają jednej zmiennej
 `TEST_POSTGRES_CONNECTION_STRING` z connection stringiem
 do **jednorazowego serwera testowego**. Konto musi mieć uprawnienia CREATE DATABASE.
 Wszystkie moduły mogą używać tego samego serwera testowego,
@@ -36,13 +37,42 @@ dotnet test ZPI4M.Backend.slnx --configuration Release
 docker stop zpi4m-user-tests
 ```
 
-Każdy przypadek integracyjny tworzy osobną bazę `user_tests_<losowy_guid>`
-lub `notifications_tests_<losowy_guid>` i wykonuje:
+Każdy przypadek integracyjny tworzy osobną bazę z prefiksem `user_tests_`,
+`banking_tests_`, `expense_tests_` lub `notifications_tests_` i losowym GUID.
+Fixture pełnego przepływu wykonuje:
 
 1. `database/init/01-schemas.sql` i `database/init/02-tables.sql`.
 2. Wszystkie migracje z `AppDbContext`, łącznie z najnowszą; sprawdza brak oczekujących
    migracji i zgodność modelu ze snapshotem.
 3. `database/seed_local.sql` z użytkownikami, grupami, wydatkami i danymi bankowymi.
+
+`StarterGroupTests` w User.IntegrationTests sprawdza trigger tworzący zwykłą
+grupę „Wydatki osobiste” w PLN: rejestrację przed potwierdzeniem e-maila,
+członkostwo administratora, rollback błędu członkostwa i transakcji nadrzędnej,
+brak backfillu, Up/Down/Up oraz ponowne wykonanie seeda. Seed po tej migracji
+zawiera pięć grup startowych i dwa dotychczasowe przykłady współdzielone.
+
+Testy Google nie wymagają prawdziwego ClientId ani konta Google:
+
+- `GoogleAuthenticationTests` w UnitTests waliduje tokeny podpisane lokalnym RSA
+  z atrapą HTTPS discovery/JWKS: podpis, wystawcę, audience, expiry, nonce i pola
+  tożsamości, a także brak metadanych i anulowanie. Sprawdza konfigurację, DTO,
+  powiązanie challenge z przeglądarką, jego termin i jednorazowość współbieżną.
+- `GoogleControllerTests` w Tests sprawdza statusy/kody błędów, no-store,
+  HttpOnly/Secure/SameSite cookie, walidację, disabled/unavailable oraz wspólny
+  limit logowania hasłem i Google. Atrapy nie potwierdzają zapisu bazy.
+- `GoogleFlowTests` w IntegrationTests używa prawdziwych migracji, triggera,
+  repozytoriów, serwisów i JWT. Atrapa Google sprawdza nonce oczekiwane przez
+  konkretny ID token. Scenariusze obejmują rejestrację bez hasła, potwierdzenie
+  adresów zewnętrznych, pierwsze hasło, obie metody logowania, unieważnienie sesji,
+  blokadę zmiany e-maila, brak łączenia po e-mailu, nieaktywne konta, cookie replay,
+  równoległe próby, rollback błędu sesji razem z grupą, awarię SMTP i resend,
+  unikalność sub także dla nieaktywnych kont, CHECK metody logowania i Up/Down/Up
+  migracji Google wraz z odmową Down dla kont bez hasła.
+
+Nie są to testy rzeczywistego okna Google Identity Services ani dostarczenia
+wiadomości przez SMTP. Frontend nie jest jeszcze zintegrowany; ręczny przepływ
+opisuje [Postman](../../../postman/README.md#google).
 
 Fixture Notifications przed migracjami dodaje starsze powiadomienie i sprawdza
 zachowanie treści oraz daty po zmianie sent_at → created_at, domyślny typ General
@@ -59,10 +89,26 @@ connection string. Runner CI wykrywa śledzone projekty `.UnitTests`, `.Tests`
 i `.IntegrationTests`; wszystkie projekty User i Notifications są wpisane do solution, więc krok
 Release build kompiluje je przed `dotnet test --no-build --no-restore`.
 
+## Zdjęcia profilu
+
+UserIconTests sprawdza typ i sygnaturę PNG/JPEG/WebP, dokładny limit 5 MiB,
+puste/błędne pliki, konfigurację katalogu presetów, podpisane URL-e, anulowanie
+i sprzątanie nieudanego uploadu. UserIconControllerTests obejmuje autoryzację,
+no-store, mapowanie błędów, multipart, pola tylko serwerowe i routing PUT
+z obsługą JSON/multipart oraz bez Content-Type.
+
+UserIconFlowTests używa prawdziwego PostgreSQL i RecordingObjectStorage:
+upload → zachowanie → preset → usunięcie, izolację właściciela, błędy walidacji,
+rollback bazy, błędy uploadu/usuwania, równoległe podmiany, niepewny commit
+przed/po faktycznym zatwierdzeniu oraz Up/Down/Up i CHECK migracji ikon User.
+Nie jest to test rzeczywistego S3; adapter ma własne testy Shared oraz ręczny
+test S3 Receipt opisany poniżej. Brak konfiguracji PostgreSQL pomija testy bazy.
+
 ## Receipt
 
-`ZPI4M.Receipt.UnitTests` sprawdza serwis Receipt, klienta HTTP OCR, adapter S3
-oraz walidację konfiguracji. `CreateAsync` wymaga jawnego `runOcr` i zwraca
+`ZPI4M.Receipt.UnitTests` sprawdza serwis Receipt, klienta HTTP OCR
+oraz walidację konfiguracji OCR; adapter S3 i jego konfigurację sprawdza
+`ZPI4M.Shared.UnitTests`. `CreateAsync` wymaga jawnego `runOcr` i zwraca
 `ReceiptCreationResult` (ID oraz opcjonalny pełny wynik OCR). Testy obejmują
 oba tryby: analizę i zapis oraz samo zdjęcie z `ExtractionResult = null`
 i bez żądania HTTP do OCR. Wspólne scenariusze obejmują strumienie bez przewijania,
@@ -70,8 +116,8 @@ odczyt od bieżącej pozycji, walidację, anulowanie, błędy uploadu i zapisu,
 sprzątanie plików tymczasowych oraz niepewne potwierdzenie zapisu.
 Testy usuwania sprawdzają obsługę błędów.
 OCR i dostawcy są zastępowani atrapami; testy nie wywołują płatnego modelu.
-Receipt nie ma własnych endpointów; przyszłe endpointy Expense będą korzystać
-z jego serwisu, więc nie dodajemy testów kontrolera Receipt.
+Receipt nie ma własnych endpointów; endpointy Expense korzystają z jego serwisu.
+Testy HTTP tej integracji znajdują się w Expense.IntegrationTests.
 
 Z katalogu `backend/ZPI4M.Backend`, po kompilacji Release:
 

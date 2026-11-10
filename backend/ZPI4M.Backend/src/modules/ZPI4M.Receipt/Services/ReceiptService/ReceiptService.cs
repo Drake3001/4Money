@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using ZPI4M.Receipt.Database;
 using ZPI4M.Receipt.DTOs;
@@ -18,6 +19,7 @@ public sealed class ReceiptService : IReceiptService
 	private readonly IObjectStorage _storage;
 	private readonly ILogger<ReceiptService> _logger;
 	private readonly TimeProvider _timeProvider;
+	private readonly string _storagePrefix;
 
 	public ReceiptService(
 		IReceiptRepository repository,
@@ -25,7 +27,8 @@ public sealed class ReceiptService : IReceiptService
 		IReceiptAnalysisService analysis,
 		IObjectStorage storage,
 		ILogger<ReceiptService> logger,
-		TimeProvider timeProvider)
+		TimeProvider timeProvider,
+		IConfiguration configuration)
 	{
 		_repository = repository;
 		_context = context;
@@ -33,6 +36,8 @@ public sealed class ReceiptService : IReceiptService
 		_storage = storage;
 		_logger = logger;
 		_timeProvider = timeProvider;
+		var storagePrefix = configuration["RECEIPT_STORAGE_PREFIX"];
+		_storagePrefix = string.IsNullOrWhiteSpace(storagePrefix) ? "receipts/" : storagePrefix.Trim().TrimEnd('/') + "/";
 	}
 
 	public async Task<ReceiptCreationResult> CreateAsync(Stream content, string contentType, bool runOcr, CancellationToken cancellationToken = default)
@@ -52,7 +57,7 @@ public sealed class ReceiptService : IReceiptService
 		JsonElement? result = runOcr ? await _analysis.AnalyzeAsync(copy, contentType, cancellationToken) : null;
 		var extractionResult = result?.GetRawText();
 		copy.Position = 0;
-		var storageKey = $"receipts/{Guid.NewGuid():N}";
+		var storageKey = $"{_storagePrefix}{Guid.NewGuid():N}";
 		await _storage.UploadAsync(storageKey, copy, contentType, cancellationToken);
 
 		var receipt = new Models.Receipt
@@ -91,7 +96,7 @@ public sealed class ReceiptService : IReceiptService
 		var receipt = new Models.Receipt
 		{
 			Id = Guid.NewGuid(),
-			StorageKey = $"receipts/{Guid.NewGuid():N}",
+			StorageKey = $"{_storagePrefix}{Guid.NewGuid():N}",
 			ExtractionResult = extractionResult
 		};
 		try

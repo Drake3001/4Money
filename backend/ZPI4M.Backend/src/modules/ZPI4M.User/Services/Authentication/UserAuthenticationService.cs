@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using ZPI4M.User.Database;
 using ZPI4M.User.DTOs.Authentication;
 using ZPI4M.User.Models;
@@ -16,13 +15,15 @@ public sealed class UserAuthenticationService(
 	UserDbContext dbContext,
 	IPasswordHasher<Models.User> passwordHasher,
 	IUserTokenGenerator tokenGenerator,
-	IAccessTokenGenerator accessTokenGenerator,
-	IOptions<AuthenticationOptions> options) : IUserAuthenticationService
+	IUserSessionService sessions) : IUserAuthenticationService
 {
 	public async Task<(LoginResult Result, AuthenticationResponse? Response)> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(request);
-		var candidate = await users.GetByLoginAsync(request.Login, cancellationToken);
+		var isEmail = request.Login.Contains('@');
+		var candidate = isEmail
+			? await users.GetActiveByEmailAsync(request.Login, cancellationToken)
+			: await users.GetByLoginAsync(request.Login, cancellationToken);
 		if (candidate is null)
 		{
 			return (LoginResult.InvalidCredentials, null);
@@ -30,7 +31,7 @@ public sealed class UserAuthenticationService(
 
 		await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 		var user = await users.GetByIdForUpdateAsync(candidate.Id, cancellationToken);
-		if (user is null || user.Login != request.Login)
+		if (user is null || user.PasswordHash is null || (isEmail ? user.Email : user.Login) != request.Login)
 		{
 			return (LoginResult.InvalidCredentials, null);
 		}
@@ -52,25 +53,7 @@ public sealed class UserAuthenticationService(
 		}
 
 		var now = DateTime.UtcNow;
-		var previousSession = await tokens.GetByUserAsync(user.Id, UserTokenPurpose.RefreshToken, cancellationToken);
-		if (previousSession is not null)
-		{
-			await tokens.RemoveSessionAsync(user.Id, previousSession.Id, cancellationToken);
-			dbContext.Entry(previousSession).State = EntityState.Detached;
-		}
-
-		var rawRefreshToken = tokenGenerator.GenerateToken();
-		var session = new UserToken
-		{
-			Id = Guid.NewGuid(),
-			FkUserId = user.Id,
-			Purpose = UserTokenPurpose.RefreshToken,
-			TokenHash = tokenGenerator.HashToken(rawRefreshToken),
-			CreatedAt = now,
-			ExpiresAt = now.AddDays(options.Value.RefreshTokenLifetimeDays)
-		};
-		tokens.Add(session);
-		var response = CreateResponse(user.Id, session, rawRefreshToken, now);
+		var response = await sessions.CreateAsync(user.Id, now, cancellationToken);
 		var passwordHash = verification == PasswordVerificationResult.SuccessRehashNeeded
 			? passwordHasher.HashPassword(user, request.Password) : user.PasswordHash;
 		await users.RecordLoginAsync(user.Id, passwordHash, now, cancellationToken);
@@ -110,7 +93,7 @@ public sealed class UserAuthenticationService(
 			ExpiresAt = candidate.ExpiresAt
 		};
 		tokens.Add(session);
-		var response = CreateResponse(user.Id, session, rawRefreshToken, now);
+		var response = sessions.CreateResponse(session, rawRefreshToken, now);
 		await dbContext.SaveChangesAsync(cancellationToken);
 		await transaction.CommitAsync(cancellationToken);
 		return response;
@@ -127,11 +110,5 @@ public sealed class UserAuthenticationService(
 	public Task<bool> IsSessionActiveAsync(Guid userId, Guid sessionId, CancellationToken cancellationToken = default)
 	{
 		return tokens.IsSessionActiveAsync(userId, sessionId, DateTime.UtcNow, cancellationToken);
-	}
-
-	private AuthenticationResponse CreateResponse(Guid userId, UserToken session, string rawRefreshToken, DateTime now)
-	{
-		var (accessToken, expiresAt) = accessTokenGenerator.Generate(userId, session.Id, now, session.ExpiresAt);
-		return new AuthenticationResponse(accessToken, expiresAt, rawRefreshToken, session.ExpiresAt);
 	}
 }

@@ -6,7 +6,7 @@ ich obecność nie potwierdza wykonania rzeczywistego przepływu Sandbox.
 
 | Kolekcja | Środowisko | Przeznaczenie |
 | --- | --- | --- |
-| `collections/4Money.User.postman_collection.json` | `environments/4Money.Local.example.postman_environment.json` | Rejestracja, potwierdzenia e-maila, login/refresh/logout, profil, zmiana e-maila, reset hasła i dezaktywacja |
+| `collections/4Money.User.postman_collection.json` | `environments/4Money.Local.example.postman_environment.json` | Rejestracja lokalna i Google, potwierdzenia e-maila, login/refresh/logout, profil i zdjęcie, zmiana e-maila, reset hasła i dezaktywacja |
 | `collections/4Money.Notifications.postman_collection.json` | `environments/4Money.Local.example.postman_environment.json` | Inbox z paginacją, wszystkie/nieodczytane/odczytane, oznaczanie jednego lub wszystkich jako odczytane |
 | `collections/4Money.Banking.postman_collection.json` | `environments/4Money.Local.example.postman_environment.json` | Logowanie 4Money, rozpoczęcie próby, odczyt rezultatu, połączeń, zgód i błędy callbacku |
 | `collections/Tink.Diagnostics.postman_collection.json` | `environments/Tink.Sandbox.example.postman_environment.json` | Token aplikacji, token użytkownika, zgody oraz osobne delegowanie Tink Link |
@@ -54,7 +54,8 @@ plik lub dodaj brakujące zmienne w wybranym środowisku.
    Jeśli masz już zaimportowane środowisko, zmień w nim `baseUrl` na ten adres;
    zmiana szablonu w repo nie aktualizuje wartości w Postmanie.
    Backend wymaga lokalnej konfiguracji SMTP,
-   JWT i bazy z migracją `AddAccountDeactivationTokens`.
+   JWT, storage i bazy ze wszystkimi aktualnymi migracjami, łącznie
+   z `20261109191600_UserImprovements`.
 2. Uzupełnij lokalnie `userLogin`, `userEmail` (dostępna skrzynka), `userPassword`
    i dane profilu. Hasło ma mieć 8–128 znaków, wielką literę, cyfrę i znak specjalny.
    `userBirthDate` ma format `YYYY-MM-DD`. Nie eksportuj prawdziwych danych do Git.
@@ -62,8 +63,9 @@ plik lub dodaj brakujące zmienne w wybranym środowisku.
    `userEmailConfirmationToken`, wyślij potwierdzenie, potem login.
    Login zapisuje `fourMoneyAccessToken` i `fourMoneyRefreshToken` w środowisku.
    Żądania chronione pobierają Bearer automatycznie; refresh token trafia do body.
-4. Pobierz lub edytuj profil. PUT wysyła komplet pól. Puste `userPhone` i `userIcon`
-   czyszczą odpowiadające im pola. Logout wykonaj po operacjach chronionych
+4. Pobierz lub edytuj profil. PUT wysyła komplet pól. Puste `userPhone`
+   czyści telefon, a puste `userIcon` zachowuje aktualne zdjęcie. Do usunięcia
+   zdjęcia służy removeIcon (żądanie 36). Logout wykonaj po operacjach chronionych
    albo zaloguj się ponownie przed kolejnym chronionym żądaniem.
 5. Dla zmiany e-maila ustaw `userNewEmail`, a token z nowej skrzynki wklej do
    `userEmailChangeToken`. Potwierdzenie usuwa sesję i aktualizuje lokalne `userEmail`.
@@ -73,7 +75,8 @@ plik lub dodaj brakujące zmienne w wybranym środowisku.
 6. Dezaktywację wykonuj na końcu na koncie testowym. Żądanie wymaga Bearer,
    bez body; konto nadal działa. Token z maila wklej do `userDeactivationToken`
    i ręcznie wyślij potwierdzenie. Sukces ustawia `is_active=false` i usuwa wszystkie
-   tokeny. Kolejny login poprawnym hasłem zwraca 403. Nie ma endpointu reaktywacji.
+   tokeny. Kolejny login po loginie i poprawnym haśle zwraca 403; próba przez
+   e-mail bez aktywnego konta zwraca 401. Nie ma endpointu reaktywacji.
 
 Każde żądanie User zatrzymuje Runner przez `setNextRequest(null)`; pełny run
 nie wykonuje całego flow. Wybieraj żądania i używaj Send. Brak wymaganych zmiennych
@@ -95,6 +98,69 @@ Cooldown wysyłek
 na konto to domyślnie 60 s. Tokeny potwierdzenia i zmiany e-maila są ważne 24 h,
 resetu i dezaktywacji 30 min. `forgot-password` zwraca 202 również bez wysyłki
 (np. konto nieaktywne, cooldown lub awaria SMTP).
+
+## Zdjęcie profilu
+
+Folder 30 kolekcji User obejmuje teraz:
+
+- **33 — Lista presetów zdjęcia**: GET icon-presets; skopiuj wybrany `key`
+  do userIcon, następnie wyślij edycję profilu **32**. Pusty katalog daje `[]`.
+- **34 — Aktualne zdjęcie — URL**: GET icon; zapisuje userIconUrl (tajne)
+  i userIconUrlExpiresAt. Brak wyboru daje 404; URL wygasa domyślnie po 15 minutach.
+- **35 — Wgraj zdjęcie profilu**: PUT multipart; wybierz plik ręcznie w
+  Body → form-data → iconFile. Nie ustawiaj Content-Type ręcznie. Uzupełnij
+  zwykłe pola profilu. PNG/JPEG/WebP, maks. 5 MiB; błędny MIME/sygnatura 415,
+  zbyt duży plik 413. Nie łącz z presetem ani removeIcon.
+- **36 — Usuń zdjęcie profilu**: PUT JSON z removeIcon=true i pełnymi danymi
+  profilu. Czyści wybór; wspólny preset pozostaje w S3.
+
+Odczyt profilu zwraca icon (preset) lub iconStorageKey (własny upload).
+Puste/null/pominięte icon w edycji zachowuje zdjęcie. Zmiana wymaga jawnego
+wyboru presetu, pliku lub usunięcia. Własne pliki są sprzątane po commit;
+błąd sprzątania nie cofa aktualizacji. URL-e i tokeny trzymaj wyłącznie lokalnie.
+Zaktualizowany szablon środowiska dodaje puste userIconStorageKey, userIconUrl
+i userIconUrlExpiresAt. Import pliku nie aktualizuje automatycznie istniejącego
+środowiska w Postmanie. Presety trzeba wgrać wcześniej pod skonfigurowany prefiks.
+
+Prefiksy User, Grouping i Receipt oraz ograniczenia transakcji opisuje
+[development](../agent-context/development.md#zdjęcia-profilu-i-prefiksy-storage).
+
+## Google
+
+Folder **70 — Rejestracja i logowanie Google** w kolekcji User zawiera challenge,
+login i register. Wymaga włączonej integracji oraz migracji UserImprovements.
+Szablon środowiska dodaje puste googleClientId, googleNonce,
+googleChallengeExpiresAt i tajne googleIdToken. Aktualizacja pliku nie zmienia
+wcześniej zaimportowanego środowiska — dodaj zmienne lub zaimportuj je ponownie.
+
+1. Wyślij **71**. Postman zachowa cookie `4m_google_challenge` w cookie jar
+   i zapisze publiczne clientId, nonce oraz termin ważności. Nie wyłączaj cookie jar.
+2. Na stronie testowej z Google Identity Services pod dozwolonym JavaScript
+   originem użyj dokładnie tego clientId i nonce przy generowaniu credential.
+   Kolekcja nie otwiera okna Google i nie pobiera tokenu automatycznie. Wklej
+   credential lokalnie do googleIdToken; nie eksportuj tokenów ani cookies.
+   Sam ID token z innej próby nie wystarczy: ma inne nonce.
+3. Wyślij **72** z zachowanym cookie. 200 zapisuje fourMoneyAccessToken
+   i fourMoneyRefreshToken. 409 z google_registration_required pozwala przejść
+   do **73** z tym samym tokenem i cookie przed upływem pięciu minut.
+4. Dla **73** uzupełnij userLogin (bez @), userName, userSurname i userBirthDate.
+   E-mail pochodzi z Google. Przy authentication=null potwierdź adres tokenem
+   z SMTP przez folder 10, potem pobierz nowy challenge i zaloguj się Google.
+   Po 503 email_delivery_failed konto już istnieje; użyj resend-confirmation.
+
+Nie zmieniaj baseUrl/hosta ani HTTP/HTTPS między challenge a wymianą tokenu.
+Jeśli challenge wykonujesz w przeglądarce, Postman nie ma jej cookie: należy
+przenieść odpowiadające cookie lokalnie do cookie jar albo całą wymianę wykonać
+w tej samej przeglądarce. Nie zapisuj browser tokenu w body ani repozytorium.
+401 wymaga ponownego challenge i ID tokenu. Przy konflikcie wykrytym podczas
+zapisu bazy challenge też może być już zużyty.
+
+Profil zawiera hasPassword/isGoogleLinked. Dla konta Google bez hasła folder
+resetu hasła (forgot-password → reset-password) ustawia pierwsze hasło przez SMTP.
+Po ustawieniu hasła wymagane jest ponowne logowanie; Google nadal działa.
+Zmiana maila zwraca 403, niezależnie od hasła. Odłączania Google nie ma.
+Szczegółowy kontrakt i kody błędów:
+[development](../agent-context/development.md#rejestracja-i-logowanie-google).
 
 ## Moduł Notifications
 

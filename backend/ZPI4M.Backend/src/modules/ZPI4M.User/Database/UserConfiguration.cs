@@ -14,11 +14,17 @@ namespace ZPI4M.User.Database
 			{
 				entity.HasKey(e => e.Id).HasName("user_pkey");
 
-				entity.ToTable("user", "user");
+				entity.ToTable("user", "user", table =>
+				{
+					table.HasCheckConstraint("c_user_authentication_method", "password_hash IS NOT NULL OR google_subject IS NOT NULL");
+					table.HasCheckConstraint("c_user_icon_source", "icon IS NULL OR icon_storage_key IS NULL");
+				});
 
-				entity.HasIndex(e => e.Email, "c_user_unique_email").IsUnique();
+				entity.HasIndex(e => e.Email, "c_user_unique_email").IsUnique().HasFilter("is_active = true");
 
 				entity.HasIndex(e => e.Login, "c_user_unique_login").IsUnique();
+
+				entity.HasIndex(e => e.GoogleSubject, "c_user_unique_google_subject").IsUnique();
 
 				entity.HasIndex(e => e.TinkUserId, "c_user_unique_tink_user_id").IsUnique();
 
@@ -35,6 +41,7 @@ namespace ZPI4M.User.Database
 					.HasDefaultValue(false)
 					.HasColumnName("is_email_confirmed");
 				entity.Property(e => e.Icon).HasColumnName("icon");
+				entity.Property(e => e.IconStorageKey).HasColumnName("icon_storage_key");
 				entity.Property(e => e.IsActive)
 					.HasDefaultValue(true)
 					.HasColumnName("is_active");
@@ -44,6 +51,7 @@ namespace ZPI4M.User.Database
 				entity.Property(e => e.Login).HasColumnName("login");
 				entity.Property(e => e.Name).HasColumnName("name");
 				entity.Property(e => e.PasswordHash).HasColumnName("password_hash");
+				entity.Property(e => e.GoogleSubject).HasColumnName("google_subject").HasColumnType("text");
 				entity.Property(e => e.Phone).HasColumnName("phone");
 				entity.Property(e => e.Surname).HasColumnName("surname");
 				entity.Property(e => e.TinkUserId).HasColumnName("tink_user_id");

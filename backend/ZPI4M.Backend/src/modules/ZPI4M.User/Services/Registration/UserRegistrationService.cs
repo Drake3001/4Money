@@ -44,7 +44,7 @@ public sealed class UserRegistrationService : IUserRegistrationService
 		ArgumentNullException.ThrowIfNull(request);
 
 		if (await _users.ExistsByLoginAsync(request.Login, cancellationToken) ||
-			await _users.ExistsByEmailAsync(request.Email, cancellationToken))
+			await _users.ExistsActiveByEmailAsync(request.Email, cancellationToken))
 		{
 			return (UserRegistrationResult.LoginOrEmailAlreadyInUse, null);
 		}

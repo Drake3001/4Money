@@ -32,6 +32,17 @@ public static class UserEmailMessages
 			"Jeśli nie proszono o zmianę adresu, możesz zignorować tę wiadomość.");
 	}
 
+	public static EmailMessage PasswordSetup(string token, DateTime expiresAt)
+	{
+		return new EmailMessage("4Money - ustaw pierwsze hasło",
+			"Otrzymaliśmy prośbę o ustawienie pierwszego hasła dla Twojego konta Google w 4Money.\n\n" +
+			$"Aby ustawić hasło, użyj poniższego tokenu:\n\n{token}\n\n" +
+			$"Token jest ważny do {expiresAt:yyyy-MM-dd HH:mm:ss} UTC i można go użyć tylko raz.\n\n" +
+			"Po ustawieniu hasła możesz logować się loginem lub adresem e-mail i hasłem, a także przez Google.\n" +
+			"Obecne sesje zostaną unieważnione. To hasło dotyczy wyłącznie 4Money i nie zmienia hasła w Google.\n\n" +
+			"Jeśli nie proszono o ustawienie hasła, zignoruj tę wiadomość. Konto nadal będzie dostępne przez Google.");
+	}
+
 	public static EmailMessage PasswordReset(string token, DateTime expiresAt)
 	{
 		return new EmailMessage("4Money - reset hasła",

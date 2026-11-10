@@ -1,5 +1,4 @@
 -- Destructive local reset: run only after SQL init and all EF migrations, including
--- 20261103165622_CompleteExpenseModel and 20261103203528_AddBankTransactionAssignments.
 -- Shared password for all seeded test accounts: TestPassword1!
 -- Storage keys are synthetic; this script does not upload images or call OCR/Tink.
 BEGIN;

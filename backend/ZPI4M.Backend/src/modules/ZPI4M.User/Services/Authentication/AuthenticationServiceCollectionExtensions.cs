@@ -16,6 +16,7 @@ public static class AuthenticationServiceCollectionExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.AddScoped<IUserAuthenticationService, UserAuthenticationService>();
+		services.AddScoped<IUserSessionService, UserSessionService>();
 		services.AddSingleton<IAccessTokenGenerator, AccessTokenGenerator>();
 		services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 		services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)

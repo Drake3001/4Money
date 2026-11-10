@@ -291,7 +291,7 @@ public sealed class ExpenseCreationTests : PostgresFixture
 		_groupingContexts.Add(grouping); _groupingContexts.Add(inbox); _groupingContexts.Add(receiptDb);
 		var receiptDependencies = new ReceiptTestDependencies();
 		var receipts = new ReceiptService(new ReceiptRepository(receiptDb), receiptDb, receiptDependencies, receiptDependencies,
-			NullLogger<ReceiptService>.Instance, TimeProvider.System);
+			NullLogger<ReceiptService>.Instance, TimeProvider.System, new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
 		var transactions = new GroupingTransactionCoordinator(grouping, inbox, NullLogger<GroupingTransactionCoordinator>.Instance);
 		var groupRepository = new GroupRepository(grouping);
 		var memberships = new GroupMemberRepository(grouping);

@@ -53,9 +53,9 @@ public sealed class GroupingModelTests : PostgresFixture
 		await SeedAsync();
 		await SeedAsync();
 		await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(migrations[approved - 1]));
-		// Newer migrations can be reverted before the Expense migration rejects historical rows.
-		var expense = Array.FindIndex(migrations, m => m.EndsWith("_CompleteExpenseModel", StringComparison.Ordinal));
-		Assert.Equal(migrations[..(expense + 1)], await db.Database.GetAppliedMigrationsAsync());
+		var expenseMigration = Array.FindIndex(migrations, m => m.EndsWith("_CompleteExpenseModel", StringComparison.Ordinal));
+		// EF can commit successful Down steps before the guarded Expense migration rejects data.
+		Assert.Equal(migrations[..(expenseMigration + 1)], await db.Database.GetAppliedMigrationsAsync());
 		await migrator.MigrateAsync();
 		Assert.Equal(migrations, await db.Database.GetAppliedMigrationsAsync());
 	}
@@ -134,7 +134,10 @@ public sealed class GroupingModelTests : PostgresFixture
 			""").SingleAsync());
 		await using var grouping = new GroupingDbContext(new DbContextOptionsBuilder<GroupingDbContext>().UseNpgsql(ConnectionString).Options);
 		var groups = new GroupRepository(grouping);
-		Assert.Single((await groups.GetPageAsync(new GroupQuery { UserId = Guid.Parse(AnnaId), IsAdmin = true })).Items);
+		var administeredGroups = (await groups.GetPageAsync(new GroupQuery { UserId = Guid.Parse(AnnaId), IsAdmin = true })).Items;
+		Assert.Equal(2, administeredGroups.Count);
+		Assert.Contains(administeredGroups, g => g.Id == Guid.Parse(GroupId));
+		Assert.Contains(administeredGroups, g => g.Name == "Wydatki osobiste");
 		Assert.Single((await groups.GetPageAsync(new GroupQuery { UserId = Guid.Parse(BartekId), IsAdmin = false })).Items);
 		var members = new GroupMemberRepository(grouping);
 		Assert.True(await members.IsAdminAsync(Guid.Parse(GroupId), Guid.Parse(AnnaId)));
@@ -172,7 +175,7 @@ public sealed class GroupingModelTests : PostgresFixture
 		});
 		await grouping.SaveChangesAsync();
 		grouping.ChangeTracker.Clear();
-		Assert.False((await grouping.GroupMembers.SingleAsync(m => m.FkUserId == Guid.Parse("10000000-0000-0000-0000-000000000004"))).IsMember);
+		Assert.False((await grouping.GroupMembers.SingleAsync(m => m.FkGroupId == Guid.Parse(GroupId) && m.FkUserId == Guid.Parse("10000000-0000-0000-0000-000000000004"))).IsMember);
 		Assert.Equal(0m, joined.TotalPaid + joined.TotalShare + joined.TotalSettlementsSent + joined.TotalSettlementsReceived);
 		Assert.True((await grouping.GroupInvitations.SingleAsync()).IsActive);
 		Assert.Equal(3, await grouping.GroupSettlements.CountAsync());

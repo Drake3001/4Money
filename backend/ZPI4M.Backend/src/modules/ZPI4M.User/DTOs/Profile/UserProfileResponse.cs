@@ -11,4 +11,7 @@ public sealed record UserProfileResponse(
 	string? Icon,
 	bool IsEmailConfirmed,
 	DateTime CreatedAt,
-	DateTime? LastLoginTime);
+	DateTime? LastLoginTime,
+	bool HasPassword,
+	bool IsGoogleLinked,
+	string? IconStorageKey = null);

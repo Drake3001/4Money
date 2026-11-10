@@ -19,6 +19,9 @@ public sealed class UserFlowTests : PostgresFixture
 	[InlineData("seed_celina", 200)]
 	[InlineData("postman.banking", 200)]
 	[InlineData("seed_dawid", 403)]
+	[InlineData("anna@example.test", 200)]
+	[InlineData(" ANNA@EXAMPLE.TEST ", 200)]
+	[InlineData("dawid@example.test", 401)]
 	public async Task SeedPasswordsWorkWithoutOverridingHashes(string login, int expectedStatus)
 	{
 		await using var host = await StartHostAsync();
@@ -87,6 +90,7 @@ public sealed class UserFlowTests : PostgresFixture
 		await using (var context = OpenDatabase())
 		{
 			var user = await context.Users.SingleAsync(u => u.Login == "new.user");
+			Assert.NotNull(user.PasswordHash);
 			Assert.NotEqual(Password, user.PasswordHash);
 			Assert.Equal(PasswordVerificationResult.Success, new PasswordHasher<Models.User>().VerifyHashedPassword(user, user.PasswordHash, Password));
 			var token = await context.UserTokens.SingleAsync(t => t.FkUserId == user.Id);
@@ -120,6 +124,10 @@ public sealed class UserFlowTests : PostgresFixture
 	[InlineData("seed_anna", "WrongPassword1!", true, true, 401)]
 	[InlineData("seed_anna", "TestPassword1!", false, true, 403)]
 	[InlineData("seed_anna", "TestPassword1!", true, false, 401)]
+	[InlineData("missing@example.test", "TestPassword1!", true, true, 401)]
+	[InlineData("anna@example.test", "WrongPassword1!", true, true, 401)]
+	[InlineData("anna@example.test", "TestPassword1!", false, true, 401)]
+	[InlineData("anna@example.test", "TestPassword1!", true, false, 401)]
 	public async Task LoginRejectsUnavailableAccountsWithoutCreatingSession(string login, string password, bool active, bool confirmed, int status)
 	{
 		await SetPasswordAsync(AnnaId);
@@ -129,6 +137,40 @@ public sealed class UserFlowTests : PostgresFixture
 		await PostAsync(host.Client, "login", new { login, password }, (HttpStatusCode)status);
 		await using var database = OpenDatabase();
 		Assert.Empty(await database.UserTokens.ToListAsync());
+	}
+
+	[PostgresFact]
+	public async Task EmailLoginCreatesSessionForEmailOwnerAndRecordsLoginTime()
+	{
+		await using var host = await StartHostAsync();
+		var response = await LoginAsync(host.Client, " ANNA@EXAMPLE.TEST ");
+		Authenticate(host.Client, response);
+		using var profile = await host.Client.GetAsync("/api/users/profile");
+		Assert.Equal(HttpStatusCode.OK, profile.StatusCode);
+		var json = await profile.Content.ReadFromJsonAsync<JsonElement>();
+		Assert.Equal(AnnaId, json.GetProperty("id").GetGuid());
+		await using var context = OpenDatabase();
+		Assert.Equal(AnnaId, (await context.UserTokens.SingleAsync()).FkUserId);
+		Assert.NotNull((await context.Users.SingleAsync(u => u.Id == AnnaId)).LastLoginTime);
+	}
+
+	[PostgresFact]
+	public async Task EmailLookupIgnoresLegacyLoginContainingAtSign()
+	{
+		await using (var context = OpenDatabase())
+		{
+			await context.Users.Where(u => u.Id == AnnaId)
+				.ExecuteUpdateAsync(s => s.SetProperty(u => u.Login, "bartek@example.test"));
+			var user = await context.Users.SingleAsync(u => u.Id == AnnaId);
+			user.PasswordHash = new PasswordHasher<Models.User>().HashPassword(user, "DifferentPassword2!");
+			await context.SaveChangesAsync();
+		}
+		await using var host = await StartHostAsync();
+		await PostAsync(host.Client, "login", new { login = "bartek@example.test", password = "DifferentPassword2!" }, HttpStatusCode.Unauthorized);
+		await LoginAsync(host.Client, "bartek@example.test");
+		await using var database = OpenDatabase();
+		var emailOwner = await database.Users.SingleAsync(u => u.Email == "bartek@example.test");
+		Assert.Equal(emailOwner.Id, (await database.UserTokens.SingleAsync()).FkUserId);
 	}
 
 	[PostgresFact]
@@ -260,6 +302,9 @@ public sealed class UserFlowTests : PostgresFixture
 		Assert.Equal("changed@example.test", changed.Email);
 		Assert.True(changed.IsEmailConfirmed);
 		Assert.Empty(await database.UserTokens.Where(t => t.FkUserId == AnnaId).ToListAsync());
+		host.Client.DefaultRequestHeaders.Authorization = null;
+		await PostAsync(host.Client, "login", new { login = "anna@example.test", password = Password }, HttpStatusCode.Unauthorized);
+		await LoginAsync(host.Client, "changed@example.test");
 	}
 
 	[PostgresFact]
@@ -302,6 +347,72 @@ public sealed class UserFlowTests : PostgresFixture
 		Assert.Equal(5, await database.Users.CountAsync());
 		Assert.False((await database.Users.SingleAsync(u => u.Id == AnnaId)).IsActive);
 		Assert.Empty(await database.UserTokens.Where(t => t.FkUserId == AnnaId).ToListAsync());
+	}
+
+	[PostgresFact]
+	public async Task DeactivatedEmailCanBeRegisteredAgainWithNewIdentityAndLogin()
+	{
+		await SetPasswordAsync(AnnaId);
+		await using var host = await StartHostAsync();
+		Authenticate(host.Client, await LoginAsync(host.Client));
+		await PostAsync(host.Client, "profile/deactivate", new { }, HttpStatusCode.Accepted);
+		host.Client.DefaultRequestHeaders.Authorization = null;
+		await PostAsync(host.Client, "confirm-deactivation", new { token = Email.LastToken }, HttpStatusCode.NoContent);
+
+		await PostAsync(host.Client, "register", Registration("seed_anna", "anna@example.test"), HttpStatusCode.Conflict);
+		using var registered = await host.Client.PostAsJsonAsync("/api/users/register", Registration("new.anna", "anna@example.test"));
+		Assert.Equal(HttpStatusCode.Created, registered.StatusCode);
+		var newId = (await registered.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+		Assert.NotEqual(AnnaId, newId);
+		await PostAsync(host.Client, "register", Registration("another.anna", "anna@example.test"), HttpStatusCode.Conflict);
+		await PostAsync(host.Client, "confirm-email", new { token = Email.LastToken }, HttpStatusCode.NoContent);
+
+		Authenticate(host.Client, await LoginAsync(host.Client, "anna@example.test"));
+		using var profile = await host.Client.GetAsync("/api/users/profile");
+		Assert.Equal(HttpStatusCode.OK, profile.StatusCode);
+		Assert.Equal(newId, (await profile.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid());
+		host.Client.DefaultRequestHeaders.Authorization = null;
+		await PostAsync(host.Client, "login", new { login = "seed_anna", password = Password }, HttpStatusCode.Forbidden);
+		await PostAsync(host.Client, "forgot-password", new { email = "anna@example.test" }, HttpStatusCode.Accepted);
+		await using var database = OpenDatabase();
+		Assert.False((await database.Users.SingleAsync(u => u.Id == AnnaId)).IsActive);
+		Assert.Equal(newId, (await database.UserTokens.SingleAsync(t => t.Purpose == UserTokenPurpose.PasswordReset)).FkUserId);
+		Assert.Empty(await database.UserTokens.Where(t => t.FkUserId == AnnaId).ToListAsync());
+		Assert.True(await database.Users.AnyAsync(u => u.Id == newId && u.IsActive));
+		Assert.Equal(2, await database.Users.CountAsync(u => u.Email == "anna@example.test"));
+	}
+
+	[PostgresFact]
+	public async Task ResendConfirmationTargetsNewActiveAccountSharingDeactivatedEmail()
+	{
+		await using var host = await StartHostAsync();
+		await PostAsync(host.Client, "register", Registration("new.dawid", "dawid@example.test"), HttpStatusCode.Created);
+		await using (var database = OpenDatabase())
+		{
+			await database.UserTokens.Where(t => t.Purpose == UserTokenPurpose.EmailConfirmation)
+				.ExecuteUpdateAsync(s => s.SetProperty(t => t.CreatedAt, DateTime.UtcNow.AddMinutes(-2)));
+		}
+		await PostAsync(host.Client, "resend-confirmation", new { email = "dawid@example.test" }, HttpStatusCode.Accepted);
+		Assert.Equal(2, Email.Messages.Count);
+		await using var context = OpenDatabase();
+		var user = await context.Users.SingleAsync(u => u.Login == "new.dawid");
+		Assert.Equal(user.Id, (await context.UserTokens.SingleAsync()).FkUserId);
+		await PostAsync(host.Client, "confirm-email", new { token = Email.LastToken }, HttpStatusCode.NoContent);
+		await LoginAsync(host.Client, "dawid@example.test");
+	}
+
+	[PostgresFact]
+	public async Task EmailChangeCanClaimDeactivatedAccountsAddress()
+	{
+		await SetPasswordAsync(AnnaId);
+		await using var host = await StartHostAsync();
+		Authenticate(host.Client, await LoginAsync(host.Client));
+		await PostAsync(host.Client, "profile/change-email", new { newEmail = "dawid@example.test", currentPassword = Password }, HttpStatusCode.Accepted);
+		host.Client.DefaultRequestHeaders.Authorization = null;
+		await PostAsync(host.Client, "confirm-email-change", new { token = Email.LastToken }, HttpStatusCode.NoContent);
+		Authenticate(host.Client, await LoginAsync(host.Client, "dawid@example.test"));
+		using var profile = await host.Client.GetAsync("/api/users/profile");
+		Assert.Equal(AnnaId, (await profile.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid());
 	}
 
 	[PostgresTheory]

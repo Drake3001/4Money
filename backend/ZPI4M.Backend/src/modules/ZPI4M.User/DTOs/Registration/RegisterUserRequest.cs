@@ -10,6 +10,7 @@ public sealed class RegisterUserRequest : IValidatableObject
 	private string _email = string.Empty;
 
 	[Required, StringLength(100, MinimumLength = 3)]
+	[RegularExpression(@"[^@]*", ErrorMessage = "Login must not contain '@'.")]
 	public string Login
 	{
 		get => _login;

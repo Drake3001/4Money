@@ -6,7 +6,8 @@ public sealed class LoginRequest
 {
 	private string _login = string.Empty;
 
-	[Required, StringLength(100, MinimumLength = 3)]
+	/// <summary>Login or current email address.</summary>
+	[Required, StringLength(254, MinimumLength = 3)]
 	public string Login
 	{
 		get => _login;

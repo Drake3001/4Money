@@ -34,7 +34,12 @@ public sealed class EmailChangeService(
 				return ChangeEmailResult.UserUnavailable;
 			}
 
-			if (passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.CurrentPassword) == PasswordVerificationResult.Failed)
+			if (user.GoogleSubject is not null)
+			{
+				return ChangeEmailResult.GoogleAccountEmailChangeForbidden;
+			}
+
+			if (user.PasswordHash is null || passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.CurrentPassword) == PasswordVerificationResult.Failed)
 			{
 				return ChangeEmailResult.InvalidPassword;
 			}
@@ -44,7 +49,7 @@ public sealed class EmailChangeService(
 				return ChangeEmailResult.EmailUnchanged;
 			}
 
-			if (await users.ExistsByEmailAsync(request.NewEmail, cancellationToken))
+			if (await users.ExistsActiveByEmailAsync(request.NewEmail, cancellationToken))
 			{
 				return ChangeEmailResult.EmailAlreadyInUse;
 			}
@@ -101,7 +106,7 @@ public sealed class EmailChangeService(
 
 		await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 		var user = await users.GetByIdForUpdateAsync(token.FkUserId, cancellationToken);
-		if (user is not { IsActive: true, IsEmailConfirmed: true } || user.Email == token.TargetEmail)
+		if (user is not { IsActive: true, IsEmailConfirmed: true, PasswordHash: not null, GoogleSubject: null } || user.Email == token.TargetEmail)
 		{
 			return ConfirmEmailChangeResult.InvalidOrExpiredToken;
 		}
@@ -111,7 +116,7 @@ public sealed class EmailChangeService(
 			return ConfirmEmailChangeResult.InvalidOrExpiredToken;
 		}
 
-		if (await users.ExistsByEmailAsync(token.TargetEmail, cancellationToken))
+		if (await users.ExistsActiveByEmailAsync(token.TargetEmail, cancellationToken))
 		{
 			return ConfirmEmailChangeResult.EmailAlreadyInUse;
 		}

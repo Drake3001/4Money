@@ -1172,9 +1172,17 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnType("text")
                         .HasColumnName("email");
 
+                    b.Property<string>("GoogleSubject")
+                        .HasColumnType("text")
+                        .HasColumnName("google_subject");
+
                     b.Property<string>("Icon")
                         .HasColumnType("text")
                         .HasColumnName("icon");
+
+                    b.Property<string>("IconStorageKey")
+                        .HasColumnType("text")
+                        .HasColumnName("icon_storage_key");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -1203,7 +1211,6 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnName("name");
 
                     b.Property<string>("PasswordHash")
-                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("password_hash");
 
@@ -1224,6 +1231,10 @@ namespace ZPI4M.Database.Migrations
                         .HasName("user_pkey");
 
                     b.HasIndex(new[] { "Email" }, "c_user_unique_email")
+                        .IsUnique()
+                        .HasFilter("is_active = true");
+
+                    b.HasIndex(new[] { "GoogleSubject" }, "c_user_unique_google_subject")
                         .IsUnique();
 
                     b.HasIndex(new[] { "Login" }, "c_user_unique_login")
@@ -1232,7 +1243,12 @@ namespace ZPI4M.Database.Migrations
                     b.HasIndex(new[] { "TinkUserId" }, "c_user_unique_tink_user_id")
                         .IsUnique();
 
-                    b.ToTable("user", "user");
+                    b.ToTable("user", "user", t =>
+                        {
+                            t.HasCheckConstraint("c_user_authentication_method", "password_hash IS NOT NULL OR google_subject IS NOT NULL");
+
+                            t.HasCheckConstraint("c_user_icon_source", "icon IS NULL OR icon_storage_key IS NULL");
+                        });
                 });
 
             modelBuilder.Entity("ZPI4M.User.Models.UserToken", b =>

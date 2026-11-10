@@ -14,13 +14,13 @@ public sealed class MigrationSplitContractTests
 		var migrations = db.GetService<IMigrationsAssembly>();
 		var group = migrations.Migrations.Single(m => m.Key.EndsWith("_AddGroupingModel", StringComparison.Ordinal));
 		var finalExpense = migrations.Migrations.Single(m => m.Key.EndsWith("_CompleteExpenseModel", StringComparison.Ordinal));
-		var banking = migrations.Migrations.Last();
-		Assert.EndsWith("_AddBankTransactionAssignments", banking.Key);
+		var banking = migrations.Migrations.Single(m => m.Key.EndsWith("_AddBankTransactionAssignments", StringComparison.Ordinal));
+		Assert.True(string.CompareOrdinal(group.Key, finalExpense.Key) < 0);
+		Assert.True(string.CompareOrdinal(finalExpense.Key, banking.Key) < 0);
 		Assert.DoesNotContain(migrations.Migrations.Keys, key => key.EndsWith("_AddTemporaryExpenseAggregationSupport", StringComparison.Ordinal));
 		var bankingTarget = migrations.CreateMigration(banking.Value, db.Database.ProviderName!).TargetModel;
 		Assert.NotNull(bankingTarget.FindEntityType("ZPI4M.Expense.Models.ExpenseShare")!.FindProperty("Percentage"));
 		Assert.NotNull(bankingTarget.FindEntityType("ZPI4M.Banking.Models.BankTransactionAssignment"));
-		Assert.EndsWith("_CompleteExpenseModel", finalExpense.Key);
 		var first = migrations.CreateMigration(group.Value, db.Database.ProviderName!);
 		var expense = first.TargetModel.FindEntityType("ZPI4M.Expense.Models.Expense")!;
 		Assert.Null(expense.FindProperty("FkPayerId"));

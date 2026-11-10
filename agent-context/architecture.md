@@ -30,6 +30,20 @@ Nie jest to lista aktualnych
 zależności sprawdź kod i istniejące kontrakty.
 Nie wprowadzaj mikroserwisów ani nowego wzorca komunikacji bez potrzeby zadania.
 
+### Grupa startowa nowego konta
+
+Od migracji `20261109191600_UserImprovements` trigger PostgreSQL
+`create_user_starter_group` na `"user"."user"` wywołuje funkcję
+`grouping.create_user_starter_group()` po każdym INSERT użytkownika.
+Funkcja tworzy zwykłą grupę „Wydatki osobiste” w PLN i aktywne członkostwo
+administratora z zerowymi agregatami. Nie wywołuje serwisów Grouping ani
+Notifications; kod rejestracji i zależności projektów pozostają bez zmian.
+Zapis grupy i członkostwa uczestniczy w transakcji INSERT użytkownika;
+błąd wycofuje całą operację. SMTP pozostaje po zapisie rejestracji.
+Trigger obejmuje także seed i ręczny SQL; nie uzupełnia istniejących kont.
+Zmiany tabel User/Grouping muszą uwzględniać tę funkcję. Down usuwa wyłącznie
+trigger i funkcję, pozostawiając grupy i członkostwa.
+
 Zgodnie z aktualnym opisem i diagramem Expense koordynuje dodawanie wydatku: przez
 publiczny interfejs Receipt zleca odczyt paragonu, a przez interfejs Banking
 pobiera transakcje do wyboru lub dopasowania. Expense odpowiada za utworzenie
@@ -78,12 +92,22 @@ referencji Expense → Reports, endpointów ani migracji. Reguły i przykłady:
 | Integrations, opcjonalnie | Adaptery usług zewnętrznych, np. OCR lub bankowości |
 
 Docelowo błędy HTTP korzystają ze standardowego formatu `ProblemDetails`.
-User nie rozszerza jego pól. Obecny kontrakt Banking dodaje `code` i opcjonalne
+Google authentication oraz blokada zmiany e-maila konta Google w User dodają
+`code` do ProblemDetails. Obecny kontrakt Banking dodaje `code` i opcjonalne
 `attemptId`; ujednolicenie wymaga osobnej decyzji dotyczącej kontraktu. Kontrolery zwracają błędy biznesowe przez `Problem()`.
 Walidacja DTO zwraca `ValidationProblemDetails` z błędami poszczególnych pól.
 Host zapewnia `ProblemDetails` dla pustych błędów HTTP i nieobsłużonych wyjątków.
 
 Schemat przepływu to `ApiControllers → Services → Repositories → baza`.
+
+Integracja Google pozostaje wewnątrz User: adapter w Integrations/Google
+waliduje ID token, a GoogleAuthenticationService koordynuje rejestrację
+i logowanie. Wspólny IUserSessionService tworzy sesję dla Google i hasła;
+nie zatwierdza transakcji wywołującego. Challenge jest jednorazowy, powiązany
+z cookie HttpOnly i przechowywany w ograniczonym magazynie pamięci procesu.
+Nie wymaga kolejki, zdarzeń ani nowego modułu. Ograniczenia wielu instancji,
+CORS, HTTPS i kontrakt opisuje
+[development](development.md#rejestracja-i-logowanie-google).
 Kod używa zarówno klasycznych konstruktorów z polami private readonly,
 jak i konstruktorów głównych. Oba sposoby korzystają z DI rejestrowanego
 w Program.cs. Parametr konstruktora głównego nie jest publiczną właściwością;
@@ -415,22 +439,32 @@ i udostępnia jego wynik. Serwis/processor koordynuje adapter Tink i repozytoriu
 które przejmuje zadania przez lease oraz zapisuje dane atomowo dla rachunku.
 Nie ma zewnętrznej kolejki. [Kontrakt i parametry workera](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#refresh-on-demand).
 
-## Model grup po zatwierdzonym planie (2026-10-28)
+## Model grup po zatwierdzonym planie — stan 2026-11-10
 
 Grouping posiada Group, GroupMember (SQL group_user), GroupSettlement i
 GroupInvitation; Limits posiada GroupLimit obok niezmienionego CategoryGroupLimit.
 Expense posiada płatnika i udziały procentowe (stan po rebase 2026-11-03). Mapowania wewnątrz modułów są w ich
 konfiguracjach; nowe relacje między modułami są wyłącznie w AppDbContext i mają
-DeleteBehavior.NoAction. Nie dodano zależności projektów ani nowego CRUD/API.
-Szczegóły pól i przyszłe niezmienniki opisuje [domena](domain.md#zatwierdzony-model-grup--2026-10-28).
-Agregaty nie są utrzymywane automatycznie; przyszły koordynator musi zapisywać
-źródła i agregaty atomowo oraz umożliwiać ich odbudowę. Członkostwo, suma udziałów,
-waluta, właściciel transakcji i wyłączność bankowego źródła pomiędzy wydatkiem
-oraz rozliczeniem nie są jeszcze egzekwowane przez serwis.
+DeleteBehavior.NoAction. Szczegóły pól opisuje
+[domena](domain.md#zatwierdzony-model-grup--2026-10-28).
+Serwisy Grouping i Expense zapisują źródła i agregaty atomowo przez koordynator,
+sprawdzają członkostwo, udziały i walutę. Expense weryfikuje właściciela źródła
+bankowego i utrzymuje rejestr jego przypisania we wspólnej transakcji.
+Grouping nadal odrzuca nowe bankowe powiązania rozliczeń. Odbudowa agregatów
+pozostaje do wykonania. Bieżące API i ograniczenia opisuje
+[status](implementation-status.md).
 
 Storage jest współdzielony w ZPI4M.Shared.Storage: IObjectStorage, S3ObjectStorage,
 FileUrlResult i konfiguracja STORAGE_*. Klucze generuje moduł wywołujący;
-Receipt zachowuje prefiks receipts/. Testy adaptera: ZPI4M.Shared.UnitTests.
+Receipt używa RECEIPT_STORAGE_PREFIX (domyślnie receipts/). Testy adaptera:
+ZPI4M.Shared.UnitTests.
+
+UserIconService korzysta z tego samego IObjectStorage bez zależności od Grouping.
+Wybór presetu i upload są częścią aktualizacji profilu, z blokadą rekordu konta
+w UserDbContext. Nowy plik jest sprzątany po potwierdzonym rollbacku, stary po
+commit; niepewny commit zachowuje pliki. Nie stosujemy koordynatora Grouping
+ani wspólnej transakcji bazy i S3. Szczegóły i prefiksy dla User/Grouping/Receipt:
+[development](development.md#zdjęcia-profilu-i-prefiksy-storage).
 
 ## Grupy: opis, obrazy i archiwizacja — 2026-10-31
 Nowa migracja AddGroupDescriptionIconsAndArchive dodaje description varchar(255)

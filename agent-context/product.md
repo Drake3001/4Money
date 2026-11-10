@@ -90,7 +90,9 @@ fizycznego usuwania danych ani reaktywacji konta.
 Wysyłanie wiadomości odbywa się przez konfigurowalny adapter SMTP. Serwer może
 należeć do zewnętrznego dostawcy, np. o2, albo być utrzymywany samodzielnie.
 Nie zapisuj danych skrzynki w kodzie ani Git.
-E-mail jest wymagany i unikalny; reset przez e-mail wymaga potwierdzonego adresu.
+E-mail jest wymagany; obecna implementacja zapewnia jego unikalność wśród
+aktywnych kont i dopuszcza ponowne użycie adresu konta nieaktywnego.
+Reset przez e-mail wymaga potwierdzonego adresu.
 Te ustalenia uzupełniają dokumentację funkcjonalną; sama obecność wymagania
 nie oznacza realizacji całego przepływu ani potwierdzonego wdrożenia.
 

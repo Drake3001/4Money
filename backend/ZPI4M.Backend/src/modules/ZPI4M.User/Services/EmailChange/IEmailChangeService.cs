@@ -16,7 +16,8 @@ public enum ChangeEmailResult
 	EmailUnchanged,
 	EmailAlreadyInUse,
 	CooldownActive,
-	EmailDeliveryFailed
+	EmailDeliveryFailed,
+	GoogleAccountEmailChangeForbidden
 }
 
 public enum ConfirmEmailChangeResult

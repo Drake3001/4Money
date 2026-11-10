@@ -26,7 +26,7 @@ public sealed class UserProvisioningFlowTests : PostgresFixture
 	public async Task FirstConnectionInitializesTinkAndCanBeRetriedAfterOutage(string errorCode)
 	{
 		var tink = new ProvisioningTink { ErrorCode = errorCode, Fail = true };
-		await using var host = await StartHostAsync(services =>
+		await using var host = await StartHostAsync(configureServices: services =>
 		{
 			services.AddControllers().AddApplicationPart(typeof(BankingController).Assembly);
 			services.AddScoped<IUserBankingProfileService, UserBankingProfileService>();

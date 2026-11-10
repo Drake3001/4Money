@@ -20,10 +20,12 @@ using ZPI4M.User.DTOs.EmailConfirmation;
 using ZPI4M.User.DTOs.PasswordReset;
 using ZPI4M.User.DTOs.Profile;
 using ZPI4M.User.DTOs.Registration;
+using ZPI4M.User.Integrations.Google;
 using ZPI4M.User.Services.AccountDeactivation;
 using ZPI4M.User.Services.Authentication;
 using ZPI4M.User.Services.EmailChange;
 using ZPI4M.User.Services.EmailConfirmation;
+using ZPI4M.User.Services.GoogleAuthentication;
 using ZPI4M.User.Services.PasswordReset;
 using ZPI4M.User.Services.Profile;
 using ZPI4M.User.Services.RateLimiting;
@@ -70,6 +72,43 @@ public sealed partial class UserControllerTests
 	}
 
 	[Theory]
+	[InlineData("POST", "register", "test@example.test")]
+	[InlineData("PUT", "profile", "test@example.test")]
+	[InlineData("POST", "register", "@test")]
+	[InlineData("PUT", "profile", "test@")]
+	public async Task LoginContainingAtSignReturnsValidationProblemWithoutCallingServices(string method, string route, string login)
+	{
+		await using var host = await TestHost.StartAsync();
+		host.Authenticate();
+		using var request = new HttpRequestMessage(new HttpMethod(method), "/api/users/" + route)
+		{
+			Content = JsonContent.Create(ValidBody(login))
+		};
+		using var response = await host.Client.SendAsync(request);
+		Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+		var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+		Assert.True(json.GetProperty("errors").TryGetProperty("Login", out _));
+		Assert.Equal(0, host.Services.Calls);
+	}
+
+	[Theory]
+	[InlineData("register", "Email")]
+	[InlineData("resend-confirmation", "Email")]
+	[InlineData("forgot-password", "Email")]
+	[InlineData("profile/change-email", "NewEmail")]
+	public async Task EmailWithoutAtSignReturnsValidationProblemWithoutCallingServices(string route, string field)
+	{
+		await using var host = await TestHost.StartAsync();
+		host.Authenticate();
+		using var response = await host.Client.PostAsJsonAsync("/api/users/" + route,
+			ValidBody(email: "example.test", newEmail: "example.test"));
+		Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+		var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+		Assert.True(json.GetProperty("errors").TryGetProperty(field, out _));
+		Assert.Equal(0, host.Services.Calls);
+	}
+
+	[Theory]
 	[InlineData("register", 0, 201)]
 	[InlineData("register", 1, 409)]
 	[InlineData("register", 2, 503)]
@@ -89,6 +128,7 @@ public sealed partial class UserControllerTests
 	[InlineData("profile/change-email", 4, 409)]
 	[InlineData("profile/change-email", 5, 429)]
 	[InlineData("profile/change-email", 6, 503)]
+	[InlineData("profile/change-email", 7, 403)]
 	[InlineData("confirm-email-change", 0, 204)]
 	[InlineData("confirm-email-change", 1, 400)]
 	[InlineData("confirm-email-change", 2, 409)]
@@ -137,7 +177,7 @@ public sealed partial class UserControllerTests
 		Assert.True(response.Headers.CacheControl?.NoStore);
 		Assert.Equal(host.UserId, host.Services.LastUserId);
 		var profile = await response.Content.ReadFromJsonAsync<JsonElement>();
-		Assert.Equal(new[] { "id", "login", "name", "surname", "email", "phone", "birthDate", "icon", "isEmailConfirmed", "createdAt", "lastLoginTime" },
+		Assert.Equal(new[] { "id", "login", "name", "surname", "email", "phone", "birthDate", "icon", "isEmailConfirmed", "createdAt", "lastLoginTime", "hasPassword", "isGoogleLinked", "iconStorageKey" },
 			profile.EnumerateObject().Select(p => p.Name));
 		using var logout = await host.Client.PostAsync("/api/users/logout", null);
 		Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
@@ -157,27 +197,28 @@ public sealed partial class UserControllerTests
 		Assert.True(response.Headers.CacheControl?.NoStore);
 	}
 
-	private static object ValidBody() => new
+	private static object ValidBody(string login = "test.user", string email = "test@example.test", string newEmail = "new@example.test") => new
 	{
-		login = "test.user",
+		login,
 		name = "Anna",
 		surname = "Testowa",
-		email = "test@example.test",
+		email,
 		password = "Password1!",
 		currentPassword = "Password1!",
 		newPassword = "Password2!",
-		newEmail = "new@example.test",
+		newEmail,
 		birthDate = "2000-01-01",
 		token = new string('a', 43),
 		refreshToken = new string('b', 43)
 	};
 
-	private sealed class TestHost(WebApplication app, HttpClient client, FakeServices services) : IAsyncDisposable
+	private sealed class TestHost(WebApplication app, HttpClient client, FakeServices services, FakeIcons icons) : IAsyncDisposable
 	{
 		public Guid UserId { get; } = Guid.NewGuid();
 		public Guid SessionId { get; } = Guid.NewGuid();
 		public HttpClient Client { get; } = client;
 		public FakeServices Services { get; } = services;
+		public FakeIcons Icons { get; } = icons;
 		public void Authenticate()
 		{
 			Client.DefaultRequestHeaders.Add("X-Test-User", UserId.ToString());
@@ -197,6 +238,8 @@ public sealed partial class UserControllerTests
 			builder.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, TestAuthentication>("Test", _ => { });
 			builder.Services.AddAuthorization();
 			var services = new FakeServices();
+			var icons = new FakeIcons();
+			builder.Services.AddSingleton<IUserIconService>(icons);
 			builder.Services.AddSingleton<IUserRegistrationService>(services);
 			builder.Services.AddSingleton<IUserAuthenticationService>(services);
 			builder.Services.AddSingleton<IEmailConfirmationService>(services);
@@ -204,6 +247,14 @@ public sealed partial class UserControllerTests
 			builder.Services.AddSingleton<IEmailChangeService>(services);
 			builder.Services.AddSingleton<IPasswordResetService>(services);
 			builder.Services.AddSingleton<IAccountDeactivationService>(services);
+			builder.Services.Configure<GoogleAuthenticationOptions>(options =>
+			{
+				options.Enabled = builder.Configuration.GetValue<bool?>("GoogleAuthentication:Enabled") ?? true;
+				options.ClientId = "test.apps.googleusercontent.com";
+			});
+			builder.Services.AddSingleton(TimeProvider.System);
+			builder.Services.AddSingleton<IGoogleAuthenticationChallengeStore, GoogleAuthenticationChallengeStore>();
+			builder.Services.AddSingleton<IGoogleAuthenticationService>(services);
 			var app = builder.Build();
 			// Only this test host accepts a header for selecting the simulated remote IP.
 			app.Use(async (context, next) =>
@@ -226,7 +277,7 @@ public sealed partial class UserControllerTests
 				await app.DisposeAsync();
 				throw;
 			}
-			return new(app, app.GetTestClient(), services);
+			return new(app, app.GetTestClient(), services, icons);
 		}
 		public async ValueTask DisposeAsync()
 		{
@@ -248,9 +299,11 @@ public sealed partial class UserControllerTests
 		}
 	}
 
-	private sealed class FakeServices : IUserRegistrationService, IUserAuthenticationService, IEmailConfirmationService,
-		IUserProfileService, IEmailChangeService, IPasswordResetService, IAccountDeactivationService
+	private sealed partial class FakeServices : IUserRegistrationService, IUserAuthenticationService, IEmailConfirmationService,
+		IUserProfileService, IEmailChangeService, IPasswordResetService, IAccountDeactivationService, IGoogleAuthenticationService
 	{
+		public string? ProfileIconStorageKey { get; set; }
+		public UpdateUserProfileRequest? LastProfileRequest { get; private set; }
 		public int Result { get; set; }
 		public int Calls { get; private set; }
 		public Guid LastUserId { get; private set; }
@@ -263,7 +316,7 @@ public sealed partial class UserControllerTests
 			return value;
 		}
 		private static AuthenticationResponse Authentication() => new("access", DateTime.UtcNow.AddMinutes(15), "refresh", DateTime.UtcNow.AddDays(7));
-		private static UserProfileResponse Profile(Guid id) => new(id, "test.user", "Anna", "Testowa", "test@example.test", null, new DateOnly(2000, 1, 1), null, true, DateTime.UtcNow, null);
+		private UserProfileResponse Profile(Guid id) => new(id, "test.user", "Anna", "Testowa", "test@example.test", null, new DateOnly(2000, 1, 1), null, true, DateTime.UtcNow, null, true, false, ProfileIconStorageKey);
 		public Task<(UserRegistrationResult Result, RegisterUserResponse? User)> RegisterAsync(RegisterUserRequest request, CancellationToken cancellationToken) =>
 			Task.FromResult(Record<(UserRegistrationResult, RegisterUserResponse?)>(((UserRegistrationResult)Result,
 				new(Guid.NewGuid(), request.Login, request.Name, request.Surname, request.Email, request.BirthDate, false, DateTime.UtcNow)), cancellationToken));
@@ -282,7 +335,12 @@ public sealed partial class UserControllerTests
 		public Task<ResendEmailConfirmationResult> ResendAsync(ResendEmailConfirmationRequest request, CancellationToken cancellationToken) => Task.FromResult(Record((ResendEmailConfirmationResult)Result, cancellationToken));
 		public Task<UserProfileResponse?> GetAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(Record<UserProfileResponse?>(Profile(userId), cancellationToken, userId));
 		public Task<(UpdateUserProfileResult Result, UserProfileResponse? Profile)> UpdateAsync(Guid userId, UpdateUserProfileRequest request, CancellationToken cancellationToken) =>
-			Task.FromResult(Record<(UpdateUserProfileResult, UserProfileResponse?)>(((UpdateUserProfileResult)Result, Profile(userId)), cancellationToken, userId));
+			RecordProfileRequest(userId, request, cancellationToken);
+		private Task<(UpdateUserProfileResult, UserProfileResponse?)> RecordProfileRequest(Guid userId, UpdateUserProfileRequest request, CancellationToken cancellationToken)
+		{
+			LastProfileRequest = request;
+			return Task.FromResult(Record<(UpdateUserProfileResult, UserProfileResponse?)>(((UpdateUserProfileResult)Result, Profile(userId)), cancellationToken, userId));
+		}
 		public Task<ChangeEmailResult> RequestAsync(Guid userId, ChangeEmailRequest request, CancellationToken cancellationToken) => Task.FromResult(Record((ChangeEmailResult)Result, cancellationToken, userId));
 		public Task<ConfirmEmailChangeResult> ConfirmAsync(ConfirmEmailChangeRequest request, CancellationToken cancellationToken) => Task.FromResult(Record((ConfirmEmailChangeResult)Result, cancellationToken));
 		public Task RequestAsync(ForgotPasswordRequest request, CancellationToken cancellationToken)

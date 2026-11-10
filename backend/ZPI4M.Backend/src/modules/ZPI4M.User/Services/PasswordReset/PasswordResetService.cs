@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -25,22 +26,24 @@ public sealed class PasswordResetService(
 	public async Task RequestAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(request);
-		var candidate = await users.GetByEmailAsync(request.Email, cancellationToken);
-		if (candidate is not { IsActive: true, IsEmailConfirmed: true })
+		var candidate = await users.GetActiveByEmailAsync(request.Email, cancellationToken);
+		if (!CanSetPassword(candidate))
 		{
 			return;
 		}
 
 		string rawToken;
 		DateTime expiresAt;
+		bool isFirstPassword;
 		await using (var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken))
 		{
 			var user = await users.GetByIdForUpdateAsync(candidate.Id, cancellationToken);
-			if (user is not { IsActive: true, IsEmailConfirmed: true } || user.Email != request.Email)
+			if (!CanSetPassword(user) || user.Email != request.Email)
 			{
 				return;
 			}
 
+			isFirstPassword = user.PasswordHash is null;
 			var token = await tokens.GetByUserAsync(user.Id, UserTokenPurpose.PasswordReset, cancellationToken);
 			var now = DateTime.UtcNow;
 			if (token is not null && token.CreatedAt.AddSeconds(options.Value.ResendCooldownSeconds) > now)
@@ -69,7 +72,9 @@ public sealed class PasswordResetService(
 			await transaction.CommitAsync(cancellationToken);
 		}
 
-		var message = UserEmailMessages.PasswordReset(rawToken, expiresAt);
+		var message = isFirstPassword
+			? UserEmailMessages.PasswordSetup(rawToken, expiresAt)
+			: UserEmailMessages.PasswordReset(rawToken, expiresAt);
 		try
 		{
 			await emailSender.SendAsync(request.Email, message.Subject, message.Body, cancellationToken);
@@ -92,7 +97,7 @@ public sealed class PasswordResetService(
 
 		await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 		var user = await users.GetByIdForUpdateAsync(token.FkUserId, cancellationToken);
-		if (user is not { IsActive: true, IsEmailConfirmed: true } || user.Email != token.TargetEmail)
+		if (!CanSetPassword(user) || user.Email != token.TargetEmail)
 		{
 			return PasswordResetResult.InvalidOrExpiredToken;
 		}
@@ -114,4 +119,8 @@ public sealed class PasswordResetService(
 		await transaction.CommitAsync(cancellationToken);
 		return PasswordResetResult.Reset;
 	}
+
+	private static bool CanSetPassword([NotNullWhen(true)] Models.User? user) =>
+		user is { IsActive: true, IsEmailConfirmed: true } &&
+		(user.PasswordHash is not null || user.GoogleSubject is not null);
 }
