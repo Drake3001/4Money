@@ -13,7 +13,5 @@ public partial class Category
 
 	public string Icon { get; set; } = null!;
 
-	public string Color { get; set; } = null!;
-
 	public virtual ICollection<ExpenseItem> ExpenseItems { get; set; } = new List<ExpenseItem>();
 }

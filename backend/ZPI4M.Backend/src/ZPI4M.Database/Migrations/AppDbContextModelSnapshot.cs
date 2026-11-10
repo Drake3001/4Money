@@ -445,11 +445,6 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("_id");
 
-                    b.Property<string>("Color")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("color");
-
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasColumnType("text")
@@ -472,6 +467,148 @@ namespace ZPI4M.Database.Migrations
                         .IsUnique();
 
                     b.ToTable("category", "expense");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000001"),
+                            Description = "Zakupy spożywcze i napoje bezalkoholowe, również gotowa żywność ze sklepu.",
+                            Icon = "shopping-cart",
+                            Name = "żywność i napoje"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000002"),
+                            Description = "Posiłki i napoje bezalkoholowe z gastronomii, także dostawy; wymaga kontekstu gastronomicznego.",
+                            Icon = "utensils",
+                            Name = "restauracje i kawiarnie"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000003"),
+                            Description = "Paliwo, części, serwis auta, parking, taxi, komunikacja miejska i przejazdy lądowe.",
+                            Icon = "car",
+                            Name = "transport i samochód"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000004"),
+                            Description = "Media, prąd, gaz, woda, telefon, internet i opłaty administracyjne.",
+                            Icon = "receipt",
+                            Name = "rachunki i opłaty"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000005"),
+                            Description = "Automatyczne dopełnienie kwoty wydatku",
+                            Icon = "circle-help",
+                            Name = "Nieznane"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000006"),
+                            Description = "Napoje alkoholowe, papierosy i produkty nikotynowe, również kupione w restauracji.",
+                            Icon = "wine",
+                            Name = "alkohol i tytoń"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000007"),
+                            Description = "Odzież, obuwie, torby, biżuteria i dodatki odzieżowe.",
+                            Icon = "shirt",
+                            Name = "ubrania i dodatki"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000008"),
+                            Description = "Sprzęt elektroniczny, przewody, ładowarki i części elektroniczne.",
+                            Icon = "smartphone",
+                            Name = "elektronika"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000009"),
+                            Description = "Wyposażenie, meble, narzędzia, rośliny, artykuły kuchenne i ręczniki papierowe.",
+                            Icon = "home",
+                            Name = "dom i ogród"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000010"),
+                            Description = "Detergenty i środki czystości, np. płyn do naczyń, proszek do prania, płyn do WC.",
+                            Icon = "spray-can",
+                            Name = "chemia gospodarcza"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000011"),
+                            Description = "Pielęgnacja i higiena osobista, np. szampon, pasta do zębów, podpaski, papier toaletowy.",
+                            Icon = "sparkles",
+                            Name = "kosmetyki i higiena"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000012"),
+                            Description = "Leki, wyroby medyczne, badania, wizyty lekarskie, dentysta i rehabilitacja.",
+                            Icon = "heart-pulse",
+                            Name = "zdrowie"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000013"),
+                            Description = "Karma, akcesoria dla zwierząt, ich pielęgnacja i weterynarz.",
+                            Icon = "paw-print",
+                            Name = "zwierzęta"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000014"),
+                            Description = "Hotele, loty, wycieczki i usługi turystyczne; nie zgaduj celu zwykłego przejazdu.",
+                            Icon = "plane",
+                            Name = "podróże i noclegi"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000015"),
+                            Description = "Kino, koncerty, gry, abonamenty rozrywkowe i książki rekreacyjne.",
+                            Icon = "ticket",
+                            Name = "rozrywka i wydarzenia"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000016"),
+                            Description = "Siłownia, sprzęt sportowy, zajęcia rekreacyjne i materiały hobbystyczne.",
+                            Icon = "dumbbell",
+                            Name = "sport i hobby"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000017"),
+                            Description = "Kursy, podręczniki, szkolenia i opłaty za naukę.",
+                            Icon = "graduation-cap",
+                            Name = "edukacja"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000018"),
+                            Description = "Fryzjer, barber, krawiec, naprawa obuwia, dorabianie kluczy; tylko usługi bez trafniejszej kategorii.",
+                            Icon = "wrench",
+                            Name = "usługi"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000019"),
+                            Description = "Rozpoznany wydatek, dla którego żadna z pozostałych kategorii nie pasuje; nie służy do oznaczania niepewności.",
+                            Icon = "package",
+                            Name = "inne"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000020"),
+                            Description = "Samodzielna pozycja obniżająca wartość zakupów, np. opust za butelki lub rabat na cały paragon. Nie obejmuje zwrotu kaucji ani rabatu przypisanego już do produktu.",
+                            Icon = "badge-percent",
+                            Name = "zniżka"
+                        });
                 });
 
             modelBuilder.Entity("ZPI4M.Expense.Models.Expense", b =>
@@ -514,17 +651,23 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("transaction_time");
 
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("version")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
                     b.HasKey("Id")
                         .HasName("expense_pkey");
-
-                    b.HasIndex("FkPayerId")
-                        .HasDatabaseName("ix_expense_fk_payer_id");
 
                     b.HasIndex(new[] { "FkBankTransactionId" }, "c_expense_unique_fk_bank_transaction_id")
                         .IsUnique();
 
                     b.HasIndex(new[] { "FkReceiptId" }, "c_expense_unique_fk_receipt_id")
                         .IsUnique();
+
+                    b.HasIndex(new[] { "FkPayerId" }, "ix_expense_fk_payer_id");
 
                     b.ToTable("expense", "expense");
                 });
@@ -535,6 +678,13 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("_id");
 
+                    b.Property<decimal>("Discount")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("discount");
+
                     b.Property<Guid>("FkCategoryId")
                         .HasColumnType("uuid")
                         .HasColumnName("fk_category_id");
@@ -543,9 +693,11 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("fk_expense_id");
 
-                    b.Property<Guid?>("FkUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("fk_user_id");
+                    b.Property<bool>("IsSystemGenerated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_system_generated");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -556,6 +708,10 @@ namespace ZPI4M.Database.Migrations
                         .HasPrecision(18, 3)
                         .HasColumnType("numeric(18,3)")
                         .HasColumnName("quantity");
+
+                    b.Property<string>("Unit")
+                        .HasColumnType("text")
+                        .HasColumnName("unit");
 
                     b.Property<decimal>("UnitPrice")
                         .HasPrecision(18, 2)
@@ -569,7 +725,12 @@ namespace ZPI4M.Database.Migrations
 
                     b.HasIndex("FkExpenseId");
 
-                    b.ToTable("expense_item", "expense");
+                    b.ToTable("expense_item", "expense", t =>
+                        {
+                            t.HasCheckConstraint("c_expense_item_discount_nonpositive", "discount <= 0");
+
+                            t.HasCheckConstraint("c_expense_item_quantity_above_zero", "quantity > 0");
+                        });
                 });
 
             modelBuilder.Entity("ZPI4M.Expense.Models.ExpenseShare", b =>
@@ -582,18 +743,15 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("fk_user_id");
 
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)")
-                        .HasColumnName("amount");
+                    b.Property<decimal>("Percentage")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("percentage");
 
                     b.HasKey("FkExpenseId", "FkUserId")
                         .HasName("expense_share_pkey");
 
-                    b.ToTable("expense_share", "expense", t =>
-                        {
-                            t.HasCheckConstraint("c_expense_share_amount", "amount >= 0");
-                        });
+                    b.ToTable("expense_share", "expense");
                 });
 
             modelBuilder.Entity("ZPI4M.Grouping.Models.Group", b =>
@@ -1203,7 +1361,8 @@ namespace ZPI4M.Database.Migrations
                         .WithMany()
                         .HasForeignKey("FkPayerId")
                         .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("c_expense_fk_payer_id");
                 });
 
             modelBuilder.Entity("ZPI4M.Expense.Models.ExpenseItem", b =>

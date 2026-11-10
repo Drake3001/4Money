@@ -1,5 +1,5 @@
 -- Destructive local reset: run only after SQL init and all EF migrations, including
--- AddBankTransactionAssignments (after AddTemporaryExpenseAggregationSupport).
+-- 20261103165622_CompleteExpenseModel and 20261103203528_AddBankTransactionAssignments.
 -- Shared password for all seeded test accounts: TestPassword1!
 -- Storage keys are synthetic; this script does not upload images or call OCR/Tink.
 BEGIN;
@@ -54,11 +54,27 @@ INSERT INTO grouping.group_user (user_id, group_id, joined_at) VALUES
     ('10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', CURRENT_TIMESTAMP - INTERVAL '20 days'),
     ('10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002', CURRENT_TIMESTAMP - INTERVAL '20 days');
 
-INSERT INTO expense.category (_id, name, description, icon, color) VALUES
-    ('30000000-0000-0000-0000-000000000001', 'Zakupy spozywcze', 'Produkty spozywcze do domu', 'shopping-cart', '#4CAF50'),
-    ('30000000-0000-0000-0000-000000000002', 'Restauracje', 'Posilki poza domem', 'utensils', '#FF9800'),
-    ('30000000-0000-0000-0000-000000000003', 'Transport', 'Bilety i przejazdy', 'bus', '#2196F3'),
-    ('30000000-0000-0000-0000-000000000004', 'Mieszkanie', 'Czynsz i rachunki', 'home', '#9C27B0');
+INSERT INTO expense.category (_id, name, description, icon) VALUES
+    ('30000000-0000-0000-0000-000000000001', 'żywność i napoje', 'Zakupy spożywcze i napoje bezalkoholowe, również gotowa żywność ze sklepu.', 'shopping-cart'),
+    ('30000000-0000-0000-0000-000000000002', 'restauracje i kawiarnie', 'Posiłki i napoje bezalkoholowe z gastronomii, także dostawy; wymaga kontekstu gastronomicznego.', 'utensils'),
+    ('30000000-0000-0000-0000-000000000003', 'transport i samochód', 'Paliwo, części, serwis auta, parking, taxi, komunikacja miejska i przejazdy lądowe.', 'car'),
+    ('30000000-0000-0000-0000-000000000004', 'rachunki i opłaty', 'Media, prąd, gaz, woda, telefon, internet i opłaty administracyjne.', 'receipt'),
+    ('30000000-0000-0000-0000-000000000005', 'Nieznane', 'Automatyczne dopełnienie kwoty wydatku', 'circle-help'),
+    ('30000000-0000-0000-0000-000000000006', 'alkohol i tytoń', 'Napoje alkoholowe, papierosy i produkty nikotynowe, również kupione w restauracji.', 'wine'),
+    ('30000000-0000-0000-0000-000000000007', 'ubrania i dodatki', 'Odzież, obuwie, torby, biżuteria i dodatki odzieżowe.', 'shirt'),
+    ('30000000-0000-0000-0000-000000000008', 'elektronika', 'Sprzęt elektroniczny, przewody, ładowarki i części elektroniczne.', 'smartphone'),
+    ('30000000-0000-0000-0000-000000000009', 'dom i ogród', 'Wyposażenie, meble, narzędzia, rośliny, artykuły kuchenne i ręczniki papierowe.', 'home'),
+    ('30000000-0000-0000-0000-000000000010', 'chemia gospodarcza', 'Detergenty i środki czystości, np. płyn do naczyń, proszek do prania, płyn do WC.', 'spray-can'),
+    ('30000000-0000-0000-0000-000000000011', 'kosmetyki i higiena', 'Pielęgnacja i higiena osobista, np. szampon, pasta do zębów, podpaski, papier toaletowy.', 'sparkles'),
+    ('30000000-0000-0000-0000-000000000012', 'zdrowie', 'Leki, wyroby medyczne, badania, wizyty lekarskie, dentysta i rehabilitacja.', 'heart-pulse'),
+    ('30000000-0000-0000-0000-000000000013', 'zwierzęta', 'Karma, akcesoria dla zwierząt, ich pielęgnacja i weterynarz.', 'paw-print'),
+    ('30000000-0000-0000-0000-000000000014', 'podróże i noclegi', 'Hotele, loty, wycieczki i usługi turystyczne; nie zgaduj celu zwykłego przejazdu.', 'plane'),
+    ('30000000-0000-0000-0000-000000000015', 'rozrywka i wydarzenia', 'Kino, koncerty, gry, abonamenty rozrywkowe i książki rekreacyjne.', 'ticket'),
+    ('30000000-0000-0000-0000-000000000016', 'sport i hobby', 'Siłownia, sprzęt sportowy, zajęcia rekreacyjne i materiały hobbystyczne.', 'dumbbell'),
+    ('30000000-0000-0000-0000-000000000017', 'edukacja', 'Kursy, podręczniki, szkolenia i opłaty za naukę.', 'graduation-cap'),
+    ('30000000-0000-0000-0000-000000000018', 'usługi', 'Fryzjer, barber, krawiec, naprawa obuwia, dorabianie kluczy; tylko usługi bez trafniejszej kategorii.', 'wrench'),
+    ('30000000-0000-0000-0000-000000000019', 'inne', 'Rozpoznany wydatek, dla którego żadna z pozostałych kategorii nie pasuje; nie służy do oznaczania niepewności.', 'package'),
+    ('30000000-0000-0000-0000-000000000020', 'zniżka', 'Samodzielna pozycja obniżająca wartość zakupów, np. opust za butelki lub rabat na cały paragon. Nie obejmuje zwrotu kaucji ani rabatu przypisanego już do produktu.', 'badge-percent');
 
 INSERT INTO banking.bank_account
     (_id, fk_user_id, name, number, financial_institution_id, type, currency_code, iban, is_closed)
@@ -86,9 +102,9 @@ INSERT INTO receipt.receipt (_id, storage_key, extraction_result) VALUES
          "total": "120.00",
          "amount_due": "120.00",
          "items": [
-           {"name":"Chleb","quantity":"2.000","unit":"szt","unit_price":"10.00","total":"20.00","before_discount":null,"discount":null,"name_corrected":null,"category":"Zakupy spozywcze","needs_review":false,"review_reason":null},
-           {"name":"Mleko","quantity":"4.000","unit":"szt","unit_price":"5.00","total":"20.00","before_discount":null,"discount":null,"name_corrected":null,"category":"Zakupy spozywcze","needs_review":false,"review_reason":null},
-           {"name":"Warzywa","quantity":"4.000","unit":"kg","unit_price":"20.00","total":"80.00","before_discount":null,"discount":null,"name_corrected":null,"category":"Zakupy spozywcze","needs_review":false,"review_reason":null}
+           {"name":"Chleb","quantity":"2.000","unit":"szt","unit_price":"10.00","total":"20.00","before_discount":null,"discount":null,"name_corrected":null,"category":"żywność i napoje","needs_review":false,"review_reason":null},
+           {"name":"Mleko","quantity":"4.000","unit":"szt","unit_price":"5.00","total":"20.00","before_discount":null,"discount":null,"name_corrected":null,"category":"żywność i napoje","needs_review":false,"review_reason":null},
+           {"name":"Warzywa","quantity":"4.000","unit":"kg","unit_price":"20.00","total":"80.00","before_discount":null,"discount":null,"name_corrected":null,"category":"żywność i napoje","needs_review":false,"review_reason":null}
          ],
          "deposits": [],
          "deposit_returns": []
@@ -98,33 +114,33 @@ INSERT INTO receipt.receipt (_id, storage_key, extraction_result) VALUES
      }'::jsonb);
 
 INSERT INTO expense.expense
-    (_id, fk_group_id, fk_bank_transaction_id, fk_receipt_id, name, merchant, amount, transaction_time, fk_payer_id)
+    (_id, fk_group_id, fk_payer_id, fk_bank_transaction_id, fk_receipt_id, name, merchant, amount, transaction_time)
 VALUES
-    ('70000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001', 'Zakupy do domu', 'Sklep testowy', 120.00, CURRENT_TIMESTAMP - INTERVAL '2 days', '10000000-0000-0000-0000-000000000001'),
-    ('70000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', NULL, NULL, 'Wspolny obiad', 'Restauracja testowa', 90.00, CURRENT_TIMESTAMP - INTERVAL '1 day', '10000000-0000-0000-0000-000000000002'),
-    ('70000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002', '50000000-0000-0000-0000-000000000002', NULL, 'Bilety na wyjazd', 'Przewoznik testowy', 60.00, CURRENT_TIMESTAMP - INTERVAL '1 day', '10000000-0000-0000-0000-000000000002'),
-    ('70000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', NULL, NULL, 'Czynsz', NULL, 1500.00, CURRENT_TIMESTAMP - INTERVAL '5 days', '10000000-0000-0000-0000-000000000001');
+    ('70000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001', 'Zakupy do domu', 'Sklep testowy', 120.00, CURRENT_TIMESTAMP - INTERVAL '2 days'),
+    ('70000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', NULL, NULL, 'Wspolny obiad', 'Restauracja testowa', 90.00, CURRENT_TIMESTAMP - INTERVAL '1 day'),
+    ('70000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', '50000000-0000-0000-0000-000000000002', NULL, 'Bilety na wyjazd', 'Przewoznik testowy', 60.00, CURRENT_TIMESTAMP - INTERVAL '1 day'),
+    ('70000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', NULL, NULL, 'Czynsz', NULL, 1500.00, CURRENT_TIMESTAMP - INTERVAL '5 days');
 
 INSERT INTO expense.expense_item
-    (_id, fk_expense_id, fk_category_id, fk_user_id, name, unit_price, quantity)
+    (_id, fk_expense_id, fk_category_id, name, unit_price, quantity)
 VALUES
-    ('80000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', NULL, 'Chleb', 10.00, 2.000),
-    ('80000000-0000-0000-0000-000000000002', '70000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', NULL, 'Mleko', 5.00, 4.000),
-    ('80000000-0000-0000-0000-000000000003', '70000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', NULL, 'Warzywa', 20.00, 4.000),
-    ('80000000-0000-0000-0000-000000000004', '70000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 'Obiad Bartka', 50.00, 1.000),
-    ('80000000-0000-0000-0000-000000000005', '70000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000003', 'Obiad Celiny', 40.00, 1.000),
-    ('80000000-0000-0000-0000-000000000006', '70000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000003', NULL, 'Bilet', 30.00, 2.000),
-    ('80000000-0000-0000-0000-000000000007', '70000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000004', NULL, 'Czynsz za mieszkanie', 1500.00, 1.000);
+    ('80000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'Chleb', 10.00, 2.000),
+    ('80000000-0000-0000-0000-000000000002', '70000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'Mleko', 5.00, 4.000),
+    ('80000000-0000-0000-0000-000000000003', '70000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'Warzywa', 20.00, 4.000),
+    ('80000000-0000-0000-0000-000000000004', '70000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002', 'Obiad Bartka', 50.00, 1.000),
+    ('80000000-0000-0000-0000-000000000005', '70000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002', 'Obiad Celiny', 40.00, 1.000),
+    ('80000000-0000-0000-0000-000000000006', '70000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000003', 'Bilet', 30.00, 2.000),
+    ('80000000-0000-0000-0000-000000000007', '70000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000004', 'Czynsz za mieszkanie', 1500.00, 1.000);
 
-INSERT INTO expense.expense_share (fk_expense_id, fk_user_id, amount) VALUES
-    ('70000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 60.00),
-    ('70000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 60.00),
-    ('70000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 50.00),
-    ('70000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000003', 40.00),
-    ('70000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000002', 30.00),
-    ('70000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000003', 30.00),
-    ('70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 900.00),
-    ('70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000002', 600.00);
+INSERT INTO expense.expense_share (fk_expense_id, fk_user_id, percentage) VALUES
+    ('70000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 50.00),
+    ('70000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 50.00),
+    ('70000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 55.56),
+    ('70000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000003', 44.44),
+    ('70000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000002', 50.00),
+    ('70000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000003', 50.00),
+    ('70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 60.00),
+    ('70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000002', 40.00);
 
 INSERT INTO limits.category_group_limit
     (fk_category_id, fk_group_id, weekly_limit, monthly_limit, year_limit)
@@ -165,10 +181,25 @@ INSERT INTO limits.group_limit (id, group_id, period, amount) VALUES
     ('c0000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', 2, 4000.00),
     ('c0000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001', 3, 48000.00);
 
--- Rebuild the synthetic aggregates from their sources, never independent constants.
+-- Rebuild the synthetic aggregates with Expense's largest-remainder cent allocation.
+WITH exact_shares AS (
+    SELECT s.fk_expense_id, s.fk_user_id, e.fk_group_id,
+        e.amount * 100 AS total_cents, e.amount * s.percentage AS exact_cents
+    FROM expense.expense_share s JOIN expense.expense e ON e._id = s.fk_expense_id
+), ranked_shares AS (
+    SELECT *, floor(exact_cents) AS base_cents,
+        total_cents - sum(floor(exact_cents)) OVER (PARTITION BY fk_expense_id) AS remaining_cents,
+        row_number() OVER (PARTITION BY fk_expense_id
+            ORDER BY exact_cents - floor(exact_cents) DESC, fk_user_id::text COLLATE "C") AS priority
+    FROM exact_shares
+), allocated_shares AS (
+    SELECT fk_group_id, fk_user_id,
+        (base_cents + CASE WHEN priority <= remaining_cents THEN 1 ELSE 0 END) / 100 AS amount
+    FROM ranked_shares
+)
 UPDATE grouping.group_user m SET
     total_paid = COALESCE((SELECT SUM(e.amount) FROM expense.expense e WHERE e.fk_group_id = m.group_id AND e.fk_payer_id = m.user_id), 0),
-    total_share = COALESCE((SELECT SUM(s.amount) FROM expense.expense_share s JOIN expense.expense e ON e._id = s.fk_expense_id WHERE e.fk_group_id = m.group_id AND s.fk_user_id = m.user_id), 0),
+    total_share = COALESCE((SELECT SUM(s.amount) FROM allocated_shares s WHERE s.fk_group_id = m.group_id AND s.fk_user_id = m.user_id), 0),
     total_settlements_sent = COALESCE((SELECT SUM(s.amount) FROM grouping.group_settlements s WHERE s.group_id = m.group_id AND s.from_user_id = m.user_id), 0),
     total_settlements_received = COALESCE((SELECT SUM(s.amount) FROM grouping.group_settlements s WHERE s.group_id = m.group_id AND s.to_user_id = m.user_id), 0);
 

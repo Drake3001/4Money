@@ -68,7 +68,7 @@ oba tryby: analizę i zapis oraz samo zdjęcie z `ExtractionResult = null`
 i bez żądania HTTP do OCR. Wspólne scenariusze obejmują strumienie bez przewijania,
 odczyt od bieżącej pozycji, walidację, anulowanie, błędy uploadu i zapisu,
 sprzątanie plików tymczasowych oraz niepewne potwierdzenie zapisu.
-Testy `GetFileUrlByIdAsync` i usuwania zachowują kontrolę obsługi błędów.
+Testy usuwania sprawdzają obsługę błędów.
 OCR i dostawcy są zastępowani atrapami; testy nie wywołują płatnego modelu.
 Receipt nie ma własnych endpointów; przyszłe endpointy Expense będą korzystać
 z jego serwisu, więc nie dodajemy testów kontrolera Receipt.
@@ -98,3 +98,33 @@ Nie traktuj pominiętych testów bazy jako potwierdzenia migracji lub seeda.
 
 Storage: testy adaptera i konfiguracji znajdują się w ZPI4M.Shared.UnitTests.
 Test SeaweedFS pozostaje w Receipt.IntegrationTests (STORAGE_INTEGRATION_TESTS=1).
+
+## Expense
+
+Expense.UnitTests obejmuje obliczenia, walidację, kontrakt HTTP/OpenAPI oraz
+rozdzielenie rejestracji usług Expense od Grouping i User. Expense.IntegrationTests tworzy izolowaną
+bazę dla każdego testu z TEST_POSTGRES_CONNECTION_STRING. Zawiera rzeczywisty
+przepływ HTTP kategorii → dostępnych źródeł → preview → zapis → szczegóły,
+walidację źródeł, wykluczenie zajętych transakcji przed paginacją, wyścig dwóch
+zapisów, rollback i migrację wersji. Host HTTP używa testowego uwierzytelniania,
+rzeczywistych serwisów/repozytoriów Expense, Banking, User i Grouping.
+ExpenseWorkflowTests obejmuje historię, edycję, usuwanie i paragony z atrapami
+OCR/storage. ExpenseAggregateTests sprawdza wspólny commit/rollback, dokładne
+grosze, przepełnienie oraz wyścigi z rozliczeniami i zmianami grupy. ExpenseAdded
+jest sprawdzane pod kątem odbiorców, braku odbiorców i rollbacku przed/po zapisie
+powiadomienia. Test HTTP sprawdza też rollback paragonu i cleanup uploadu po błędzie
+powiadomienia oraz zachowanie starej wiadomości po usunięciu wydatku. Test HTTP
+używa rzeczywistych usług Grouping; jawne atrapy służą scenariuszom błędów.
+Nie uruchamia Tink, OCR ani storage. Nie jest testem nowych zachowań JWT.
+
+Nie kieruj fixture do bazy aplikacji; konto testowe potrzebuje tworzenia/usuwania
+oddzielnych baz. Testy nie wykonują seeda na skonfigurowanej bazie serwera,
+wyłącznie we własnych losowo nazwanych bazach. Brak konfiguracji lokalnie oznacza
+pominięcie testów PostgreSQL, nie potwierdzenie powodzenia przepływu.
+
+ExpenseReadTests sprawdza serwis dla Reports na PostgreSQL: obie daty włącznie,
+zakres jednego dnia, kategorie i sumy, okresy dzień/miesiąc/rok, filtrowanie,
+sortowanie, paginację, walidację i dostęp byłego członka bez ujawniania cudzych
+zakupów. ExpenseReportCalculatorTests sprawdza rozdzielanie groszy kategorii,
+ujemne/zerowe pozycje, rabaty, ilości ułamkowe i płatnika bez udziału.
+Kontrakt: [Expense dla Reports](../../../notes/EXPENSE_REPORTS.md).

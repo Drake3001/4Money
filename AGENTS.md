@@ -86,11 +86,12 @@ potwierdzenia działania usług zewnętrznych.
 
 - Notifications ma wewnętrzne `NotifyAsync`, autoryzowane pobieranie inboxa,
   odczyt pojedynczy i zbiorczy. Operacje odbiorców należą do osobnego
-  `NotificationRecipientRepository`. Wywołania z Grouping/Limits nie są jeszcze podłączone.
+  `NotificationRecipientRepository`. Grouping wysyła ExpenseAdded dla Expense,
+  GroupMemberJoined i SettlementReceived. Limits pozostaje niepodłączony.
 - NotifyAsync zwraca Guid?: tworzy odbiorców tylko dla aktywnych kont zwróconych
   przez IUserLookupService jednym zapytaniem po ID. Nieaktywne i nieistniejące
   konta są pomijane; pusta lista lub brak aktywnych odbiorców daje null bez zapisu.
-- ExpenseDbContext, GroupingDbContext i NotificationsDbContext współdzielą scoped
+- ExpenseDbContext, GroupingDbContext, NotificationsDbContext i ReceiptDbContext współdzielą scoped
   NpgsqlConnection. To przygotowanie do integracji, nie automatyczna transakcja:
   koordynator musi dołączyć konteksty i wykonać końcowy commit. Operacje wykonuj
   kolejno. Pozostałe konteksty mają osobne połączenia.
@@ -104,11 +105,26 @@ potwierdzenia działania usług zewnętrznych.
 - Banking ma integrację Tink, odczyty i worker importu, a User obsługuje tożsamość,
   sesje oraz operacje konta. Aktualne ograniczenia są w statusie; nie cofaj ich
   opisu do samych modeli na podstawie starszych fragmentów sprzed rebase.
-- Expense ma repozytoria Category, Expense, ExpenseItem i ExpenseShare, Grouping
-  repozytoria Group/GroupMember, a Limits repozytorium CategoryGroupLimit.
-  Są rejestrowane w DI, ale te moduły nadal nie mają serwisów biznesowych ani API.
+- Expense ma repozytoria Category, Expense, ExpenseItem i ExpenseShare,
+  Grouping repozytoria Group/GroupMember,
+  a Limits repozytorium CategoryGroupLimit.
+  ExpenseService tworzy i odczytuje wydatki z automatycznym
+  „Nieznane”; wydatek, pozycje i udziały zapisuje jednym SaveChangesAsync
+  we wspólnej transakcji koordynatora z aktualizacją TotalPaid/TotalShare Grouping.
+  DI/API i rzeczywiste metadane/członkostwa są podłączone; usunięto UseGroupingMock.
+  Od 2026-11-07 historia, edycja i usuwanie również działają; zapisy odwracają
+  poprzedni wkład w agregaty i kontrolują wersję. Zapytania i operacje na zbiorach
+  są w repozytoriach. ExpenseAdded powiadamia pozostałych aktualnych członków grupy
+  z aktywnymi kontami przy tworzeniu wydatku, w tej samej transakcji co wydatek
+  i salda. Edycja i usuwanie nie powiadamiają.
+- Expense udostępnia IExpenseReadService dla Reports: listę, sumy, kategorie
+  i okresy dzień/miesiąc/rok. Daty raportów są obustronnie włączne; historia HTTP
+  zachowuje koniec wyłączny. Szczegóły: notes/EXPENSE_REPORTS.md. Nie oznacza to
+  implementacji modułu Reports ani jego endpointów.
 - Receipt ma serwis OCR → upload S3 → zapis paragonu oraz odczyt, podpisany URL
-  i usuwanie. Nie ma kontrolera Receipt/Storage ani integracji z Expense.
+  i usuwanie. Expense wystawia analizę pliku bez zapisu, zapis paragonu wraz
+  z formularzem wydatku i odczyt po ID Expense; wynik OCR jest podpisany.
+  Nie ma osobnego kontrolera Receipt/Storage.
   Kolekcja Storage w Postmanie testuje bezpośrednio S3. Nie zakładaj atomowości
   zapisu bazy i pliku; szczegóły kompensacji opisuje status implementacji.
 - Worker OCR ma własne API FastAPI. Domyślny `vision_ocr` łączy RapidOCR z modelem
@@ -119,8 +135,8 @@ potwierdzenia działania usług zewnętrznych.
   wymagane są poprawne opcje storage, w tym lokalne poświadczenia, oprócz JWT.
   `STORAGE_PUBLIC_ENDPOINT` służy podpisanym URL-om dostępnym dla klienta;
   w Compose jest oddzielony od wewnętrznego `STORAGE_ENDPOINT`.
-- Solucja ma jedenaście projektów xUnit: po trzy User, Banking i Notifications
-  oraz dwa Receipt.
+- Solucja ma piętnaście projektów xUnit: po trzy User, Banking i Notifications,
+  dwa Receipt oraz dwa Expense (UnitTests i IntegrationTests), Grouping i Shared.
   Starsze wyniki testów dotyczą konkretnych rewizji, nie dowodzą poprawności po rebase.
 - Wszystkie testy .NET z PostgreSQL używają TEST_POSTGRES_CONNECTION_STRING;
   pipeline ustawia ją raz. Brak konfiguracji lokalnie pomija testy bazy, a w CI
@@ -135,6 +151,11 @@ potwierdzenia działania usług zewnętrznych.
   Seed wymaga tej migracji i zapisuje odpowiedź OCR w formacie
   `receipt` / `warnings` / `needs_review`. Klucz storage jest syntetyczny;
   seed nie uploaduje obrazu. Szczegóły Receipt i ograniczenia opisuje status.
+- Po `20261102215301_AddGroupingModel` jest `20261103165622_CompleteExpenseModel`.
+  Usunięto tymczasową migrację Expense i scalono migracje tej gałęzi; udziały
+  Expense są procentowe, modele Grouping pozostają z master. Up/Down wymagają
+  pustych wydatków/pozycji/udziałów. Tworzenie Expense aktualizuje agregaty od
+  2026-11-03, bez nowej migracji.
 - Nowa baza wymaga kolejności: SQL init → migracje EF → seed. Seed czyści dane,
   nie naprawia schematu ani historii EF. Rebase nie cofa już zastosowanych zmian bazy;
   odtworzenie lokalnego wolumenu wymaga zgody na usunięcie danych w danym zadaniu.

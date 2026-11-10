@@ -7,6 +7,8 @@ public enum BankTransactionReadSortBy { Date, Amount, Status, CurrencyCode }
 /// <summary>Inclusive local date/amount ranges; no status filter means all stored statuses.</summary>
 public sealed class BankTransactionReadQuery : PagedQuery
 {
+	public bool OnlyDebits { get; set; }
+
 	public Guid? BankAccountId { get; set; }
 	public bool? SettlementAssignment { get; set; }
 	public bool? ExpenseAssignment { get; set; }

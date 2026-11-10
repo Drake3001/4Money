@@ -115,6 +115,9 @@ public sealed class ContractMemberService : ZPI4M.Grouping.Services.Members.IGro
 {
 	public Task<ZPI4M.Grouping.Services.Results.GroupingResult<ZPI4M.Shared.Pagination.PagedResult<ZPI4M.Grouping.DTOs.Members.GroupMemberResponse>>> ListAsync(Guid actor, Guid group, ZPI4M.Grouping.DTOs.Members.GroupMemberListRequest query, CancellationToken ct = default) => Task.FromResult(new ZPI4M.Grouping.Services.Results.GroupingResult<ZPI4M.Shared.Pagination.PagedResult<ZPI4M.Grouping.DTOs.Members.GroupMemberResponse>>(200, new([], 0, query.PageNumber, query.PageSize)));
 	public Task<ZPI4M.Grouping.Services.Results.GroupingResult<ZPI4M.Grouping.DTOs.Members.GroupMemberResponse>> GetAsync(Guid actor, Guid group, Guid user, CancellationToken ct = default) => Task.FromResult(new ZPI4M.Grouping.Services.Results.GroupingResult<ZPI4M.Grouping.DTOs.Members.GroupMemberResponse>(200, new(user, group, true, DateTime.UtcNow, 0, 0, 0, 0)));
+	public Task<GroupingResult<IReadOnlySet<Guid>>> GetActiveMemberIdsAsync(Guid actor, Guid group,
+		IReadOnlyCollection<Guid> userIds, CancellationToken ct = default) =>
+		Task.FromResult(new GroupingResult<IReadOnlySet<Guid>>(200, userIds.ToHashSet()));
 	public Task<ZPI4M.Grouping.Services.Results.GroupingResult> LeaveAsync(Guid actor, Guid group, CancellationToken ct = default) => Task.FromResult(new ZPI4M.Grouping.Services.Results.GroupingResult(204));
 	public Task<ZPI4M.Grouping.Services.Results.GroupingResult> RemoveAsync(Guid actor, Guid group, Guid user, CancellationToken ct = default) => LeaveAsync(actor, group, ct);
 }

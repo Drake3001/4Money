@@ -1,6 +1,7 @@
 using DotNetEnv;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi;
 using Npgsql;
 using ZPI4M.Banking.ApiControllers;
 using ZPI4M.Banking.Database;
@@ -15,11 +16,13 @@ using ZPI4M.Banking.Services.Reads;
 using ZPI4M.Banking.Services.Refresh;
 using ZPI4M.Banking.Tink;
 using ZPI4M.Database;
+using ZPI4M.Expense.ApiControllers;
 using ZPI4M.Expense.Database;
 using ZPI4M.Expense.Repositories.CategoryRepository;
 using ZPI4M.Expense.Repositories.ExpenseItemRepository;
 using ZPI4M.Expense.Repositories.ExpenseRepository;
 using ZPI4M.Expense.Repositories.ExpenseShareRepository;
+using ZPI4M.Expense.Services.Expenses;
 using ZPI4M.Grouping.Database;
 using ZPI4M.Grouping.Repositories.GroupMemberRepository;
 using ZPI4M.Grouping.Repositories.GroupRepository;
@@ -61,6 +64,7 @@ builder.Configuration.AddEnvironmentVariables();
 
 builder.Services.AddControllers()
 	.AddApplicationPart(typeof(UsersController).Assembly)
+	.AddApplicationPart(typeof(ExpensesController).Assembly)
 	.AddApplicationPart(typeof(BankingController).Assembly)
 	.AddApplicationPart(typeof(ZPI4M.Grouping.ApiControllers.GroupsController).Assembly);
 builder.Services.AddProblemDetails();
@@ -85,7 +89,28 @@ builder.Services.AddScoped<BankingConnectionService>();
 builder.Services.AddScoped<IBankingConnectionService>(provider => provider.GetRequiredService<BankingConnectionService>());
 builder.Services.AddScoped<IBankingCallbackService>(provider => provider.GetRequiredService<BankingConnectionService>());
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options => options.AddOperationTransformer((operation, context, _) =>
+{
+	var name = context.Description.ActionDescriptor.AttributeRouteInfo?.Name;
+	if (name is "createExpense" or "updateExpense" && operation.RequestBody?.Content is { } content)
+	{
+		content["multipart/form-data"] = new OpenApiMediaType
+		{
+			Schema = new OpenApiSchema
+			{
+				Type = JsonSchemaType.Object,
+				Required = new HashSet<string> { "expense", "file" },
+				Properties = new Dictionary<string, IOpenApiSchema>
+				{
+					["expense"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "Expense form serialized as JSON." },
+					["file"] = new OpenApiSchema { Type = JsonSchemaType.String, Format = "binary" },
+					["ocrProof"] = new OpenApiSchema { Type = JsonSchemaType.String, MaxLength = ReceiptOcrProof.MaximumLength }
+				}
+			}
+		};
+	}
+	return Task.CompletedTask;
+}));
 builder.Services.AddUserRateLimiting(builder.Configuration);
 
 // Add database context
@@ -95,6 +120,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 	options.UseNpgsql(dbConnectionString, npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "public")));
 
 // Grouping module
+builder.Services.AddScoped<ZPI4M.Grouping.Services.ExpenseMetadata.IGroupExpenseMetadataLookup, ZPI4M.Grouping.Services.ExpenseMetadata.GroupExpenseMetadataLookup>();
+builder.Services.AddScoped<ZPI4M.Grouping.Services.Expenses.IGroupExpenseContributionService, ZPI4M.Grouping.Services.Expenses.GroupExpenseContributionService>();
+builder.Services.AddScoped<ZPI4M.Grouping.Services.Expenses.IGroupExpenseNotificationService, ZPI4M.Grouping.Services.Expenses.GroupExpenseNotificationService>();
 builder.Services.AddScoped<ZPI4M.Grouping.Services.Suggestions.IGroupSettlementSuggestionService, ZPI4M.Grouping.Services.Suggestions.GroupSettlementSuggestionService>();
 builder.Services.AddSingleton<ZPI4M.Grouping.Services.Suggestions.SettlementSuggestionCalculator>();
 builder.Services.AddScoped<ZPI4M.Grouping.Services.Aggregates.IGroupMemberAggregateService, ZPI4M.Grouping.Services.Aggregates.GroupMemberAggregateService>();
@@ -112,6 +140,7 @@ builder.Services.AddScoped<IGroupRepository, GroupRepository>();
 builder.Services.AddScoped<IGroupMemberRepository, GroupMemberRepository>();
 
 // Expense module
+builder.Services.AddExpenseServices();
 builder.Services.AddDbContext<ExpenseDbContext>((provider, options) =>
 	options.UseNpgsql(provider.GetRequiredService<NpgsqlConnection>(), contextOwnsConnection: false));
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
@@ -120,6 +149,9 @@ builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
 builder.Services.AddScoped<IExpenseShareRepository, ExpenseShareRepository>();
 
 // Banking module
+// Factory contexts keep independent connections for Banking connection persistence.
+builder.Services.AddScoped(provider => new BankingDbContext(new DbContextOptionsBuilder<BankingDbContext>()
+	.UseNpgsql(provider.GetRequiredService<NpgsqlConnection>(), contextOwnsConnection: false).Options));
 builder.Services.AddDbContextFactory<BankingDbContext>(options => options.UseNpgsql(dbConnectionString), ServiceLifetime.Scoped);
 builder.Services.AddScoped<IBankAccountRepository, BankAccountRepository>();
 builder.Services.AddScoped<IBankTransactionRepository, BankTransactionRepository>();
@@ -132,7 +164,8 @@ builder.Services.AddDbContext<LimitsDbContext>(options => options.UseNpgsql(dbCo
 builder.Services.AddScoped<ICategoryGroupLimitRepository, CategoryGroupLimitRepository>();
 
 // Receipt module
-builder.Services.AddDbContext<ReceiptDbContext>(options => options.UseNpgsql(dbConnectionString));
+builder.Services.AddDbContext<ReceiptDbContext>((provider, options) =>
+	options.UseNpgsql(provider.GetRequiredService<NpgsqlConnection>(), contextOwnsConnection: false));
 builder.Services.AddScoped<IReceiptRepository, ReceiptRepository>();
 builder.Services.AddScoped<IReceiptService, ReceiptService>();
 builder.Services.AddReceiptAnalysis(builder.Configuration);
@@ -148,6 +181,7 @@ builder.Services.AddOptions<AccountDeactivationOptions>()
 builder.Services.AddDbContext<UserDbContext>(options => options.UseNpgsql(dbConnectionString));
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserLookupService, UserLookupService>();
+builder.Services.AddScoped<IUserDisplayNameLookup, UserDisplayNameLookup>();
 builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
 builder.Services.AddScoped<IPasswordHasher<ZPI4M.User.Models.User>, PasswordHasher<ZPI4M.User.Models.User>>();
 builder.Services.AddScoped<IUserRegistrationService, UserRegistrationService>();
@@ -194,9 +228,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseRateLimiter();
-
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();

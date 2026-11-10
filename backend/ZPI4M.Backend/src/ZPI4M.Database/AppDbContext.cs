@@ -54,8 +54,11 @@ namespace ZPI4M.Database
 			modelBuilder.Entity<ZPI4M.Limits.Models.GroupLimit>().HasOne<ZPI4M.Grouping.Models.Group>().WithMany()
 				.HasForeignKey(e => e.GroupId).OnDelete(DeleteBehavior.NoAction);
 
-			modelBuilder.Entity<ZPI4M.Expense.Models.Expense>().HasOne<ZPI4M.User.Models.User>().WithMany()
-				.HasForeignKey(e => e.FkPayerId).OnDelete(DeleteBehavior.NoAction);
+			modelBuilder.Entity<ZPI4M.Expense.Models.Expense>()
+				.HasOne<ZPI4M.User.Models.User>().WithMany()
+				.HasForeignKey(e => e.FkPayerId)
+				.OnDelete(DeleteBehavior.NoAction)
+				.HasConstraintName("c_expense_fk_payer_id");
 			modelBuilder.Entity<ZPI4M.Notifications.Models.Notification>()
 				.HasOne<ZPI4M.Expense.Models.Expense>().WithMany()
 				.HasForeignKey(e => e.FkExpenseId)

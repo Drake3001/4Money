@@ -24,6 +24,10 @@ public class GroupRepository : IGroupRepository
 
 	public Task<Group?> GetReadAsync(Guid groupId, CancellationToken ct = default) => _context.Groups.AsNoTracking().SingleOrDefaultAsync(g => g.Id == groupId, ct);
 	public Task<Group?> GetForActiveMemberAsync(Guid groupId, Guid userId, CancellationToken ct = default) => _context.Groups.AsNoTracking().SingleOrDefaultAsync(g => g.Id == groupId && !g.IsArchived && g.GroupMembers.Any(m => m.FkUserId == userId && m.IsMember), ct);
+	public async Task<IReadOnlyList<Guid>> GetActiveExpenseGroupIdsAsync(Guid actor, CancellationToken ct = default) =>
+		await _context.GroupMembers.AsNoTracking().Where(member => member.FkUserId == actor && member.IsMember && !member.FkGroup.IsArchived)
+			.Select(member => member.FkGroupId).ToArrayAsync(ct);
+
 	public async Task<PagedResult<GroupMembershipEntry>> GetMembershipPageAsync(Guid userId, GroupMembershipQuery query, CancellationToken ct = default)
 	{
 		ArgumentNullException.ThrowIfNull(query);

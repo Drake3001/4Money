@@ -24,6 +24,17 @@ public class ExpenseShareRepository : IExpenseShareRepository
 		_context.ExpenseShares.Remove(entity);
 	}
 
+	public void RemoveRange(IEnumerable<ExpenseShare> shares) => _context.ExpenseShares.RemoveRange(shares);
+
+	public Task DeleteByExpenseAsync(Guid expenseId, CancellationToken cancellationToken = default) =>
+		_context.ExpenseShares.Where(share => share.FkExpenseId == expenseId).ExecuteDeleteAsync(cancellationToken);
+
+	public async Task<IReadOnlyList<ExpenseShare>> GetTrackedByExpenseAsync(Guid expenseId, CancellationToken cancellationToken = default) =>
+		await _context.ExpenseShares.Where(share => share.FkExpenseId == expenseId).ToArrayAsync(cancellationToken);
+
+	public async Task<IReadOnlyList<ExpenseShare>> GetByExpensesAsync(IReadOnlyCollection<Guid> expenseIds, CancellationToken cancellationToken = default) =>
+		await _context.ExpenseShares.AsNoTracking().Where(share => expenseIds.Contains(share.FkExpenseId)).ToArrayAsync(cancellationToken);
+
 	public Task<ExpenseShare?> GetAsync(Guid expenseId, Guid userId, CancellationToken cancellationToken = default)
 	{
 		return _context.ExpenseShares.SingleOrDefaultAsync(s => s.FkExpenseId == expenseId && s.FkUserId == userId, cancellationToken);
@@ -36,28 +47,28 @@ public class ExpenseShareRepository : IExpenseShareRepository
 
 	public async Task<IReadOnlyList<ExpenseShare>> GetByExpenseAsync(Guid expenseId, CancellationToken cancellationToken = default)
 	{
-		return await _context.ExpenseShares.Where(s => s.FkExpenseId == expenseId).OrderBy(s => s.FkUserId).ToListAsync(cancellationToken);
+		return await _context.ExpenseShares.AsNoTracking().Where(s => s.FkExpenseId == expenseId).OrderBy(s => s.FkUserId).ToListAsync(cancellationToken);
 	}
 
-	public async Task<decimal> GetTotalAmountAsync(Guid expenseId, CancellationToken cancellationToken = default)
+	public async Task<decimal> GetTotalPercentageAsync(Guid expenseId, CancellationToken cancellationToken = default)
 	{
-		return await _context.ExpenseShares.Where(s => s.FkExpenseId == expenseId).SumAsync(s => (decimal?)s.Amount, cancellationToken) ?? 0m;
+		return await _context.ExpenseShares.Where(s => s.FkExpenseId == expenseId).SumAsync(s => (decimal?)s.Percentage, cancellationToken) ?? 0m;
 	}
 
 	public async Task<PagedResult<ExpenseShare>> GetPageAsync(ExpenseShareQuery query, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(query);
-		if (query.MinAmount < 0 || query.MaxAmount < 0 || query.MinAmount > query.MaxAmount)
-			throw new ArgumentException("Amount bounds must be nonnegative, with minimum <= maximum.", nameof(query));
+		if (query.MinPercentage < 0 || query.MinPercentage > 100 || query.MaxPercentage < 0 || query.MaxPercentage > 100 || query.MinPercentage > query.MaxPercentage)
+			throw new ArgumentException("Percentage bounds must be between 0 and 100, with minimum <= maximum.", nameof(query));
 		IQueryable<ExpenseShare> shares = _context.ExpenseShares;
 		if (query.ExpenseId.HasValue)
 			shares = shares.Where(s => s.FkExpenseId == query.ExpenseId.Value);
 		if (query.UserId.HasValue)
 			shares = shares.Where(s => s.FkUserId == query.UserId.Value);
-		if (query.MinAmount.HasValue)
-			shares = shares.Where(s => s.Amount >= query.MinAmount.Value);
-		if (query.MaxAmount.HasValue)
-			shares = shares.Where(s => s.Amount <= query.MaxAmount.Value);
+		if (query.MinPercentage.HasValue)
+			shares = shares.Where(s => s.Percentage >= query.MinPercentage.Value);
+		if (query.MaxPercentage.HasValue)
+			shares = shares.Where(s => s.Percentage <= query.MaxPercentage.Value);
 		IOrderedQueryable<ExpenseShare> ordered;
 		switch (query.SortBy)
 		{
@@ -73,11 +84,11 @@ public class ExpenseShareRepository : IExpenseShareRepository
 				else
 					ordered = shares.OrderBy(s => s.FkUserId);
 				break;
-			case ExpenseShareSortBy.Amount:
+			case ExpenseShareSortBy.Percentage:
 				if (query.Descending)
-					ordered = shares.OrderByDescending(s => s.Amount);
+					ordered = shares.OrderByDescending(s => s.Percentage);
 				else
-					ordered = shares.OrderBy(s => s.Amount);
+					ordered = shares.OrderBy(s => s.Percentage);
 				break;
 			default:
 				throw new ArgumentOutOfRangeException(nameof(query), "Unknown sort field.");

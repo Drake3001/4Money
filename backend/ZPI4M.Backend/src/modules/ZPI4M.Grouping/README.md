@@ -246,3 +246,24 @@ The notification type CHECK is extended in AddGroupingModel, not in the temporar
 Expense migration. Its Down maps type 5 to General before restoring types 0–4.
 Editing an already-applied migration does not update an existing database;
 applying the revised chain requires separately coordinating that environment.
+
+## Integracja zapisów Expense — 2026-11-07
+
+Expense przekazuje GroupExpenseContributionService pełną kwotę oraz kwotowe udziały
+wyliczone przez ExpenseCalculationService (największe reszty, remis po UUID).
+Grouping nie czyta tabel Expense i nie zakłada kolumny Amount w ExpenseShare.
+W bazie Expense pozostają procenty. Grouping waliduje grupę, walutę i bieżące
+członkostwa pod blokadą grupy, wywołuje serwis agregatów i zapisuje swój kontekst.
+TotalPaid/TotalShare są zapisywane razem z wydatkiem w koordynatorze; dwa liczniki
+rozliczeń zachowują dotychczasową semantykę. EnlistAsync(DbContext) dołącza
+Expense bez zależności Grouping → Expense. Preview i odczyty nie zmieniają sald.
+Metadane są rzeczywiste także poza Development; mocki i UseGroupingMock usunięto.
+Tworzenie, PUT i DELETE Expense aktualizują agregaty w tej samej transakcji.
+GroupExpenseNotificationService wysyła ExpenseAdded po zapisie nowego wydatku,
+przed wspólnym commitem. Wywołujący musi wcześniej autoryzować i zablokować grupę
+w tej transakcji. Odbiorcy to aktualni członkowie poza autorem operacji;
+NotifyAsync pomija nieaktywne konta. Powiadomienie wskazuje ExpenseId, bez GroupId.
+Błąd powiadomienia wycofuje całość. Edycja i usuwanie nie powiadamiają.
+Używany jest istniejący typ i FK SET NULL, bez migracji. Odbudowa agregatów pozostaje do wykonania.
+Ta integracja nie wymaga migracji. Szczegóły i weryfikacja: agent-context/architecture.md
+oraz agent-context/implementation-status.md; starsze opisy powyżej są historyczne.

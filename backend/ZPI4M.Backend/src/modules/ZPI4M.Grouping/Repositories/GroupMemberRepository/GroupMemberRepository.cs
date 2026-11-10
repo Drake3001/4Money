@@ -16,6 +16,15 @@ public class GroupMemberRepository : IGroupMemberRepository
 
 	public Task<GroupMember?> GetReadAsync(Guid groupId, Guid userId, CancellationToken cancellationToken = default) => _context.GroupMembers.AsNoTracking().SingleOrDefaultAsync(m => m.FkGroupId == groupId && m.FkUserId == userId, cancellationToken);
 
+	public async Task<IReadOnlySet<Guid>> GetActiveUsersAmongAsync(Guid groupId, IReadOnlyCollection<Guid> userIds,
+		CancellationToken ct = default)
+	{
+		var active = await _context.GroupMembers.AsNoTracking()
+			.Where(member => member.FkGroupId == groupId && member.IsMember && userIds.Contains(member.FkUserId))
+			.Select(member => member.FkUserId).ToArrayAsync(ct);
+		return active.ToHashSet();
+	}
+
 	public Task<Dictionary<Guid, GroupMember>> GetManyAsync(Guid groupId, IReadOnlyCollection<Guid> users, CancellationToken ct = default) => _context.GroupMembers.Where(m => m.FkGroupId == groupId && users.Contains(m.FkUserId)).ToDictionaryAsync(m => m.FkUserId, ct);
 	public async Task<IReadOnlyList<Guid>> GetActiveUserIdsAsync(Guid groupId, Guid? excludedUserId = null, CancellationToken ct = default) =>
   await _context.GroupMembers.AsNoTracking().Where(m => m.FkGroupId == groupId && m.IsMember && (!excludedUserId.HasValue || m.FkUserId != excludedUserId.Value)).Select(m => m.FkUserId).ToArrayAsync(ct);

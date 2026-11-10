@@ -1,15 +1,14 @@
-using System;
-using System.Collections.Generic;
-
 namespace ZPI4M.Expense.Models;
 
 public partial class Expense
 {
+	public Guid Version { get; set; } = Guid.NewGuid();
+
 	public Guid Id { get; set; }
 
-	public Guid FkPayerId { get; set; }
-
 	public Guid FkGroupId { get; set; }
+
+	public Guid FkPayerId { get; set; }
 
 	public Guid? FkBankTransactionId { get; set; }
 

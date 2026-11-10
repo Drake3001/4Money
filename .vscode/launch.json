@@ -2,6 +2,14 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "4Money API (HTTP)",
+      "type": "dotnet",
+      "request": "launch",
+      "projectPath": "${workspaceFolder}/backend/ZPI4M.Backend/src/ZPI4M.Api/ZPI4M.Api.csproj",
+      "launchSettingsProfile": "http",
+      "cwd": "${workspaceFolder}/backend/ZPI4M.Backend/src/ZPI4M.Api"
+    },
+    {
       "name": "Extraction API (FastAPI)",
       "type": "debugpy",
       "request": "launch",

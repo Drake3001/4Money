@@ -39,6 +39,8 @@ rozszerzeniem poza MVP.
 
 ## Zakres funkcjonalny i MVP
 
+Szczegóły Expense i otwarte decyzje opisują [ustalenia zespołu](../notes/EXPENSE_DECISIONS.md).
+
 Sekcja 2 `Funkcjonalności.txt` nazywa się obecnie „Zakres funkcjonalny”.
 Tylko podsekcje oznaczone `(MVP)` traktuj jako jawnie wskazany zakres MVP.
 

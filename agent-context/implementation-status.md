@@ -1,33 +1,120 @@
 # Stan implementacji i kwestie otwarte
 
-Stan implementacji ponownie sprawdzono statycznie **2026-10-29** na podstawie
-rejestracji DI, repozytoriów, serwisów i kontrolerów, solucji, łańcucha migracji,
-API i kontraktów workera Python oraz konfiguracji Compose i CI. Wyniki uruchomień
-poniżej zachowują daty wcześniejszych weryfikacji; nie są nowym przebiegiem.
-Banking i Notifications współistnieją w bieżącej gałęzi. Ostatnie migracje to
-`20261026215244_AddBanking`, `20261027172612_AddNotificationsAfterRebase`
-i `20261028184348_RenameReceiptS3LinkToStorageKeyAndMakeUnique`;
-stara `AddNotificationRecipient` została zastąpiona, a snapshot zawiera również
-`Receipt.StorageKey` i jego unikalny indeks.
-To sprawdzenie dokumentacji nie uruchamia testów, migracji ani resetu bazy.
-Zastosowanie aktualnego łańcucha na bazie użytkownika pozostaje do potwierdzenia.
+## Expense i integracja Receipt — stan 2026-11-10
+
+Działa 10 operacji opisanych w [kontrakcie Expense](../notes/EXPENSE_API.md):
+kategorie, dostępne transakcje bankowe, historia, szczegóły, preview tworzenia
+i edycji, POST, PUT, DELETE oraz analiza i odczyt paragonu. Kontrolery korzystają
+z IExpenseService, który deleguje szczegóły, historię i kategorie do
+ExpenseQueryService w Services/Reads. IExpenseReadService obsługuje raporty.
+ExpenseService współdzieli reguły dostępu i koordynuje przygotowanie formularza,
+walidację, etykiety i zapis. Zapytania EF i operacje na zbiorach należą do
+repozytoriów; SaveChangesAsync i koordynacja transakcji pozostają w serwisie.
+Publiczne DTO i kontrakty serwisów mają osobne pliki.
+Historię obsługuje GetHistoryAsync z ExpenseHistoryQuery, także dla wybranej grupy.
+Usunięto starsze GetByGroupAsync/ExpenseQuery używane wyłącznie w teście;
+kontrakt HTTP pozostaje bez zmian.
+Główny przepływ Expense oddzielono od odczytów Banking i wspólnych metod zapisu
+w partialach Banking i Persistence. PreparedExpenseItem przenosi ID istniejącej
+pozycji; UpdateItemsAsync pracuje bez równoległej listy surowych pozycji requestu.
+Walidacja procentów korzysta z jednej listy udziałów. Mapowanie bankowych DTO
+jest w ExpenseResponseMapper, jak pozostałe odpowiedzi Expense.
+Expense korzysta z rejestru Banking przy tworzeniu, podmianie i zwolnieniu
+przypisania. Rejestr i powiązanie wydatku zapisują się w tej samej transakcji.
+Lista dostępnych transakcji wyklucza przypisania Expense i GroupSettlement
+przed paginacją.
+
+Tworzenie, edycja i usuwanie aktualizują TotalPaid/TotalShare razem z Expense
+w IGroupingTransactionCoordinator. Grouping dostarcza rzeczywiste członkostwa
+i metadane we wszystkich środowiskach oraz ponawia walidację pod blokadą grupy.
+Expense przechowuje procenty, a kwoty udziałów rozdziela metodą największych
+reszt. Preview i GET nie zapisują danych. PUT/DELETE kontrolują token Version.
+Host rejestruje usługi Grouping i User w sekcjach tych modułów;
+AddExpenseServices rejestruje usługi Expense.
+
+Utworzenie Expense zapisuje ExpenseAdded w tej samej transakcji przez
+GroupExpenseNotificationService. Odbiorcy to wszyscy aktualni członkowie grupy
+poza autorem operacji; Notifications pomija nieaktywne konta. Brak odbiorców
+pozwala zatwierdzić wydatek bez powiadomienia. Edycja i usuwanie nie powiadamiają.
+Istniejące powiadomienie zachowuje treść po usunięciu wydatku, a FK zeruje ExpenseId.
+Bez nowych typów i bez migracji. Błąd powiadomienia wycofuje również salda,
+pozycje, udziały i paragon; potwierdzony rollback sprząta nowy upload.
+
+POST, PUT, preview, szczegóły i historia używają dat YYYY-MM-DD. Baza zachowuje
+DateTime/timestamptz; nowe zapisy mają północ UTC. Początek filtra jest włącznie,
+koniec wyłącznie. Migracja 20261103165622_CompleteExpenseModel obejmuje płatnika,
+wersję, metadane pozycji, kategorie bez Color i udziały procentowe. Zastępuje
+wcześniejsze migracje Expense tej gałęzi; Up/Down wymagają pustych wydatków,
+pozycji i udziałów. Nie jest migracją przyrostową dla usuniętego łańcucha.
+
+OCR analizuje przesłany plik bez zapisu i zwraca podpisany wynik ważny 24 h,
+związany z użytkownikiem i skrótem pliku. ReceiptOcrProof wymaga poprawnego
+RECEIPTOCRPROOF__SIGNINGKEY przy starcie API. POST/PUT przyjmują JSON albo
+multipart z formularzem i plikiem. Upload następuje po walidacji, przed transakcją.
+Receipt, powiązanie i wydatek zapisują się atomowo w bazie. GET paragonu sprawdza
+dostęp i wersję Expense, po czym zwraca zapisany wynik oraz podpisany URL.
+Endpoint analizy stosuje limit pięciu żądań na minutę na użytkownika
+w instancji API. Nadmiarowe żądania dostają HTTP 429 bez kolejkowania.
+Analiza i odczyt przekazują dla każdej proponowanej pozycji `needsReview`
+oraz `reviewReason` z wyniku OCR.
+Ostrzeżenia OCR zachowują `code`, `message` i `field` w obu odpowiedziach.
+Nie ma osobnego uploadu ani analizy pliku już zapisanego w storage.
+Po potwierdzonym rollbacku sprzątany jest nowy plik, po commicie usunięty lub
+zastąpiony. Niepewny commit zachowuje plik do uzgodnienia; cleanup jest best effort.
+
+IExpenseReadService dostarcza Reports listę, sumy, podział na kategorie i oś
+czasu dzień/miesiąc/rok, z autoryzacją i filtrami. Oddziela wartość zakupów,
+koszt użytkownika i kwotę zapłaconą. Daty raportów są obustronnie włączne;
+historia HTTP zachowuje koniec wyłączny. Kategorie kosztu użytkownika są
+proporcjonalne do jego udziału, z uzgodnieniem groszy. Szczegóły i ograniczenia:
+[kontrakt odczytu](../notes/EXPENSE_REPORTS.md). Nie dodano endpointów ani migracji.
+
+Weryfikacja odczytów dla Reports (2026-11-08): Release build całej solucji
+bez błędów i ostrzeżeń, Expense.UnitTests 73/73 oraz pełne
+Expense.IntegrationTests 109/109 na PostgreSQL 15, bez pominięć.
+Wcześniejszy przebieg nowych ExpenseReadTests: 6/6. Potwierdzono obie daty
+włącznie, dostęp historyczny, filtry/sortowanie, sumy kategorii i okresów,
+rozdzielenie kosztu i kwot zapłaconych oraz grosze z ujemnymi pozycjami.
+Kontrole stylu, whitespace zmienionych plików i git diff --check przeszły.
+Użyto osobnego tymczasowego kontenera i losowych baz fixture; kontener usunięto.
+Nie zmieniano bazy ani kontenerów aplikacji. Raporty TRX:
+.cache/backend-results/expense-reports-unit-20261108/,
+.cache/backend-results/expense-reports-targeted-20261108/ oraz
+.cache/backend-results/expense-reports-regression-20261108/.
+Pełnej regresji pozostałych modułów nie powtarzano; jej wcześniejszy wynik
+dotyczy wersji z ExpenseAdded opisanej poniżej.
+
+Pozostają: ochrona ponowień,
+trwałe ponawianie cleanupu i odbudowa agregatów. Historia nadal pobiera nagłówki
+i udziały osobno; zabezpieczenie jej przed mieszaniem wersji przy równoległej
+edycji odłożono poza zakres porządków z tego review.
+
+Weryfikacja po dodaniu ExpenseAdded (2026-11-08): Release build całej solucji
+bez błędów i ostrzeżeń; pełna regresja 15 projektów z PostgreSQL 15:
+816 zaliczonych, 0 błędów, 1 pominięty ręczny test rzeczywistego S3.
+Expense.IntegrationTests 103/103, Banking.IntegrationTests 128/128,
+Notifications.IntegrationTests 13/13 i User.IntegrationTests 31/31 bez pominięć.
+Expense.UnitTests 66/66, Receipt.UnitTests 107/107, Shared.UnitTests 49/49,
+Grouping 33/33. Testy nie wymagały poprawek kodu.
+Osobny przebieg 10/10 sprawdził odbiorców ExpenseAdded, brak aktywnych odbiorców,
+rollback przed i po zapisie powiadomienia, odrzucenie i anulowanie zewnętrznej
+operacji oraz cleanup paragonu. Edycja i usunięcie nie tworzą nowych powiadomień;
+po usunięciu ExpenseId istniejącego powiadomienia staje się null.
+Kontrole stylu i whitespace zmienionych plików C# oraz git diff --check przeszły.
+Testy używały osobnego tymczasowego kontenera PostgreSQL i własnych losowych
+baz: SQL init, migracje oraz syntetyczny seed. Kontener testowy usunięto po
+zakończeniu. Nie wykonywano migracji ani seeda na bazie aplikacji i nie zmieniano
+jej kontenerów. OCR, Tink i storage w testach przepływu są zastępowane atrapami.
+Raporty TRX są w ignorowanych .cache/backend-results/expense-notifications-regression-20261108/
+i .cache/backend-results/expense-notifications-targeted-20261108/.
 
 Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
-
-Zakres wymagań ponownie porównano z `Funkcjonalności.txt`, `Baza danych.txt`,
-`Architektura systemu.txt` oraz zaktualizowanymi diagramami 2026-10-27;
-nie jest to nowa weryfikacja implementacji całego backendu. Aktualne oznaczenia
-MVP i rozszerzenia opisuje [produkt](product.md#zakres-funkcjonalny-i-mvp).
-
-Solucja ma obecnie jedenaście projektów testowych: po trzy User, Banking
-i Notifications oraz dwa Receipt. Historyczne wyniki z poprzednich rewizji: 152 testy .NET
-(User + Notifications, w tym 45 Notifications, PostgreSQL 17.6) oraz opisane
-w kontekście Banking 223 testy .NET i 45 testów Pythona dla ówczesnego zakresu.
-Nie sumuj tych wyników ani nie przedstawiaj ich jako przebiegu aktualnej solucji
-po rebase, zmianie migracji i seeda. Aktualny zestaw wymaga ponownego uruchomienia.
-CI dostarcza PostgreSQL 15 i jedną zmienną TEST_POSTGRES_CONNECTION_STRING
-dla wszystkich trzech modułów. Ostatnie częściowe przebiegi opisano poniżej;
-nie zastępują pełnego uruchomienia solucji z PostgreSQL.
+Aktualne oznaczenia MVP i rozszerzenia opisuje [produkt](product.md#zakres-funkcjonalny-i-mvp).
+Solucja ma 15 projektów testowych: po trzy User, Banking i Notifications,
+po dwa Receipt i Expense oraz Grouping i Shared. Testy PostgreSQL wymagają
+TEST_POSTGRES_CONNECTION_STRING i tworzą własne losowe bazy; brak konfiguracji
+lokalnie oznacza pominięcie, a w CI błąd. Starsze wyniki poniżej zachowują daty
+swoich weryfikacji.
 
 ## Narzędzia migracji — weryfikacja 2026-11-07
 
@@ -238,7 +325,7 @@ OCR i adapter S3. `CreateAsync` wymaga `bool runOcr`, kopiuje pojedynczy strumie
 do pliku tymczasowego, opcjonalnie wykonuje OCR, następnie upload i zapis Receipt
 z StorageKey. Zwraca `ReceiptCreationResult` z ID i pełnym wynikiem analizy jako
 `JsonElement?`. Dla `runOcr: false` nie wywołuje OCR, a zwrócony i zapisany
-`ExtractionResult` są null. `GetFileUrlByIdAsync` zwraca podpisany URL;
+`ExtractionResult` są null. `GetFileUrlAsync` generuje podpisany URL z klucza pobranego rekordu;
 `GetByIdAsync` i `DeleteAsync` zachowują dotychczasowy kontrakt.
 Błąd OCR przerywa proces przed
 uploadem. Po błędzie zapisu bazy przesłany plik pozostaje w storage, ponieważ
@@ -301,18 +388,18 @@ z lokalnego cache. Kontrole stylu i formatowania zmienionych plików oraz
 | --- | --- | --- |
 | Backend | Solucja .NET 10, host API, projekty ośmiu modułów i Shared | Struktura projektu nie potwierdza realizacji MVP |
 | Baza | Modele i konfiguracje Banking, Expense, Grouping, Limits, Notifications, Receipt i User; wspólny AppDbContext i migracje | Obecność migracji nie potwierdza ich zastosowania na każdej bazie |
-| Expense | Modele i repozytoria wydatku, pozycji, kategorii i udziałów, rejestrowane w DI; osobne unikalne indeksy FK paragonu i transakcji w konfiguracji, snapshocie i migracji AddUniqueExpenseSourceReferences | Brak kontrolera i serwisów tworzenia, edycji oraz dopasowania wydatków |
+| Expense | Historia, szczegóły, tworzenie, preview tworzenia i edycji, PUT oraz DELETE. Zmiany wydatków i sald Grouping zapisują się atomowo. | Paragon można dodać, wymienić lub usunąć przy zapisie formularza. ExpenseAdded działa przy tworzeniu. Ochrona ponowień, spójny odczyt historii i trwałe sprzątanie plików pozostają osobnymi etapami. |
 | Repozytoria | Banking; Group/GroupMember; User/UserToken; Category/Expense/ExpenseItem/ExpenseShare; CategoryGroupLimit; Receipt; Notification/NotificationRecipient | BankingConnectionRepository sam zapisuje próby i połączenia; podstawowe repozytoria pozostawiają SaveChangesAsync serwisowi; warunkowe UPDATE/DELETE wykonują się od razu; brak kompletnego API wszystkich encji |
 | User | Rejestracja, potwierdzenie i ponowna wysyłka e-maila; login z JWT i hashowanym refresh tokenem, rotacja refresh, logout; jedna sesja na konto i weryfikacja jej aktualności przy uwierzytelnieniu; limity IP; GET/PUT api/users/profile; zmiana e-maila z aktualnym hasłem i potwierdzeniem tokenem; forgot-password/reset-password z unieważnieniem sesji; dezaktywacja po potwierdzeniu e-mailem z usunięciem wszystkich tokenów; login nieaktywnego konta po poprawnym haśle zwraca 403; wspólny IEmailSender/SmtpEmailSender i UserEmailMessages | Brak strony potwierdzenia/resetu, zmiany hasła po podaniu aktualnego hasła; konfiguracja JWT wymaga klucza w środowisku; istnieją projekty testów jednostkowych, HTTP i PostgreSQL; brak potwierdzenia dostarczenia wiadomości do rzeczywistej skrzynki |
 | Banking | Próby/połączenia, adapter Tink, callback, odczyt zgód oraz refresh on demand przez trwały worker PostgreSQL, import kont i BOOKED per rachunek; IBankingReadService oraz HTTP GET list/szczegółów rachunków i transakcji | Nowy import wymaga osobnego potwierdzenia Sandbox i zastosowania migracji AddBanking do właściwej bazy; brak odłączania banku i odnawiania zgód |
-| Receipt / OCR | StorageKey z unikalnym indeksem i migracją; IReceiptService koordynuje opcjonalny OCR HTTP, upload S3 i zapis paragonu oraz zwraca ID i analizę; odczyt rekordu, podpisanego URL i usuwanie; dwa projekty testowe | Brak podłączenia do Expense (własne endpointy Receipt są celowo wykluczone); brak potwierdzenia pełnego przepływu OCR → storage → baza w tej weryfikacji; seed zawiera syntetyczny klucz bez pliku |
-| Kategoryzacja | Klasyfikacja i propozycje nazw produktów w workerze Python, taksonomia v2, flagi review, testy i narzędzia ewaluacji; model i repozytorium Category w .NET | Brak mapowania kategorii workera na encje wydatku i korekt użytkownika; historyczne eksperymenty nie potwierdzają celów jakościowych aktualnego pipeline |
-| Grouping | Modele i repozytoria Group oraz GroupMember, rejestracja DI | Brak serwisów i API tworzenia/dołączania do grup, podziału kosztów i integracji Notifications |
+| Receipt / OCR | Analiza pliku bez zapisu, upload przy zapisie Expense, odczyt rekordu i podpisanego URL oraz usuwanie; StorageKey z unikalnym indeksem; dwa projekty testowe | Własne endpointy Receipt są celowo wykluczone; brak potwierdzenia pełnego przepływu z rzeczywistym OCR/storage w bieżącej weryfikacji; seed zawiera syntetyczny klucz bez pliku |
+| Kategoryzacja | Klasyfikacja i propozycje nazw produktów w workerze Python; Expense mapuje nazwy kategorii na ID w propozycji formularza, którą użytkownik może poprawić | Worker nie zapisuje encji .NET; niejednoznaczna lub nieznana nazwa wymaga wyboru kategorii; historyczne eksperymenty nie potwierdzają jakości aktualnego pipeline |
+| Grouping | Usługi i API grup, członkostw, zaproszeń, rozliczeń i sugestii, agregaty Expense i powiadomienie ExpenseAdded; szczegóły w README modułu | Odbudowa agregatów pozostaje do wykonania |
 | Limits | Model i repozytorium CategoryGroupLimit oraz pola limitów grupy | Brak serwisów i API budżetów oraz przepływu alertów |
-| Notifications | Modele, AddNotificationsAfterRebase i snapshot; osobne repozytoria treści i odbiorców; NotifyAsync, GetByUserAsync, MarkAsReadAsync, MarkAllAsReadAsync; DTO; GET /api/notifications, PUT /api/notifications/{id}/read i PUT /api/notifications/read-all; Postman; trzy projekty testów | ID użytkownika dostarcza wspólny ICurrentUser; lista ma paginację i filtr isRead, stałe sortowanie od najnowszych; odczyt zachowuje pierwszą datę. NotifyAsync pomija nieaktywne konta, zwraca null bez odbiorców. Brak podłączenia Grouping/Limits i klientów. Push poza zakresem. Testy jednostkowe i HTTP przeszły częściowo zgodnie z opisem powyżej; pełny przebieg PostgreSQL po review niepotwierdzony |
-| Reports | Projekt modułu | Brak usług raportowania |
+| Notifications | Modele, AddNotificationsAfterRebase i snapshot; osobne repozytoria treści i odbiorców; NotifyAsync, GetByUserAsync, MarkAsReadAsync, MarkAllAsReadAsync; DTO; GET /api/notifications, PUT /api/notifications/{id}/read i PUT /api/notifications/read-all; Postman; trzy projekty testów | ID użytkownika dostarcza wspólny ICurrentUser; lista ma paginację i filtr isRead, stałe sortowanie od najnowszych; odczyt zachowuje pierwszą datę. NotifyAsync pomija nieaktywne konta, zwraca null bez odbiorców. Grouping wysyła ExpenseAdded, GroupMemberJoined i SettlementReceived. Brak podłączenia Limits i klientów. Push poza zakresem. Testy jednostkowe, HTTP i PostgreSQL przeszły w bieżącej weryfikacji |
+| Reports | Projekt modułu; Expense udostępnia IExpenseReadService z listą, agregatami kategorii i okresów | Brak implementacji raportów i endpointów w samym Reports; kontrakt Expense nie oznacza ukończenia tego modułu |
 | Web / mobile | Założenia w dokumentacji | Brak projektów aplikacji klienckich w repozytorium |
-| Narzędzia | Hooki, testy hooków, workflow backendu z PostgreSQL i wykrywaniem UnitTests/Tests/IntegrationTests; jedenaście projektów w solucji | Od 2026-10-28 CI ustawia wspólną zmienną TEST_POSTGRES_CONNECTION_STRING dla testów bazy User, Banking i Notifications. Runner wybiera tylko śledzone projekty; „not configured” nie oznacza wykonania testów |
+| Narzędzia | Hooki, testy hooków, workflow backendu z PostgreSQL i wykrywaniem UnitTests/Tests/IntegrationTests; piętnaście projektów w solucji | CI ustawia wspólną zmienną TEST_POSTGRES_CONNECTION_STRING dla testów bazy User, Banking, Notifications i Expense. Runner wybiera tylko śledzone projekty; „not configured” nie oznacza wykonania testów |
 | Infrastruktura | Wspólny Compose PostgreSQL, backendu, SeaweedFS i OCR z jednym containers/local/.env; Terraform Proxmox z workflow | Po przeniesieniu do containers/local konfiguracja Compose sprawdzona 2026-10-29 dla lokalnego .env i szablonu; containers/deploy zawiera tylko .gitkeep; bez budowania obrazów, uruchamiania usług ani migracji w tej weryfikacji; AWS pozostaje planem |
 
 Źródła: [solucja](../backend/ZPI4M.Backend/ZPI4M.Backend.slnx),
@@ -623,8 +710,9 @@ Nie zmieniano bazy deweloperskiej i nie wykonywano wywołań rzeczywistego Tink.
 | Opis bazy używa `ExpenceShare` | Aktualna nazwa klasy to `ExpenseShare`; nie kopiuj literówki do nowych kontraktów |
 | SQL init nie ma UNIQUE dla FK paragonu i transakcji w Expense; aktualny opis bazy, EF i snapshot już je uwzględniają | Migracja 20261021162958_AddUniqueExpenseSourceReferences tworzy dwa osobne unikalne indeksy; po jej zastosowaniu jeden paragon lub transakcja mogą należeć do najwyżej jednego wydatku |
 | Nie wszystkie FK między modułami i domyślne ograniczenia z SQL init są odwzorowane w EF | Przy zmianie schematu porównuj SQL, migracje i snapshot; szczegóły opisuje domain.md |
-| Produkt obejmuje finanse osobiste, ale Expense wymaga grupy | Sposób reprezentowania osobistej przestrzeni wymaga ustalenia |
-| ExpenseItem ma opcjonalny FkUserId, ale Funkcjonalności.txt (sekcja 3) umieszczają przypisywanie uczestników do produktów poza MVP | MVP obejmuje podział całego wydatku; obecność pola w modelu nie oznacza gotowej funkcji ani obowiązku realizacji rozszerzenia |
+| Snapshot deklaruje indeksy FK ExpenseItem, których nie tworzą SQL init ani stary łańcuch migracji | Historyczny brak indeksów nie wpływa na kolejność zapisu; MapExpenseShareRelationship odwzorowuje wyłącznie istniejący FK udziału do wydatku, bez zmiany indeksów |
+| Expense wymaga grupy, ale grupa osobista nie jest zaimplementowana | Ustalono jednoosobową grupę; realizacja należy do Grouping |
+| Historyczny SQL init i diagramy mogą nadal zawierać ExpenseItem.fk_user_id | Migracja CompleteExpenseModel usuwa pole i FK; MVP obejmuje podział całego wydatku. Schemat docelowy opisuje domena |
 | Dokumentacja stosu wymienia Swagger, mobile i Python OCR | Backend .NET udostępnia OpenAPI w Development; worker FastAPI ma UI /docs i zaimplementowany OCR. Aplikacji web/mobile nadal nie ma |
 | SQL init Receipt nadal używa s3_link; model i seed używają unikalnego storage_key | Migracja 20261028184348_RenameReceiptS3LinkToStorageKeyAndMakeUnique zmienia nazwę kolumny i dodaje indeks; seed wymaga jej zastosowania. Migracja nie konwertuje historycznych URL-i na klucze i wymaga braku duplikatów |
 | AddNotificationsAfterRebase zastępuje starą AddNotificationRecipient; baza sprzed rebase mogła już mieć jej kolumny i tabele | Nie stosuj ponownie tych samych zmian bez sprawdzenia schematu i historii. Seed nie naprawia tego konfliktu; odtworzenie lokalnej bazy usuwa dane i wymaga zgody |
@@ -643,7 +731,7 @@ Aktualny diagram logiczny i opis bazy używają `birth_date`, zgodnie z mapowani
 ## Otwarte ustalenia
 
 - Zakres funkcjonalny: inbox jest wprost w 2.10 (MVP), powiadomienie grupy o dodaniu wydatku w 2.7 (MVP); limity (2.6) i raportowanie (2.9) nie mają oznaczenia MVP. Automatyczne dopasowanie, zwykły push oraz interaktywny push bankowy są rozszerzeniami (sekcja 3).
-- Powiadomienia: inbox web/mobile i jego testy są gotowe w backendzie, bez infrastruktury push. Pozostaje integracja modułów źródłowych i klientów. Planowany przepływ Expense → Grouping → Notifications → User nie jest jeszcze podłączony. Od 2026-10-28 Program.cs konfiguruje wspólne scoped połączenie dla Expense, Grouping i Notifications. NotifyAsync nadal zapisuje własny kontekst; atomowość między modułami wymaga jawnego dołączenia kontekstów do transakcji i końcowego commitu przez przyszły serwis koordynujący. Koordynacja, jej testy oraz deduplikacja ponawianych wywołań nie są jeszcze zaimplementowane.
+- Powiadomienia: inbox i przepływ Expense → Grouping → Notifications → User obsługują ExpenseAdded przy tworzeniu. Grouping wysyła również GroupMemberJoined i SettlementReceived. Konteksty są jawnie dołączane do wspólnej transakcji koordynatora; błędy wycofują całą operację. Pozostają integracja Limits i klientów oraz ochrona ponawianych zapisów. Edycja i usuwanie Expense nie powiadamiają w bieżącym zakresie.
 
 - Mobile: uzgodniono React + Capacitor; plik Stos technologiczny.txt nadal zawiera alternatywę React Native i wymaga ujednolicenia z tą decyzją.
 - Zmiana hasła po podaniu aktualnego hasła oraz uprawnienia między modułami. Dezaktywacja jest już zaimplementowana; reaktywacji i fizycznego usuwania konta nie ma. Uwierzytelnianie używa JWT (`sub` = ID użytkownika, `sid` = ID sesji) i rotowanego refresh tokenu; szczegóły w development.md.

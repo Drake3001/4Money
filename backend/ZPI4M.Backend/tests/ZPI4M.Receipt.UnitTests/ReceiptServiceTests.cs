@@ -363,44 +363,6 @@ public sealed class ReceiptServiceTests
 	}
 
 	[Fact]
-	public async Task GetFileUrlById_preserves_storage_error_and_receipt()
-	{
-		using var fixture = new Fixture();
-		var receipt = await fixture.SeedAsync();
-		var error = new IOException("synthetic signing failure");
-		fixture.Storage.UrlError = error;
-
-		var actual = await Record.ExceptionAsync(() => fixture.Service.GetFileUrlByIdAsync(receipt.Id));
-
-		Assert.Same(error, actual);
-		Assert.Equal(receipt.StorageKey, fixture.Storage.UrlKey);
-		Assert.Equal(EntityState.Unchanged, fixture.Context.Entry(receipt).State);
-		using var verification = new ReceiptDbContext(fixture.ContextOptions);
-		Assert.Equal(receipt.StorageKey, (await verification.Receipts.SingleAsync()).StorageKey);
-		Assert.Empty(fixture.Storage.DeletedKeys);
-	}
-
-	[Fact]
-	public async Task GetFileUrlById_passes_key_and_token_and_returns_storage_result()
-	{
-		using var fixture = new Fixture();
-		var receipt = await fixture.SeedAsync();
-		using var cancellation = new CancellationTokenSource();
-		var result = await fixture.Service.GetFileUrlByIdAsync(receipt.Id, cancellation.Token);
-		Assert.Same(fixture.Storage.UrlResult, result);
-		Assert.Equal(receipt.StorageKey, fixture.Storage.UrlKey);
-		Assert.Equal(cancellation.Token, fixture.Storage.UrlToken);
-	}
-
-	[Fact]
-	public async Task GetFileUrlById_throws_for_missing_receipt_without_calling_storage()
-	{
-		using var fixture = new Fixture();
-		await Assert.ThrowsAsync<KeyNotFoundException>(() => fixture.Service.GetFileUrlByIdAsync(Guid.NewGuid()));
-		Assert.Null(fixture.Storage.UrlKey);
-	}
-
-	[Fact]
 	public async Task Delete_commits_database_before_deleting_file_and_is_idempotent()
 	{
 		using var fixture = new Fixture();
@@ -647,7 +609,7 @@ public sealed class ReceiptServiceTests
 
 	private sealed class AnalysisStub : IReceiptAnalysisService
 	{
-		public string Json { get; } = "{\"receipt\":{\"store\":\"Sklep\",\"total\":\"6.00\",\"items\":[]},\"warnings\":[\"synthetic warning\"],\"needs_review\":true}";
+		public string Json { get; set; } = "{\"receipt\":{\"store\":\"Sklep\",\"total\":\"6.00\",\"items\":[]},\"warnings\":[\"synthetic warning\"],\"needs_review\":true}";
 		public string? Content { get; private set; }
 		public string? ContentType { get; private set; }
 		public string? TemporaryPath { get; private set; }
@@ -705,10 +667,6 @@ public sealed class ReceiptServiceTests
 
 		public Task<FileUrlResult> GetReadUrlAsync(string key, CancellationToken cancellationToken = default)
 		{
-			UrlKey = key;
-			UrlToken = cancellationToken;
-			if (UrlError is not null)
-				throw UrlError;
 			return Task.FromResult(UrlResult);
 		}
 

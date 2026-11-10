@@ -64,6 +64,7 @@ public class BankTransactionRepository : IBankTransactionRepository
 			throw new ArgumentException("MinAmount must be less than or equal to MaxAmount.", nameof(query));
 
 		IQueryable<BankTransaction> itemsQuery = _context.BankTransactions.AsNoTracking();
+		if (query.OnlyDebits) itemsQuery = itemsQuery.Where(transaction => transaction.Amount < 0);
 		if (query.BankAccountId.HasValue)
 			itemsQuery = itemsQuery.Where(e => e.FkBankAccountId == query.BankAccountId.Value);
 		if (query.UserId.HasValue)

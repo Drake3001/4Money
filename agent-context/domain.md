@@ -34,7 +34,7 @@ jawnie częścią MVP (2.10).
 | Wydatek / `Expense` | Zakup pochodzący z ręcznego wpisu, paragonu lub banku; Expense |
 | Produkt / `ExpenseItem` | Pozycja zakupu: produkt, usługa lub towar, z kategorią; Expense |
 | `Category` | Kategoria produktów, np. żywność, ubrania lub subskrypcje; Expense |
-| `ExpenseShare` | Kwotowy udział użytkownika w wydatku; Expense |
+| `ExpenseShare` | Procentowy udział użytkownika w wydatku; kwota jest wyliczana przez Expense |
 | Paragon / `Receipt` | Zdjęcie lub zrzut potwierdzenia zakupu; odnośnik do obrazu i surowy wynik OCR; Receipt |
 | `BankAccount` | Rachunek bankowy przypisany użytkownikowi; Banking |
 | `BankConnectionAttempt` | Trwała próba połączenia z bankiem, skrót state, termin i wynik; Banking |
@@ -46,19 +46,35 @@ jawnie częścią MVP (2.10).
 | Raport | Agregacja danych, a nie osobna encja w obecnym projekcie bazy; Reports |
 
 Dokumentacja opisuje zakup jako jeden lub wiele produktów; diagram i aktualny
-model dopuszczają kolekcję bez pozycji. Wymagane zachowanie przy tworzeniu
-wydatku należy ustalić przy implementacji przepływu.
+model dopuszczają kolekcję bez pozycji. Ustalono zwykłe pozycje lub systemowe
+„Nieznane”; ExpenseRequestService egzekwuje tę regułę przy tworzeniu i edycji.
 
 ## Relacje i reprezentacja
 
+Reguły Expense i otwarte decyzje opisują [ustalenia zespołu](../notes/EXPENSE_DECISIONS.md).
+
+`Category.Icon` przechowuje nazwę ikony Lucide jako wymagany `text`.
+Kolor kategorii zależy od motywu frontendu i nie jest polem encji.
+Migracja `CompleteExpenseModel` usuwa kolumnę `color`; `icon` był już typu `text`
+w SQL init i snapshocie EF.
+
 - `Expense` należy do grupy; `FkGroupId` jest wymaganym `Guid`. Powiązania
   z paragonem i transakcją bankową są opcjonalne i maksymalnie 1:1.
-- `ExpenseItem` należy do wydatku i kategorii; przypisanie do użytkownika
-  jest opcjonalne. Zawiera cenę jednostkową i ilość. Pole FkUserId istnieje
-  w modelu i opisie bazy, ale przypisywanie uczestników do produktów jest
-  rozszerzeniem poza MVP według sekcji 3 `Funkcjonalności.txt`.
-- `ExpenseShare` łączy wydatek i użytkownika kluczem złożonym oraz kwotą `Amount`.
-  Nie jest zapisem wykonanego przelewu.
+- `Expense.Version` jest wymaganym UUID i tokenem współbieżności EF; migracja
+  `CompleteExpenseModel` dodaje kolumnę z domyślnym `gen_random_uuid()`. API zwraca tekstowy
+  nieprzezroczysty token. PUT i DELETE wymagają aktualnej wersji; konflikt daje 409.
+- `Expense` ma jednego wymaganego płatnika `FkPayerId`, bez osobnego autora.
+  FK do User jest konfigurowany w AppDbContext z DeleteBehavior.NoAction.
+- `ExpenseItem` należy do wydatku i kategorii, bez przypisania użytkownika.
+  Zawiera cenę jednostkową (także ujemną lub zerową), dodatnią ilość, kwotowy
+  `Discount <= 0` (domyślnie 0), opcjonalne tekstowe `Unit` i flagę
+  `IsSystemGenerated` (domyślnie false) dla systemowego „Nieznane”.
+- `ExpenseShare` łączy wydatek i użytkownika kluczem złożonym oraz procentem.
+  MVP nie utrwala trybu podziału ani jego wejściowych kwot/proporcji.
+  Nie jest zapisem wykonanego przelewu; płatności realizuje Grouping.
+  Relacja do Expense jest mapowana w konfiguracji modułu, bez nawigacji.
+  FK Expense do Group/Receipt/BankTransaction oraz ExpenseShare do User są
+  wymuszane przez bazowy SQL, bez mapowania tych relacji w EF.
 - `GroupMember` łączy użytkownika i grupę kluczem złożonym; użytkownik może
   należeć do wielu grup.
 - `BankAccount` należy do użytkownika, a `BankTransaction` do rachunku.
@@ -71,13 +87,13 @@ wydatku należy ustalić przy implementacji przepływu.
   limity tygodniowe, miesięczne i roczne.
 
 Aktualne konfiguracje EF używają m.in. `decimal(18,2)` dla kwot,
-`decimal(18,3)` dla ilości oraz `decimal(18,2)` dla udziałów kwotowych.
+`decimal(18,3)` dla ilości oraz `decimal(5,2)` dla procentów udziałów.
 Zachowuj reprezentację dziesiętną pieniędzy; nie zmieniaj precyzji bez analizy
 modelu i migracji.
 
 ## Zatwierdzony model grup — 2026-10-28
 
-Migracja `ApprovedGroupingModel` zmienia `grouping.group._id` na `id`, usuwa
+Migracja `AddGroupingModel` zmienia `grouping.group._id` na `id`, usuwa
 trzy limity grupy i dodaje wymagane `AdminUserId` / `admin_user_id` oraz
 `CurrencyCode` / `currency_code` (dokładnie trzy wielkie litery ASCII).
 Administrator pochodzi wyłącznie z grupy; `GroupMember.IsAdmin` znika.
@@ -91,12 +107,12 @@ Sam model nie implementuje operacji opuszczenia grupy ani filtrowania odczytów.
 `total_paid`, `total_share`, `total_settlements_sent`, `total_settlements_received`
 są nieujemnymi numeric(18,2) z domyślnym zerem.
 
-Wydatek ma `id`, `group_id`, wymagane `paid_by_user_id`, `description`
-(dawniej Name), `occurred_at` (dawniej TransactionTime), `bank_transaction_id`
-i `receipt_id`. Merchant, kwota, pozycje i opcjonalne źródła pozostają.
-`expense.expense_share` ma klucz `(expense_id, user_id)` i nieujemne
-`amount` numeric(18,2), bez procentów. Nazwy właściwości identyfikatorów Fk*
-w istniejących klasach pozostają zgodne z dotychczasowym API repozytoriów.
+Expense zachowuje nazwy `_id`, `fk_group_id`, `fk_payer_id`, `name`,
+`transaction_time`, `fk_bank_transaction_id` i `fk_receipt_id`.
+`expense.expense_share` ma klucz `(fk_expense_id, fk_user_id)` i `percentage`
+numeric(5,2), zgodnie z modelem gałęzi Expense. Kwoty do kontraktu agregatów
+Grouping są wyliczane przez Expense; tworzenie aktualizuje agregaty atomowo
+z wydatkiem od 2026-11-03.
 
 `grouping.group_settlements` / `GroupSettlement`: id, group_id, from_user_id,
 to_user_id, dodatnia amount numeric(18,2), method (Cash=1, BankTransfer=2,
@@ -136,6 +152,45 @@ udostępniają nowe DbSety; nowych repozytoriów CRUD, serwisów i endpointów n
   Szczegóły schematu i filtrów są w [kontrakcie Banking](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#transaction-assignments--2026-11-03).
 - Zużycie zaproszenia wymaga atomowego sprawdzenia aktywności, wygaśnięcia
   i limitu użyć wraz z dodaniem członkostwa. CHECK nie realizuje przepływu zaproszeń.
+
+## Kontrakt ręcznego Expense
+
+DTO są w `Expense/DTOs/Expenses`, interfejs w `Services/Expenses/IExpenseService`.
+DTO Expense zawierają wyłącznie dane. Normalizacja, walidacja, parsowanie liczb
+i sprawdzanie sum są w `Services/Expenses/ExpenseRequestService`.
+Serwis zwraca ExpenseView z ExpenseDetails i etykietami; kontroler mapuje je na
+ExpenseResponse z tekstowymi liczbami, zgodnie ze wzorcem Banking.
+Kontrakt 10 operacji, DTO, preview, listy i źródła opisują
+[Expense API](../notes/EXPENSE_API.md) i [OpenAPI](../notes/EXPENSE_API.openapi.yaml)
+(weryfikacja 2026-11-07). Działają kategorie, dostępne źródła bankowe, historia,
+szczegóły, preview tworzenia i edycji, POST, PUT i DELETE Expense oraz analiza
+i odczyt paragonu. ExpenseService integruje odczyty metadanych/nazw oraz wspólną
+prywatną ścieżkę przygotowania preview i zapisu. Kompletny zapis i aktualizacja
+agregatów pozostają jedną transakcją. Grouping dostarcza rzeczywiste członkostwa
+i metadane we wszystkich środowiskach. Szczegóły i uruchomienie opisuje kontrakt API.
+Kwoty, ilości i procenty są tekstami
+dziesiętnymi. Od 2026-11-07 `transactionTime` w API Expense jest datą `YYYY-MM-DD`
+(POST/PUT/preview, szczegóły, historia i filtry). W bazie pozostaje `DateTime` /
+`timestamptz`; nowe zapisy mają północ UTC, bez migracji. Starsze daty odczytujemy
+z części UTC istniejącego timestampu. Brak Amount oznacza sumę produktów;
+podane Amount jest celem z dopełnieniem „Nieznane”. Wynik musi być dodatni.
+Rabat produktu nie może przekroczyć jego wartości; udziały są unikalne i sumują
+się do 100%. Odpowiedź zawiera wszystkie pozycje i udziały z kwotami.
+Ochronę przed duplikatami przy ponawianiu zapisu odłożono do kolejnego etapu;
+obecny zapis jej nie gwarantuje.
+Systemowa kategoria „Nieznane” ma stałe ID i nie jest dostępna dla ręcznych pozycji.
+Grouping sprawdza walutę i członkostwa pod blokadą grupy oraz aktualizuje salda.
+ExpenseAdded powiadamia pozostałych aktualnych członków grupy z aktywnymi kontami
+przy tworzeniu wydatku. Edycja i usuwanie nie powiadamiają.
+
+## Dane zakupowe dla Reports
+
+IExpenseReadService udostępnia zakup, koszt z udziału i kwotę zapłaconą jako
+odrębne wartości. Koszt kategorii wynika z udziału w całym wydatku, bez przypisywania
+produktów do osób; uwzględnia rabaty, pozycje ujemne i systemowe „Nieznane”.
+Raporty nie doliczają rozliczeń ani ponownie paragonów/transakcji bankowych.
+Daty raportów są obustronnie włączne. [Kontrakt](../notes/EXPENSE_REPORTS.md)
+opisuje filtry, uprawnienia i rozdzielanie groszy.
 
 ## Import Banking
 
@@ -263,7 +318,7 @@ CHECK dla 1–4; nie reaktywuje kont.
 
 Opis bazy i aktualne mapowania EF używają `timestamp with time zone` dla
 `User.CreatedAt`, `User.LastLoginTime`, `UserToken.CreatedAt`,
-`UserToken.ExpiresAt`, `Expense.OccurredAt`, `Notification.CreatedAt`
+`UserToken.ExpiresAt`, `Expense.TransactionTime`, `Notification.CreatedAt`
 i `NotificationRecipient.ReadAt`. Zmiana `Notification.SentAt` na `CreatedAt`
 jest uwzględniona w migracji `20261027172612_AddNotificationsAfterRebase`.
 W C# pozostaje `DateTime` / `DateTime?`; zapis powinien używać UTC.
@@ -336,8 +391,9 @@ Kontrakt workera sprawdzono statycznie 2026-10-29. Kwoty i ilości w JSON są
 tekstami dziesiętnymi, data ma format ISO, a nieznane wartości są `null`.
 Pozycja zachowuje odczytaną `name` i osobną propozycję `name_corrected`, kategorię
 oraz `needs_review` / `review_reason`. Nazwy kategorii pochodzą z taksonomii v2
-w [workerze](../workers/extraction_worker/extraction/categories.py), a nie z ID
-tabeli Category. Nie ma jeszcze mapowania tych etykiet na kategorie bazy .NET.
+w [workerze](../workers/extraction_worker/extraction/categories.py); od migracji
+`CompleteExpenseModel` 19 kategorii produktowych oraz systemowe „Nieznane”
+są zmapowane 1:1 w tabeli `expense.category` z deterministycznymi ID.
 Rabaty produktów opisuje `discount`; samodzielna zniżka pozostaje pozycją
 z kategorią `zniżka` i ujemną kwotą. Wydane kaucje i ich zwroty są osobno
 w `deposits` i `deposit_returns`. `amount_due` jest osobnym polem od `total`.
@@ -346,13 +402,11 @@ odpowiedź HTTP 200 może nadal wymagać ręcznej korekty.
 
 ## Kwestie wymagające ustalenia przy zadaniu
 
-Dokumentacja nie rozstrzyga sposobu reprezentowania wydatków osobistych przy
-wymaganej grupie, algorytmu sald, zaokrąglania udziałów, obsługi wielu walut,
-szczegółowych progów i okresów alertów ani zasad deduplikacji importu.
-Przy pracach nad MVP nie rozszerzaj podziału kosztów na produkty tylko dlatego,
-że ExpenseItem ma opcjonalny FkUserId. To osobna funkcjonalność rozszerzająca.
-Zatwierdzony model płatnika i ewidencji rozliczeń opisano powyżej; nadal brakuje
-serwisów realizujących te przepływy.
+Otwarte decyzje Expense zbiera [sekcja 16 ustaleń](../notes/EXPENSE_DECISIONS.md#16-kwestie-otwarte--nie-uzupełniać-domysłem).
+Do ustalenia pozostają też algorytm sald oraz szczegółowe progi i okresy alertów.
+Przy pracach nad MVP nie rozszerzaj podziału kosztów na produkty. FkUserId
+usunięto z ExpenseItem; pole płatnika znajduje się w Expense. Ewidencję
+płatności między użytkownikami realizuje Grouping.
 Nie dodawaj tych reguł wyłącznie na podstawie nazw kolumn.
 
 Opis bazy zawiera zapis `ExpenceShare`; aktualna klasa to `ExpenseShare`.
@@ -439,9 +493,10 @@ przed mutacją; wynik nie może być ujemny ani przekraczać numeric(18,2).
 Historyczne członkostwa są zachowane, brakujące nie są tworzone.
 Serwis wymaga aktywnego koordynatora (EnsureActive), blokuje grupę, nie robi
 SaveChanges ani commitu. Wywołanie musi nastąpić dokładnie raz ze zmianą źródła.
-Przyszły Expense musi stosować tę samą transakcję i blokadę grupy.
-Nie podłączono ExpenseDbContext ani CRUD Expense. Brak odbudowy/uzgadniania
-agregatów oraz nowych powiadomień. Nie ma migracji.
+Tworzenie, edycja i usuwanie Expense dołączają ExpenseDbContext do koordynatora
+i przekazują kwotowe udziały pod tą samą blokadą grupy.
+Odbudowa/uzgadnianie pozostają do wykonania; tworzenie Expense zapisuje również ExpenseAdded.
+Integracja nie wymaga migracji.
 
 ## Prywatność powiązania bankowego rozliczenia — 2026-11-02
 Grouping zależy od publicznego IBankingReadService, bez zależności odwrotnej.

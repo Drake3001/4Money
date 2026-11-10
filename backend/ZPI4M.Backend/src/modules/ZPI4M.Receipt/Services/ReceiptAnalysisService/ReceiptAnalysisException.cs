@@ -7,7 +7,8 @@ public enum ReceiptAnalysisErrorKind
 	HttpError,
 	TransportError,
 	Timeout,
-	InvalidResponse
+	InvalidResponse,
+	NoUsableData
 }
 
 public sealed class ReceiptAnalysisException : Exception
@@ -21,6 +22,7 @@ public sealed class ReceiptAnalysisException : Exception
 			ReceiptAnalysisErrorKind.HttpError => "Receipt analysis returned an unsuccessful HTTP status.",
 			ReceiptAnalysisErrorKind.TransportError => "Receipt analysis transport failed.",
 			ReceiptAnalysisErrorKind.Timeout => "Receipt analysis timed out.",
+			ReceiptAnalysisErrorKind.NoUsableData => "Receipt analysis did not find usable data.",
 			_ => "Receipt analysis returned an invalid response."
 		})
 	{

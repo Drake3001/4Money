@@ -7,9 +7,13 @@ public interface IExpenseShareRepository
 {
 	void Add(ExpenseShare entity);
 	void Remove(ExpenseShare entity);
+	void RemoveRange(IEnumerable<ExpenseShare> shares);
+	Task DeleteByExpenseAsync(Guid expenseId, CancellationToken cancellationToken = default);
+	Task<IReadOnlyList<ExpenseShare>> GetTrackedByExpenseAsync(Guid expenseId, CancellationToken cancellationToken = default);
+	Task<IReadOnlyList<ExpenseShare>> GetByExpensesAsync(IReadOnlyCollection<Guid> expenseIds, CancellationToken cancellationToken = default);
 	Task<ExpenseShare?> GetAsync(Guid expenseId, Guid userId, CancellationToken cancellationToken = default);
 	Task<bool> ExistsAsync(Guid expenseId, Guid userId, CancellationToken cancellationToken = default);
 	Task<IReadOnlyList<ExpenseShare>> GetByExpenseAsync(Guid expenseId, CancellationToken cancellationToken = default);
-	Task<decimal> GetTotalAmountAsync(Guid expenseId, CancellationToken cancellationToken = default);
+	Task<decimal> GetTotalPercentageAsync(Guid expenseId, CancellationToken cancellationToken = default);
 	Task<PagedResult<ExpenseShare>> GetPageAsync(ExpenseShareQuery query, CancellationToken cancellationToken = default);
 }

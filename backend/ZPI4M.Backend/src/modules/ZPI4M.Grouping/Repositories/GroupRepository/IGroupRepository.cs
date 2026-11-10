@@ -5,6 +5,7 @@ namespace ZPI4M.Grouping.Repositories.GroupRepository;
 
 public interface IGroupRepository
 {
+	Task<IReadOnlyList<Guid>> GetActiveExpenseGroupIdsAsync(Guid actor, CancellationToken ct = default);
 	Task<Group?> LockAsync(Guid groupId, CancellationToken cancellationToken = default);
 	Task<GroupBalanceSnapshot?> GetBalanceSnapshotAsync(Guid actor, Guid groupId, CancellationToken ct = default);
 	Task<Group?> GetReadAsync(Guid groupId, CancellationToken ct = default);

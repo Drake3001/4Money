@@ -1,0 +1,2180 @@
+openapi: 3.0.3
+info:
+  title: 4Money Expense — kontrakt do implementacji
+  version: 0.4.0
+  description: Receipt OCR is transient. Expense creation and editing accept an optional receipt file and a signed OCR proof.
+servers:
+- url: http://localhost:5283
+  description: Docelowy lokalny profil HTTP, po implementacji; ten plik nie uruchamia API.
+tags:
+- name: Expenses
+- name: Categories
+- name: Bank sources
+- name: Receipts
+security:
+- BearerAuth: []
+paths:
+  /api/categories:
+    get:
+      operationId: listExpenseCategories
+      tags:
+      - Categories
+      summary: Pobierz słownik kategorii
+      description: Bez paginacji; kategorie uporządkowane po nazwie, następnie ID. Nie ma operacji edycji słownika.
+      responses:
+        '200':
+          description: Powodzenie.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategoryResponse'
+              examples:
+                Categories:
+                  $ref: '#/components/examples/Categories'
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store,no-cache
+              description: Zawiera dyrektywę no-store, zgodnie ze wspólnym ResponseCache ASP.NET Core.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      x-implementation-status: implemented-stage-1
+  /api/expenses:
+    get:
+      operationId: listExpenses
+      tags:
+      - Expenses
+      summary: Pobierz historię wydatków
+      description: Paginacja i totalCount po filtrach i autoryzacji; nie pobiera danych z banku zdalnego. Nazwy
+        profili i grup bez adresów email lub danych rachunku.
+      responses:
+        '200':
+          description: Powodzenie.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpensePage'
+              examples:
+                ExpenseHistory:
+                  $ref: '#/components/examples/ExpenseHistory'
+                EmptyExpenseHistory:
+                  $ref: '#/components/examples/EmptyExpenseHistory'
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store,no-cache
+              description: Zawiera dyrektywę no-store, zgodnie ze wspólnym ResponseCache ASP.NET Core.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters:
+      - name: groupId
+        in: query
+        required: false
+        description: 'Bez participantId: wszystkie dostępne wydatki grupy. Brak groupId i participantId: moje udziały,
+          także po odejściu.'
+        schema:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+      - name: participantId
+        in: query
+        required: false
+        description: Filtr uczestnika kosztu, nie autora; nie rozszerza dostępu. Bez grupy wskazany uczestnik jest
+          filtrem dostępnych wydatków.
+        schema:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+      - name: payerId
+        in: query
+        required: false
+        description: Filtr płatnika; sam nie wyłącza domyślnego filtra moich udziałów.
+        schema:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+      - name: transactionTimeFrom
+        in: query
+        required: false
+        description: Początek włącznie.
+        schema:
+          type: string
+          format: date
+          description: Data YYYY-MM-DD bez godziny i strefy; przyszłe daty dozwolone.
+      - name: transactionTimeTo
+        in: query
+        required: false
+        description: Koniec wyłącznie; from musi być < to.
+        schema:
+          type: string
+          format: date
+          description: Data YYYY-MM-DD bez godziny i strefy; przyszłe daty dozwolone.
+      - name: minAmount
+        in: query
+        required: false
+        description: Włącznie; kwota całego wydatku, nie udziału.
+        schema:
+          type: string
+          pattern: ^[0-9]{1,16}(\.[0-9]{1,2})?$
+          description: Tekst dziesiętny numeric(18,2), kropka; bez spacji, separatorów tysięcy, plusa i notacji
+            wykładniczej. Odpowiedzi zawsze 2 miejsca. Wartość musi być > 0.
+      - name: maxAmount
+        in: query
+        required: false
+        description: Włącznie; minAmount <= maxAmount.
+        schema:
+          type: string
+          pattern: ^[0-9]{1,16}(\.[0-9]{1,2})?$
+          description: Tekst dziesiętny numeric(18,2), kropka; bez spacji, separatorów tysięcy, plusa i notacji
+            wykładniczej. Odpowiedzi zawsze 2 miejsca. Wartość musi być > 0.
+      - name: categoryId
+        in: query
+        required: false
+        description: Co najmniej jedna pozycja tej kategorii; zwracany jest cały wydatek. Dopuszcza systemowe Nieznane.
+        schema:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+      - name: search
+        in: query
+        required: false
+        description: Nazwa wydatku lub sprzedawca, dopasowanie fragmentu bez rozróżniania wielkości liter; trim,
+          pusty ignorowany.
+        schema:
+          type: string
+      - name: hasReceipt
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: boolean
+      - name: hasBankTransaction
+        in: query
+        required: false
+        description: ''
+        schema:
+          type: boolean
+      - name: sortBy
+        in: query
+        required: false
+        description: Nazwy wartości case-insensitive jak w Banking; nieznana wartość 400.
+        schema:
+          type: string
+          enum:
+          - transactionTime
+          - amount
+          - name
+          default: transactionTime
+      - $ref: '#/components/parameters/Descending'
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      x-implementation-status: implemented-expense
+    post:
+      operationId: createExpense
+      tags:
+      - Expenses
+      summary: Utwórz wydatek
+      description: Create an expense and optionally attach a new receipt in one database transaction.
+      responses:
+        '201':
+          description: Powodzenie.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseResponse'
+              examples:
+                ExpenseDetails:
+                  $ref: '#/components/examples/ExpenseDetails'
+                LinkedExpense:
+                  $ref: '#/components/examples/LinkedExpense'
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri-reference
+              description: URL GET utworzonego zasobu generowany przez routing.
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store,no-cache
+              description: Zawiera dyrektywę no-store, zgodnie ze wspólnym ResponseCache ASP.NET Core.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '413':
+          description: File or request exceeds its size limit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateExpenseRequest'
+            examples:
+              CreateManual:
+                $ref: '#/components/examples/CreateManual'
+              CreateCalculatedAmount:
+                $ref: '#/components/examples/CreateCalculatedAmount'
+              CreateWithBank:
+                $ref: '#/components/examples/CreateWithBank'
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expense, file]
+              properties:
+                expense:
+                  type: string
+                  description: JSON serialized CreateExpenseRequest.
+                file:
+                  type: string
+                  format: binary
+                  description: One receipt file, up to 20 MiB.
+                ocrProof:
+                  type: string
+                  maxLength: 4194304
+                  description: Optional proof returned by analyze for this file.
+      x-implementation-status: implemented-stage-1
+  /api/expenses/preview:
+    post:
+      operationId: previewExpense
+      tags:
+      - Expenses
+      summary: Przelicz formularz bez zapisu
+      description: Validate and calculate the expense form without file upload or OCR.
+      responses:
+        '200':
+          description: Powodzenie.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpensePreviewResponse'
+              examples:
+                ExpensePreview:
+                  $ref: '#/components/examples/ExpensePreview'
+                PreviewCentRemainder:
+                  $ref: '#/components/examples/PreviewCentRemainder'
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store,no-cache
+              description: Zawiera dyrektywę no-store, zgodnie ze wspólnym ResponseCache ASP.NET Core.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreviewExpenseRequest'
+            examples:
+              PreviewCreate:
+                $ref: '#/components/examples/PreviewCreate'
+              PreviewEdit:
+                $ref: '#/components/examples/PreviewEdit'
+      x-implementation-status: implemented-stage-1
+  /api/expenses/{expenseId}:
+    parameters:
+    - $ref: '#/components/parameters/ExpenseId'
+    get:
+      operationId: getExpense
+      tags:
+      - Expenses
+      summary: Pobierz pełne szczegóły
+      description: 'Aktualny członek: odczyt wszystkich wydatków grupy. Były członek: tylko jako płatnik lub uczestnik
+        tego wydatku, z canEdit=false i canDelete=false. Cudzy/niedostępny zasób daje 404.'
+      responses:
+        '200':
+          description: Powodzenie.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseResponse'
+              examples:
+                ExpenseDetails:
+                  $ref: '#/components/examples/ExpenseDetails'
+                LinkedExpense:
+                  $ref: '#/components/examples/LinkedExpense'
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store,no-cache
+              description: Zawiera dyrektywę no-store, zgodnie ze wspólnym ResponseCache ASP.NET Core.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-implementation-status: implemented-stage-1
+    put:
+      operationId: updateExpense
+      tags:
+      - Expenses
+      summary: Zapisz cały formularz edycji
+      description: Update an expense with its current version. A file replaces the receipt and removeReceipt detaches it.
+      responses:
+        '200':
+          description: Powodzenie.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseResponse'
+              examples:
+                UpdatedExpense:
+                  $ref: '#/components/examples/UpdatedExpense'
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store,no-cache
+              description: Zawiera dyrektywę no-store, zgodnie ze wspólnym ResponseCache ASP.NET Core.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '413':
+          description: File or request exceeds its size limit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateExpenseRequest'
+            examples:
+              UpdateManual:
+                $ref: '#/components/examples/UpdateManual'
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expense, file]
+              properties:
+                expense:
+                  type: string
+                  description: JSON serialized UpdateExpenseRequest.
+                file:
+                  type: string
+                  format: binary
+                  description: One receipt file, up to 20 MiB.
+                ocrProof:
+                  type: string
+                  maxLength: 4194304
+                  description: Optional proof returned by analyze for this file.
+      x-implementation-status: implemented-expense
+    delete:
+      operationId: deleteExpense
+      tags:
+      - Expenses
+      summary: Usuń wydatek
+      description: 'Aktualny członek grupy; wymagana version. Usuwa wydatek, pozycje, udziały i paragon. Transakcja
+        bankowa pozostaje i zostaje zwolniona. Brak zasobu: 404. Usunięcie paragonu i pliku po zatwierdzeniu wydatku. Awaria sprzątania nie przywraca wydatku.'
+      responses:
+        '204':
+          description: Wydatek usunięty; brak body.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store,no-cache
+              description: Zawiera dyrektywę no-store, zgodnie ze wspólnym ResponseCache ASP.NET Core.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      parameters:
+      - $ref: '#/components/parameters/Version'
+      x-implementation-status: implemented-expense
+  /api/expenses/available-bank-transactions:
+    get:
+      operationId: listAvailableExpenseBankTransactions
+      tags:
+      - Bank sources
+      summary: Pobierz transakcje do przypięcia
+      description: Tylko własne, Booked, ujemne PLN, globalnie nieprzypisane do Expense. Wykluczenie zajętych ID
+        przed paginacją i totalCount. Aktualna przypięta transakcja nie występuje na tej liście; jej ID jest w szczegółach
+        Expense. Lista nie rezerwuje transakcji.
+      responses:
+        '200':
+          description: Powodzenie.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailableBankTransactionPage'
+              examples:
+                AvailableTransactions:
+                  $ref: '#/components/examples/AvailableTransactions'
+                EmptyAvailableTransactions:
+                  $ref: '#/components/examples/EmptyAvailableTransactions'
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store,no-cache
+              description: Zawiera dyrektywę no-store, zgodnie ze wspólnym ResponseCache ASP.NET Core.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters:
+      - name: bankAccountId
+        in: query
+        required: false
+        description: Tylko własny rachunek; cudzy lub nieistniejący daje 404.
+        schema:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+      - name: dateFrom
+        in: query
+        required: false
+        description: Data bankowa włącznie.
+        schema:
+          type: string
+          format: date
+      - name: dateTo
+        in: query
+        required: false
+        description: Data bankowa włącznie; from <= to.
+        schema:
+          type: string
+          format: date
+      - name: minAmount
+        in: query
+        required: false
+        description: Oryginalna ujemna kwota bankowa, włącznie.
+        schema:
+          type: string
+          pattern: ^-?[0-9]{1,16}(\.[0-9]{1,2})?$
+          description: Tekst dziesiętny numeric(18,2), kropka; bez spacji, separatorów tysięcy, plusa i notacji
+            wykładniczej. Odpowiedzi zawsze 2 miejsca.
+      - name: maxAmount
+        in: query
+        required: false
+        description: Oryginalna ujemna kwota bankowa, włącznie; min <= max.
+        schema:
+          type: string
+          pattern: ^-?[0-9]{1,16}(\.[0-9]{1,2})?$
+          description: Tekst dziesiętny numeric(18,2), kropka; bez spacji, separatorów tysięcy, plusa i notacji
+            wykładniczej. Odpowiedzi zawsze 2 miejsca.
+      - name: description
+        in: query
+        required: false
+        description: Fragment opisu bez rozróżniania wielkości liter; pusty ignorowany.
+        schema:
+          type: string
+      - name: sortBy
+        in: query
+        required: false
+        description: Jak w Banking, case-insensitive. status=Booked i currencyCode=PLN są stałe, nie są filtrami
+          requestu.
+        schema:
+          type: string
+          enum:
+          - date
+          - amount
+          - status
+          - currencyCode
+          default: date
+      - $ref: '#/components/parameters/Descending'
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      x-implementation-status: implemented-stage-1
+  /api/expenses/receipts/analyze:
+    post:
+      operationId: analyzeExpenseReceipt
+      tags: [Receipts]
+      summary: Analyze a receipt file without saving it
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReceiptUploadRequest'
+      responses:
+        '200':
+          description: OCR proposal and signed proof for a later save.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptOcrResponse'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          description: File or request exceeds its size limit.
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableReceipt'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+  /api/expenses/{expenseId}/receipt:
+    parameters:
+    - $ref: '#/components/parameters/ExpenseId'
+    get:
+      operationId: getExpenseReceipt
+      tags: [Receipts]
+      summary: Read the receipt attached to an accessible expense
+      responses:
+        '200':
+          description: Signed file URL and saved OCR result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT aplikacji User. Tożsamość wywołującego z ICurrentUser; nie jest parametrem requestu.
+  parameters:
+    PageNumber:
+      name: pageNumber
+      in: query
+      required: false
+      description: Indeks strony od 1; offset musi mieścić się w int32.
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      required: false
+      description: ''
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Descending:
+      name: descending
+      in: query
+      required: false
+      description: Kierunek głównego sortowania; remisy po ID rosnąco (ordinal GUID).
+      schema:
+        type: boolean
+        default: true
+    ExpenseId:
+      name: expenseId
+      in: path
+      required: true
+      description: ''
+      schema:
+        type: string
+        format: uuid
+        pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+    Version:
+      name: version
+      in: query
+      required: true
+      description: 'Token ze szczegółów. Brak/pusty: 400; nieaktualny: 409.'
+      schema:
+        type: string
+        minLength: 1
+        description: Nieprzezroczysty token; kopiuj bez parsowania z ostatnich szczegółów. Każdy udany PUT zmienia
+          token.
+  schemas:
+    Id:
+      type: string
+      format: uuid
+      pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+    UtcTime:
+      type: string
+      format: date-time
+      pattern: Z$
+      description: Moment UTC zakończony Z; przyszłe daty dozwolone.
+    ExpenseDate:
+      type: string
+      format: date
+      description: Data YYYY-MM-DD bez godziny i strefy; przyszłe daty dozwolone.
+    Money:
+      type: string
+      pattern: ^-?[0-9]{1,16}(\.[0-9]{1,2})?$
+      description: Tekst dziesiętny numeric(18,2), kropka; bez spacji, separatorów tysięcy, plusa i notacji wykładniczej.
+        Odpowiedzi zawsze 2 miejsca.
+    PositiveMoney:
+      type: string
+      pattern: ^[0-9]{1,16}(\.[0-9]{1,2})?$
+      description: Tekst dziesiętny numeric(18,2), kropka; bez spacji, separatorów tysięcy, plusa i notacji wykładniczej.
+        Odpowiedzi zawsze 2 miejsca. Wartość musi być > 0.
+    Quantity:
+      type: string
+      pattern: ^[0-9]{1,15}(\.[0-9]{1,3})?$
+      description: numeric(18,3), wartość > 0. Odpowiedzi zawsze 3 miejsca.
+    Percentage:
+      type: string
+      pattern: ^[0-9]{1,3}(\.[0-9]{1,2})?$
+      description: 0 < wartość <= 100; suma unikalnych uczestników dokładnie 100.00. Odpowiedzi zawsze 2 miejsca.
+    Version:
+      type: string
+      minLength: 1
+      description: Nieprzezroczysty token; kopiuj bez parsowania z ostatnich szczegółów. Każdy udany PUT zmienia
+        token.
+    CategoryResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - name
+      - description
+      - icon
+      - isSystemGenerated
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+          minLength: 1
+          pattern: \S
+          description: Wymagany niepusty tekst po trim; kontrakt nie dodaje limitu długości nieobecnego w obecnym
+            DTO.
+        description:
+          type: string
+        icon:
+          type: string
+          description: Nazwa Lucide w kebab-case, np. shopping-cart; kolor ustala frontend.
+        isSystemGenerated:
+          type: boolean
+          description: Kategoria systemowa Nieznane; nie wolno wybrać jej w ręcznym produkcie.
+    ExpenseItemRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - categoryId
+      - name
+      - unitPrice
+      - quantity
+      properties:
+        id:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+          nullable: true
+          description: Pomiń/null dla nowej pozycji. Istniejące ID tylko przy edycji tego wydatku; unikalne, niesystemowe.
+            Zachowuje tożsamość pozycji.
+        categoryId:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+          description: Istniejąca kategoria niesystemowa.
+        name:
+          type: string
+          minLength: 1
+          pattern: \S
+          description: Wymagany niepusty tekst po trim; kontrakt nie dodaje limitu długości nieobecnego w obecnym
+            DTO.
+        unitPrice:
+          $ref: '#/components/schemas/Money'
+        quantity:
+          $ref: '#/components/schemas/Quantity'
+        discount:
+          type: string
+          pattern: ^-?[0-9]{1,16}(\.[0-9]{1,2})?$
+          description: Rabat całej pozycji <= 0, domyślnie 0.00. Nie może przekroczyć zaokrąglonej wartości nieujemnej
+            pozycji. Przy ujemnym unitPrice musi wynosić 0.
+          default: '0.00'
+        unit:
+          type: string
+          nullable: true
+          description: Pominięcie, null lub biały tekst oznacza brak jednostki; pozostały tekst po trim.
+    ExpenseShareRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - userId
+      - percentage
+      properties:
+        userId:
+          $ref: '#/components/schemas/Id'
+        percentage:
+          $ref: '#/components/schemas/Percentage'
+    CreateExpenseRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - groupId
+      - payerId
+      - name
+      - transactionTime
+      - items
+      - shares
+      properties:
+        groupId:
+          $ref: '#/components/schemas/Id'
+        payerId:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+          minLength: 1
+          pattern: \S
+          description: Wymagany niepusty tekst po trim; kontrakt nie dodaje limitu długości nieobecnego w obecnym
+            DTO.
+        merchant:
+          type: string
+          nullable: true
+          description: Pominięcie, null lub biały tekst czyści sprzedawcę; tekst po trim.
+        amount:
+          type: string
+          pattern: ^[0-9]{1,16}(\.[0-9]{1,2})?$
+          description: 'Pominięcie/null: wylicz z produktów (również przy PUT), nie zachowuj dawnej kwoty. Podana
+            wartość: cel z dopełnieniem Nieznane. Przy banku wymagane nie-null i zgodne z bezwzględną kwotą obciążenia.'
+          nullable: true
+        transactionTime:
+          $ref: '#/components/schemas/ExpenseDate'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseItemRequest'
+          description: Wyłącznie zwykłe pozycje. Pusta lista dozwolona przy podanej dodatniej kwocie. Przy PUT zastępuje
+            cały zestaw; pominięte stare pozycje są usuwane.
+        shares:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseShareRequest'
+          minItems: 1
+          description: Pełny podział procentowy; nie wysyłaj zerowych udziałów.
+        bankTransactionId:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+          nullable: true
+          description: 'POST pominięcie/null: brak banku. PUT null: odłącz; ID: zachowaj/wymień. Nowe źródło musi
+            należeć do wywołującego; zachowanie już przypiętego jest dozwolone innemu uprawnionemu członkowi.'
+      description: Kompletny formularz. Przy tworzeniu id pozycji musi być pominięte/null. Dane bankowe mają pierwszeństwo
+        przed OCR; niespójna kwota/płatnik to 400, bez cichego nadpisania.
+    UpdateExpenseRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - version
+      - payerId
+      - name
+      - transactionTime
+      - items
+      - shares
+      - bankTransactionId
+      properties:
+        version:
+          $ref: '#/components/schemas/Version'
+        payerId:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+          minLength: 1
+          pattern: \S
+          description: Wymagany niepusty tekst po trim; kontrakt nie dodaje limitu długości nieobecnego w obecnym
+            DTO.
+        merchant:
+          type: string
+          nullable: true
+          description: Pominięcie, null lub biały tekst czyści sprzedawcę; tekst po trim.
+        amount:
+          type: string
+          pattern: ^[0-9]{1,16}(\.[0-9]{1,2})?$
+          description: 'Pominięcie/null: wylicz z produktów (również przy PUT), nie zachowuj dawnej kwoty. Podana
+            wartość: cel z dopełnieniem Nieznane. Przy banku wymagane nie-null i zgodne z bezwzględną kwotą obciążenia.'
+          nullable: true
+        transactionTime:
+          $ref: '#/components/schemas/ExpenseDate'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseItemRequest'
+          description: Wyłącznie zwykłe pozycje. Pusta lista dozwolona przy podanej dodatniej kwocie. Przy PUT zastępuje
+            cały zestaw; pominięte stare pozycje są usuwane.
+        shares:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseShareRequest'
+          minItems: 1
+          description: Pełny podział procentowy; nie wysyłaj zerowych udziałów.
+        bankTransactionId:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+          nullable: true
+          description: 'POST pominięcie/null: brak banku. PUT null: odłącz; ID: zachowaj/wymień. Nowe źródło musi
+            należeć do wywołującego; zachowanie już przypiętego jest dozwolone innemu uprawnionemu członkowi.'
+        removeReceipt:
+          type: boolean
+          default: false
+          description: Remove the attached receipt. Cannot be combined with a replacement file.
+      description: Pełne zastąpienie formularza. Nie przyjmuje groupId. Usuń systemowe pozycje z requestu; backend
+        wylicza je ponownie.
+    PreviewExpenseRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - groupId
+      - payerId
+      - name
+      - transactionTime
+      - items
+      - shares
+      properties:
+        expenseId:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+          nullable: true
+          description: 'Pominięcie/null: tworzenie. ID: podgląd edycji istniejącego wydatku.'
+        version:
+          type: string
+          minLength: 1
+          description: Wymagane nie-null przy expenseId; przy tworzeniu pomiń/null.
+          nullable: true
+        groupId:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+          description: Przy edycji musi być identyczne z grupą wydatku.
+        payerId:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+          minLength: 1
+          pattern: \S
+          description: Wymagany niepusty tekst po trim; kontrakt nie dodaje limitu długości nieobecnego w obecnym
+            DTO.
+        merchant:
+          type: string
+          nullable: true
+          description: Pominięcie, null lub biały tekst czyści sprzedawcę; tekst po trim.
+        amount:
+          type: string
+          pattern: ^[0-9]{1,16}(\.[0-9]{1,2})?$
+          description: 'Pominięcie/null: wylicz z produktów (również przy PUT), nie zachowuj dawnej kwoty. Podana
+            wartość: cel z dopełnieniem Nieznane. Przy banku wymagane nie-null i zgodne z bezwzględną kwotą obciążenia.'
+          nullable: true
+        transactionTime:
+          $ref: '#/components/schemas/ExpenseDate'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseItemRequest'
+          description: Wyłącznie zwykłe pozycje. Pusta lista dozwolona przy podanej dodatniej kwocie. Przy PUT zastępuje
+            cały zestaw; pominięte stare pozycje są usuwane.
+        shares:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseShareRequest'
+          minItems: 1
+          description: Pełny podział procentowy; nie wysyłaj zerowych udziałów.
+        bankTransactionId:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+          nullable: true
+          description: 'POST pominięcie/null: brak banku. PUT null: odłącz; ID: zachowaj/wymień. Nowe źródło musi
+            należeć do wywołującego; zachowanie już przypiętego jest dozwolone innemu uprawnionemu członkowi.'
+      description: Preview przyjmuje formularz JSON. Nie przesyła pliku ani nie uruchamia OCR.
+    ExpenseItemResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - categoryId
+      - categoryName
+      - categoryIcon
+      - name
+      - unitPrice
+      - quantity
+      - discount
+      - unit
+      - total
+      - isSystemGenerated
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        categoryId:
+          $ref: '#/components/schemas/Id'
+        categoryName:
+          type: string
+        categoryIcon:
+          type: string
+        name:
+          type: string
+        unitPrice:
+          $ref: '#/components/schemas/Money'
+        quantity:
+          $ref: '#/components/schemas/Quantity'
+        discount:
+          $ref: '#/components/schemas/Money'
+        unit:
+          type: string
+          nullable: true
+        total:
+          $ref: '#/components/schemas/Money'
+        isSystemGenerated:
+          type: boolean
+    PreviewItemResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - categoryId
+      - categoryName
+      - categoryIcon
+      - name
+      - unitPrice
+      - quantity
+      - discount
+      - unit
+      - total
+      - isSystemGenerated
+      properties:
+        categoryId:
+          $ref: '#/components/schemas/Id'
+        categoryName:
+          type: string
+        categoryIcon:
+          type: string
+        name:
+          type: string
+        unitPrice:
+          $ref: '#/components/schemas/Money'
+        quantity:
+          $ref: '#/components/schemas/Quantity'
+        discount:
+          $ref: '#/components/schemas/Money'
+        unit:
+          type: string
+          nullable: true
+        total:
+          $ref: '#/components/schemas/Money'
+        isSystemGenerated:
+          type: boolean
+      description: Pozycja obliczeniowa bez przydzielania trwałego ID, w tym ewentualne Nieznane.
+    ExpenseShareResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - userId
+      - userDisplayName
+      - percentage
+      - amount
+      properties:
+        userId:
+          $ref: '#/components/schemas/Id'
+        userDisplayName:
+          type: string
+        percentage:
+          $ref: '#/components/schemas/Percentage'
+        amount:
+          $ref: '#/components/schemas/Money'
+    ExpenseResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - groupId
+      - groupName
+      - payerId
+      - payerDisplayName
+      - name
+      - merchant
+      - amount
+      - currencyCode
+      - transactionTime
+      - bankTransactionId
+      - receiptId
+      - items
+      - shares
+      - version
+      - canEdit
+      - canDelete
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        groupId:
+          $ref: '#/components/schemas/Id'
+        groupName:
+          type: string
+        payerId:
+          $ref: '#/components/schemas/Id'
+        payerDisplayName:
+          type: string
+        name:
+          type: string
+        merchant:
+          type: string
+          nullable: true
+        amount:
+          $ref: '#/components/schemas/PositiveMoney'
+        currencyCode:
+          type: string
+          enum:
+          - PLN
+        transactionTime:
+          $ref: '#/components/schemas/ExpenseDate'
+        bankTransactionId:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+          nullable: true
+        receiptId:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseItemResponse'
+          minItems: 1
+        shares:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseShareResponse'
+          minItems: 1
+        version:
+          $ref: '#/components/schemas/Version'
+        canEdit:
+          type: boolean
+        canDelete:
+          type: boolean
+      description: Pełne szczegóły; ID źródła bankowego nie daje dostępu do danych rachunku/transakcji innego użytkownika.
+        Wyświetlane nazwy to aktualne etykiety, nie historyczne snapshoty profilu.
+    ExpenseListItemResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - groupId
+      - groupName
+      - payerId
+      - payerDisplayName
+      - name
+      - merchant
+      - amount
+      - currencyCode
+      - transactionTime
+      - bankTransactionId
+      - receiptId
+      - myShareAmount
+      - mySharePercentage
+      - categories
+      - hasReceipt
+      - hasBankTransaction
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        groupId:
+          $ref: '#/components/schemas/Id'
+        groupName:
+          type: string
+        payerId:
+          $ref: '#/components/schemas/Id'
+        payerDisplayName:
+          type: string
+        name:
+          type: string
+        merchant:
+          type: string
+          nullable: true
+        amount:
+          $ref: '#/components/schemas/PositiveMoney'
+        currencyCode:
+          type: string
+          enum:
+          - PLN
+        transactionTime:
+          $ref: '#/components/schemas/ExpenseDate'
+        bankTransactionId:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+          nullable: true
+        receiptId:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+          nullable: true
+        myShareAmount:
+          description: Końcowy udział wywołującego; 0.00, jeżeli nie jest uczestnikiem.
+          allOf:
+          - $ref: '#/components/schemas/Money'
+        mySharePercentage:
+          type: string
+          pattern: ^-?[0-9]{1,16}(\.[0-9]{1,2})?$
+          description: Procent wywołującego lub 0.00.
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryResponse'
+          minItems: 1
+        hasReceipt:
+          type: boolean
+        hasBankTransaction:
+          type: boolean
+    ExpensePreviewResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - amount
+      - currencyCode
+      - items
+      - shares
+      - bankTransactionId
+      - receiptId
+      properties:
+        amount:
+          $ref: '#/components/schemas/PositiveMoney'
+        currencyCode:
+          type: string
+          enum:
+          - PLN
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PreviewItemResponse'
+          minItems: 1
+        shares:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseShareResponse'
+          minItems: 1
+        bankTransactionId:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+          nullable: true
+        receiptId:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+          nullable: true
+      description: Wynik obliczeń. Brak ID nowego wydatku, tokenu nowej wersji oraz jakichkolwiek zapisów.
+    AvailableBankTransactionResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - bankAccountId
+      - amount
+      - currencyCode
+      - date
+      - description
+      - status
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        bankAccountId:
+          $ref: '#/components/schemas/Id'
+        amount:
+          type: string
+          pattern: ^-?[0-9]{1,16}(\.[0-9]{1,2})?$
+          description: Oryginalna ujemna kwota bankowa; formularz Expense używa wartości bezwzględnej.
+        currencyCode:
+          type: string
+          enum:
+          - PLN
+        date:
+          type: string
+          format: date
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+          - Booked
+    ExpensePage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - totalCount
+      - pageNumber
+      - pageSize
+      - totalPages
+      - hasPreviousPage
+      - hasNextPage
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseListItemResponse'
+        totalCount:
+          type: integer
+          format: int32
+          minimum: 0
+        pageNumber:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalPages:
+          type: integer
+          minimum: 0
+        hasPreviousPage:
+          type: boolean
+        hasNextPage:
+          type: boolean
+      description: Istniejący format PagedResult. totalCount po autoryzacji i wszystkich filtrach; pusta strona
+        zwraca 200, nie 404.
+    AvailableBankTransactionPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - totalCount
+      - pageNumber
+      - pageSize
+      - totalPages
+      - hasPreviousPage
+      - hasNextPage
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailableBankTransactionResponse'
+        totalCount:
+          type: integer
+          format: int32
+          minimum: 0
+        pageNumber:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalPages:
+          type: integer
+          minimum: 0
+        hasPreviousPage:
+          type: boolean
+        hasNextPage:
+          type: boolean
+      description: Istniejący format PagedResult. totalCount po autoryzacji i wszystkich filtrach; pusta strona
+        zwraca 200, nie 404.
+    ReceiptDraftItem:
+      type: object
+      additionalProperties: false
+      required:
+      - categoryId
+      - name
+      - unitPrice
+      - quantity
+      - discount
+      - unit
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+          pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+          nullable: true
+          description: Przypisana kategoria aplikacji; null tylko gdy mapowanie jest niemożliwe (ostrzeżenie i ręczny
+            wybór). Nigdy systemowe Nieznane.
+        name:
+          type: string
+          nullable: true
+        unitPrice:
+          type: string
+          pattern: ^-?[0-9]{1,16}(\.[0-9]{1,2})?$
+          description: Tekst dziesiętny numeric(18,2), kropka; bez spacji, separatorów tysięcy, plusa i notacji
+            wykładniczej. Odpowiedzi zawsze 2 miejsca.
+          nullable: true
+        quantity:
+          type: string
+          pattern: ^[0-9]{1,15}(\.[0-9]{1,3})?$
+          description: numeric(18,3), wartość > 0. Odpowiedzi zawsze 3 miejsca.
+          nullable: true
+        discount:
+          type: string
+          pattern: ^-?[0-9]{1,16}(\.[0-9]{1,2})?$
+          description: Rabat całej pozycji <= 0, domyślnie 0.00. Nie może przekroczyć zaokrąglonej wartości nieujemnej
+            pozycji. Przy ujemnym unitPrice musi wynosić 0.
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+    ReceiptDraft:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - merchant
+      - amount
+      - currencyCode
+      - transactionTime
+      - items
+      properties:
+        name:
+          type: string
+          nullable: true
+        merchant:
+          type: string
+          nullable: true
+        amount:
+          type: string
+          pattern: ^[0-9]{1,16}(\.[0-9]{1,2})?$
+          description: Tekst dziesiętny numeric(18,2), kropka; bez spacji, separatorów tysięcy, plusa i notacji
+            wykładniczej. Odpowiedzi zawsze 2 miejsca. Wartość musi być > 0.
+          nullable: true
+        currencyCode:
+          type: string
+          nullable: true
+        transactionTime:
+          type: string
+          format: date
+          description: Data zakupu YYYY-MM-DD; null, jeśli OCR nie odczytał poprawnej daty.
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReceiptDraftItem'
+      description: Częściowa propozycja, bez grupy, płatnika i udziałów. transactionTime zawiera datę zakupu bez godziny.
+        Użytkownik uzupełnia wymagane dane przed preview/zapisem. Nie-PLN wymaga ręcznego wyjaśnienia;
+        API nie wykonuje konwersji walut.
+    ReceiptAnalysisResponse:
+      type: object
+      required: [proposal, warnings, needsReview, rawResult]
+      properties:
+        proposal:
+          $ref: '#/components/schemas/ReceiptDraft'
+        warnings:
+          type: array
+          items:
+            type: string
+        needsReview:
+          type: boolean
+        rawResult:
+          type: object
+          additionalProperties: true
+    ReceiptOcrResponse:
+      type: object
+      required: [proposal, warnings, needsReview, ocrProof]
+      properties:
+        proposal:
+          $ref: '#/components/schemas/ReceiptDraft'
+        warnings:
+          type: array
+          items:
+            type: string
+        needsReview:
+          type: boolean
+        ocrProof:
+          type: string
+          maxLength: 4194304
+          description: Opaque signed result bound to the image and user for 24 hours.
+    ReceiptResponse:
+      type: object
+      required: [id, expenseId, fileUrl, fileUrlExpiresAt, analysis]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        expenseId:
+          $ref: '#/components/schemas/Id'
+        fileUrl:
+          type: string
+          format: uri
+        fileUrlExpiresAt:
+          $ref: '#/components/schemas/UtcTime'
+        analysis:
+          type: object
+          nullable: true
+          properties:
+            proposal:
+              $ref: '#/components/schemas/ReceiptDraft'
+            warnings:
+              type: array
+              items:
+                type: string
+            needsReview:
+              type: boolean
+            rawResult:
+              type: object
+              additionalProperties: true
+          required: [proposal, warnings, needsReview, rawResult]
+    ReceiptUploadRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - file
+      properties:
+        file:
+          type: string
+          format: binary
+          description: Dokładnie jeden niepusty plik do 20 MiB. Obsługiwane typy MIME obejmują JPEG, PNG, WebP, HEIC/HEIF, TIFF, BMP i PDF. Zawartość i limit stron sprawdza worker podczas OCR.
+    ProblemDetails:
+      type: object
+      description: Standardowe ASP.NET Core ProblemDetails; bez dodatkowej koperty i bez wymaganego własnego code.
+        traceId to rozszerzenie diagnostyczne, nie sekret. title/detail nie są stabilnymi identyfikatorami do sterowania
+        UI.
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        traceId:
+          type: string
+      additionalProperties: true
+    ValidationProblemDetails:
+      allOf:
+      - $ref: '#/components/schemas/ProblemDetails'
+      - type: object
+        required:
+        - errors
+        properties:
+          errors:
+            type: object
+            additionalProperties:
+              type: array
+              items:
+                type: string
+            description: Klucze nazw pól JSON, np. items[0].quantity. Dla błędu całego formularza pusty klucz.
+  responses:
+    Unauthorized:
+      description: Brak lub nieważny JWT / niedostępne konto. Standardowe wyzwanie Bearer.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          examples:
+            default:
+              $ref: '#/components/examples/Unauthorized'
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+          description: Bearer
+    Forbidden:
+      description: Zasób jest dostępny do odczytu, ale użytkownik nie ma prawa wykonać tej operacji, np. były uczestnik
+        próbuje edytować.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          examples:
+            default:
+              $ref: '#/components/examples/Forbidden'
+    NotFound:
+      description: Zasób nie istnieje lub jest niedostępny do odczytu. Nie ujawniamy istnienia cudzych wydatków,
+        rachunków i uploadów.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          examples:
+            default:
+              $ref: '#/components/examples/NotFound'
+    Conflict:
+      description: Nieaktualna wersja, zajęte źródło lub próba usunięcia przypiętego paragonu. Odśwież dane; nie
+        ponawiaj automatycznie zapisu.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          examples:
+            default:
+              $ref: '#/components/examples/Conflict'
+            source:
+              $ref: '#/components/examples/SourceConflict'
+    PayloadTooLarge:
+      description: Przekroczono limit pliku 20 MiB lub całego żądania multipart 50 MiB.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          examples:
+            default:
+              $ref: '#/components/examples/PayloadTooLarge'
+    UnsupportedMediaType:
+      description: Nieobsługiwany typ pliku lub Content-Type. Dla requestów JSON wymagane application/json; upload
+        wymaga multipart/form-data.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          examples:
+            default:
+              $ref: '#/components/examples/UnsupportedMediaType'
+    UnprocessableReceipt:
+      description: Uszkodzony, pusty lub nieczytelny dokument, ponad 4 strony albo przekroczone limity pikseli;
+        brak użytecznej analizy. Upload nie wymaga skutecznego OCR.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          examples:
+            default:
+              $ref: '#/components/examples/UnprocessableReceipt'
+    BadGateway:
+      description: Dostawca OCR zwrócił niepoprawną odpowiedź; poprzednie analizy i wydatek pozostają bez zmian.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          examples:
+            default:
+              $ref: '#/components/examples/BadGateway'
+    Unavailable:
+      description: Niedostępna baza, storage lub usługa OCR. Zachowaj formularz; wynik zapisu po utracie odpowiedzi
+        może być niepewny.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          examples:
+            default:
+              $ref: '#/components/examples/Unavailable'
+    GatewayTimeout:
+      description: Przekroczono czas oczekiwania na OCR; nie zmieniono wydatku.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          examples:
+            default:
+              $ref: '#/components/examples/GatewayTimeout'
+    Validation:
+      description: Błąd składni, pól lub reguł formularza. Szczegóły w errors; frontend wiąże je z polami. Niepoprawny
+        GUID, zakres, wersja pominięta i niespójność danych bankowych także 400.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblemDetails'
+          examples:
+            field:
+              $ref: '#/components/examples/FieldValidation'
+            bank:
+              $ref: '#/components/examples/BankValidation'
+  examples:
+    CreateManual:
+      summary: CreateManual
+      value:
+        groupId: 20000000-0000-0000-0000-000000000001
+        payerId: 10000000-0000-0000-0000-000000000001
+        name: Zakupy do domu
+        merchant: Sklep Testowy
+        amount: '100.00'
+        transactionTime: '2026-11-02'
+        items:
+        - categoryId: 30000000-0000-0000-0000-000000000001
+          name: Zakupy
+          unitPrice: '70.00'
+          quantity: '1.000'
+          discount: '0.00'
+          unit: null
+        shares:
+        - userId: 10000000-0000-0000-0000-000000000001
+          percentage: '50.00'
+        - userId: 10000000-0000-0000-0000-000000000002
+          percentage: '50.00'
+        bankTransactionId: null
+    CreateCalculatedAmount:
+      summary: CreateCalculatedAmount
+      value:
+        groupId: 20000000-0000-0000-0000-000000000001
+        payerId: 10000000-0000-0000-0000-000000000001
+        name: Zakupy do domu
+        merchant: Sklep Testowy
+        transactionTime: '2026-11-02'
+        items:
+        - categoryId: 30000000-0000-0000-0000-000000000001
+          name: Zakupy
+          unitPrice: '70.00'
+          quantity: '1.000'
+          discount: '0.00'
+          unit: null
+        shares:
+        - userId: 10000000-0000-0000-0000-000000000001
+          percentage: '50.00'
+        - userId: 10000000-0000-0000-0000-000000000002
+          percentage: '50.00'
+        bankTransactionId: null
+    CreateWithBank:
+      summary: CreateWithBank
+      value:
+        groupId: 20000000-0000-0000-0000-000000000001
+        payerId: 10000000-0000-0000-0000-000000000001
+        name: Zakupy do domu
+        merchant: Sklep Testowy
+        amount: '100.00'
+        transactionTime: '2026-11-02'
+        items:
+        - categoryId: 30000000-0000-0000-0000-000000000001
+          name: Zakupy
+          unitPrice: '70.00'
+          quantity: '1.000'
+          discount: '0.00'
+          unit: null
+        shares:
+        - userId: 10000000-0000-0000-0000-000000000001
+          percentage: '50.00'
+        - userId: 10000000-0000-0000-0000-000000000002
+          percentage: '50.00'
+        bankTransactionId: 50000000-0000-0000-0000-000000000001
+    UpdateManual:
+      summary: UpdateManual
+      value:
+        payerId: 10000000-0000-0000-0000-000000000001
+        name: Zakupy do domu
+        merchant: Sklep Testowy
+        amount: '100.00'
+        transactionTime: '2026-11-02'
+        items:
+        - categoryId: 30000000-0000-0000-0000-000000000001
+          name: Zakupy
+          unitPrice: '70.00'
+          quantity: '1.000'
+          discount: '0.00'
+          unit: null
+          id: 80000000-0000-0000-0000-000000000001
+        shares:
+        - userId: 10000000-0000-0000-0000-000000000001
+          percentage: '50.00'
+        - userId: 10000000-0000-0000-0000-000000000002
+          percentage: '50.00'
+        bankTransactionId: null
+        version: opaque-v1
+    PreviewCreate:
+      summary: PreviewCreate
+      value:
+        groupId: 20000000-0000-0000-0000-000000000001
+        payerId: 10000000-0000-0000-0000-000000000001
+        name: Zakupy do domu
+        merchant: Sklep Testowy
+        amount: '100.00'
+        transactionTime: '2026-11-02'
+        items:
+        - categoryId: 30000000-0000-0000-0000-000000000001
+          name: Zakupy
+          unitPrice: '70.00'
+          quantity: '1.000'
+          discount: '0.00'
+          unit: null
+        shares:
+        - userId: 10000000-0000-0000-0000-000000000001
+          percentage: '50.00'
+        - userId: 10000000-0000-0000-0000-000000000002
+          percentage: '50.00'
+        bankTransactionId: null
+    PreviewEdit:
+      summary: PreviewEdit
+      value:
+        expenseId: 70000000-0000-0000-0000-000000000001
+        groupId: 20000000-0000-0000-0000-000000000001
+        payerId: 10000000-0000-0000-0000-000000000001
+        name: Zakupy do domu
+        merchant: Sklep Testowy
+        amount: '100.00'
+        transactionTime: '2026-11-02'
+        items:
+        - categoryId: 30000000-0000-0000-0000-000000000001
+          name: Zakupy
+          unitPrice: '70.00'
+          quantity: '1.000'
+          discount: '0.00'
+          unit: null
+          id: 80000000-0000-0000-0000-000000000001
+        shares:
+        - userId: 10000000-0000-0000-0000-000000000001
+          percentage: '50.00'
+        - userId: 10000000-0000-0000-0000-000000000002
+          percentage: '50.00'
+        bankTransactionId: null
+        version: opaque-v1
+    ExpenseDetails:
+      summary: ExpenseDetails
+      value:
+        id: 70000000-0000-0000-0000-000000000001
+        groupId: 20000000-0000-0000-0000-000000000001
+        groupName: Dom
+        payerId: 10000000-0000-0000-0000-000000000001
+        payerDisplayName: Anna Testowa
+        name: Zakupy do domu
+        merchant: Sklep Testowy
+        amount: '100.00'
+        currencyCode: PLN
+        transactionTime: '2026-11-02'
+        bankTransactionId: null
+        receiptId: null
+        items:
+        - id: 80000000-0000-0000-0000-000000000001
+          categoryId: 30000000-0000-0000-0000-000000000001
+          name: Zakupy
+          unitPrice: '70.00'
+          quantity: '1.000'
+          discount: '0.00'
+          unit: null
+          categoryName: Zakupy spożywcze
+          categoryIcon: shopping-cart
+          total: '70.00'
+          isSystemGenerated: false
+        - id: 80000000-0000-0000-0000-000000000002
+          categoryId: 30000000-0000-0000-0000-000000000005
+          categoryName: Nieznane
+          categoryIcon: circle-help
+          name: Nieznane
+          unitPrice: '30.00'
+          quantity: '1.000'
+          discount: '0.00'
+          unit: null
+          total: '30.00'
+          isSystemGenerated: true
+        shares:
+        - userId: 10000000-0000-0000-0000-000000000001
+          userDisplayName: Anna Testowa
+          percentage: '50.00'
+          amount: '50.00'
+        - userId: 10000000-0000-0000-0000-000000000002
+          userDisplayName: Bartek Testowy
+          percentage: '50.00'
+          amount: '50.00'
+        version: opaque-v1
+        canEdit: true
+        canDelete: true
+    UpdatedExpense:
+      summary: UpdatedExpense
+      value:
+        id: 70000000-0000-0000-0000-000000000001
+        groupId: 20000000-0000-0000-0000-000000000001
+        groupName: Dom
+        payerId: 10000000-0000-0000-0000-000000000001
+        payerDisplayName: Anna Testowa
+        name: Zakupy do domu
+        merchant: Sklep Testowy
+        amount: '100.00'
+        currencyCode: PLN
+        transactionTime: '2026-11-02'
+        bankTransactionId: null
+        receiptId: null
+        items:
+        - id: 80000000-0000-0000-0000-000000000001
+          categoryId: 30000000-0000-0000-0000-000000000001
+          name: Zakupy
+          unitPrice: '70.00'
+          quantity: '1.000'
+          discount: '0.00'
+          unit: null
+          categoryName: Zakupy spożywcze
+          categoryIcon: shopping-cart
+          total: '70.00'
+          isSystemGenerated: false
+        - id: 80000000-0000-0000-0000-000000000002
+          categoryId: 30000000-0000-0000-0000-000000000005
+          categoryName: Nieznane
+          categoryIcon: circle-help
+          name: Nieznane
+          unitPrice: '30.00'
+          quantity: '1.000'
+          discount: '0.00'
+          unit: null
+          total: '30.00'
+          isSystemGenerated: true
+        shares:
+        - userId: 10000000-0000-0000-0000-000000000001
+          userDisplayName: Anna Testowa
+          percentage: '50.00'
+          amount: '50.00'
+        - userId: 10000000-0000-0000-0000-000000000002
+          userDisplayName: Bartek Testowy
+          percentage: '50.00'
+          amount: '50.00'
+        version: opaque-v2
+        canEdit: true
+        canDelete: true
+    LinkedExpense:
+      summary: LinkedExpense
+      value:
+        id: 70000000-0000-0000-0000-000000000001
+        groupId: 20000000-0000-0000-0000-000000000001
+        groupName: Dom
+        payerId: 10000000-0000-0000-0000-000000000001
+        payerDisplayName: Anna Testowa
+        name: Zakupy do domu
+        merchant: Sklep Testowy
+        amount: '100.00'
+        currencyCode: PLN
+        transactionTime: '2026-11-02'
+        bankTransactionId: 50000000-0000-0000-0000-000000000001
+        receiptId: 60000000-0000-0000-0000-000000000001
+        items:
+        - id: 80000000-0000-0000-0000-000000000001
+          categoryId: 30000000-0000-0000-0000-000000000001
+          name: Zakupy
+          unitPrice: '70.00'
+          quantity: '1.000'
+          discount: '0.00'
+          unit: null
+          categoryName: Zakupy spożywcze
+          categoryIcon: shopping-cart
+          total: '70.00'
+          isSystemGenerated: false
+        - id: 80000000-0000-0000-0000-000000000002
+          categoryId: 30000000-0000-0000-0000-000000000005
+          categoryName: Nieznane
+          categoryIcon: circle-help
+          name: Nieznane
+          unitPrice: '30.00'
+          quantity: '1.000'
+          discount: '0.00'
+          unit: null
+          total: '30.00'
+          isSystemGenerated: true
+        shares:
+        - userId: 10000000-0000-0000-0000-000000000001
+          userDisplayName: Anna Testowa
+          percentage: '50.00'
+          amount: '50.00'
+        - userId: 10000000-0000-0000-0000-000000000002
+          userDisplayName: Bartek Testowy
+          percentage: '50.00'
+          amount: '50.00'
+        version: opaque-v1
+        canEdit: true
+        canDelete: true
+    ExpensePreview:
+      summary: ExpensePreview
+      value:
+        amount: '100.00'
+        currencyCode: PLN
+        items:
+        - categoryId: 30000000-0000-0000-0000-000000000001
+          name: Zakupy
+          unitPrice: '70.00'
+          quantity: '1.000'
+          discount: '0.00'
+          unit: null
+          categoryName: Zakupy spożywcze
+          categoryIcon: shopping-cart
+          total: '70.00'
+          isSystemGenerated: false
+        - categoryId: 30000000-0000-0000-0000-000000000005
+          categoryName: Nieznane
+          categoryIcon: circle-help
+          name: Nieznane
+          unitPrice: '30.00'
+          quantity: '1.000'
+          discount: '0.00'
+          unit: null
+          total: '30.00'
+          isSystemGenerated: true
+        shares:
+        - userId: 10000000-0000-0000-0000-000000000001
+          userDisplayName: Anna Testowa
+          percentage: '50.00'
+          amount: '50.00'
+        - userId: 10000000-0000-0000-0000-000000000002
+          userDisplayName: Bartek Testowy
+          percentage: '50.00'
+          amount: '50.00'
+        bankTransactionId: null
+        receiptId: null
+    ExpenseHistory:
+      summary: ExpenseHistory
+      value:
+        items:
+        - id: 70000000-0000-0000-0000-000000000001
+          groupId: 20000000-0000-0000-0000-000000000001
+          groupName: Dom
+          payerId: 10000000-0000-0000-0000-000000000001
+          payerDisplayName: Anna Testowa
+          name: Zakupy do domu
+          merchant: Sklep Testowy
+          amount: '100.00'
+          currencyCode: PLN
+          transactionTime: '2026-11-02'
+          bankTransactionId: null
+          receiptId: null
+          myShareAmount: '50.00'
+          mySharePercentage: '50.00'
+          categories:
+          - id: 30000000-0000-0000-0000-000000000001
+            name: Zakupy spożywcze
+            description: Produkty spożywcze
+            icon: shopping-cart
+            isSystemGenerated: false
+          - id: 30000000-0000-0000-0000-000000000005
+            name: Nieznane
+            description: Automatyczne dopełnienie kwoty wydatku
+            icon: circle-help
+            isSystemGenerated: true
+          hasReceipt: false
+          hasBankTransaction: false
+        totalCount: 1
+        pageNumber: 1
+        pageSize: 20
+        totalPages: 1
+        hasPreviousPage: false
+        hasNextPage: false
+    EmptyExpenseHistory:
+      summary: EmptyExpenseHistory
+      value:
+        items: []
+        totalCount: 0
+        pageNumber: 1
+        pageSize: 20
+        totalPages: 0
+        hasPreviousPage: false
+        hasNextPage: false
+    AvailableTransactions:
+      summary: AvailableTransactions
+      value:
+        items:
+        - id: 50000000-0000-0000-0000-000000000001
+          bankAccountId: 40000000-0000-0000-0000-000000000001
+          amount: '-100.00'
+          currencyCode: PLN
+          date: '2026-11-02'
+          description: Sklep Testowy
+          status: Booked
+        totalCount: 1
+        pageNumber: 1
+        pageSize: 20
+        totalPages: 1
+        hasPreviousPage: false
+        hasNextPage: false
+    EmptyAvailableTransactions:
+      summary: EmptyAvailableTransactions
+      value:
+        items: []
+        totalCount: 0
+        pageNumber: 1
+        pageSize: 20
+        totalPages: 0
+        hasPreviousPage: false
+        hasNextPage: false
+    Categories:
+      summary: Categories
+      value:
+      - id: 30000000-0000-0000-0000-000000000001
+        name: Zakupy spożywcze
+        description: Produkty spożywcze
+        icon: shopping-cart
+        isSystemGenerated: false
+      - id: 30000000-0000-0000-0000-000000000005
+        name: Nieznane
+        description: Automatyczne dopełnienie kwoty wydatku
+        icon: circle-help
+        isSystemGenerated: true
+    PreviewCentRemainder:
+      summary: PreviewCentRemainder
+      value:
+        amount: '0.01'
+        currencyCode: PLN
+        items:
+        - categoryId: 30000000-0000-0000-0000-000000000005
+          categoryName: Nieznane
+          categoryIcon: circle-help
+          name: Nieznane
+          unitPrice: '0.01'
+          quantity: '1.000'
+          discount: '0.00'
+          unit: null
+          total: '0.01'
+          isSystemGenerated: true
+        shares:
+        - userId: 10000000-0000-0000-0000-000000000001
+          userDisplayName: Anna Testowa
+          percentage: '50.00'
+          amount: '0.01'
+        - userId: 10000000-0000-0000-0000-000000000002
+          userDisplayName: Bartek Testowy
+          percentage: '50.00'
+          amount: '0.00'
+        bankTransactionId: null
+        receiptId: null
+    Unauthorized:
+      summary: Unauthorized
+      value:
+        type: about:blank
+        title: Authentication required.
+        status: 401
+        detail: Brak lub nieważny JWT / niedostępne konto. Standardowe wyzwanie Bearer.
+        traceId: synthetic-trace
+    Forbidden:
+      summary: Forbidden
+      value:
+        type: about:blank
+        title: Operation forbidden.
+        status: 403
+        detail: Zasób jest dostępny do odczytu, ale użytkownik nie ma prawa wykonać tej operacji, np. były uczestnik
+          próbuje edytować.
+        traceId: synthetic-trace
+    NotFound:
+      summary: NotFound
+      value:
+        type: about:blank
+        title: Resource not found.
+        status: 404
+        detail: Zasób nie istnieje lub jest niedostępny do odczytu. Nie ujawniamy istnienia cudzych wydatków, rachunków
+          i uploadów.
+        traceId: synthetic-trace
+    Conflict:
+      summary: Conflict
+      value:
+        type: about:blank
+        title: Expense changed.
+        status: 409
+        detail: Nieaktualna wersja, zajęte źródło lub próba usunięcia przypiętego paragonu. Odśwież dane; nie ponawiaj
+          automatycznie zapisu.
+        traceId: synthetic-trace
+    SourceConflict:
+      summary: SourceConflict
+      value:
+        type: about:blank
+        title: Source already assigned.
+        status: 409
+        detail: Wybrana transakcja lub paragon zostały już przypisane do wydatku.
+    PayloadTooLarge:
+      summary: PayloadTooLarge
+      value:
+        type: about:blank
+        title: File too large.
+        status: 413
+        detail: Przekroczono limit pliku 20 MiB lub całego żądania multipart 50 MiB.
+        traceId: synthetic-trace
+    UnsupportedMediaType:
+      summary: UnsupportedMediaType
+      value:
+        type: about:blank
+        title: Unsupported media type.
+        status: 415
+        detail: Nieobsługiwany typ pliku lub Content-Type. Dla requestów JSON wymagane application/json; upload
+          wymaga multipart/form-data.
+        traceId: synthetic-trace
+    UnprocessableReceipt:
+      summary: UnprocessableReceipt
+      value:
+        type: about:blank
+        title: Receipt cannot be processed.
+        status: 422
+        detail: Uszkodzony, pusty lub nieczytelny dokument, ponad 4 strony albo przekroczone limity pikseli; brak
+          użytecznej analizy. Upload nie wymaga skutecznego OCR.
+        traceId: synthetic-trace
+    BadGateway:
+      summary: BadGateway
+      value:
+        type: about:blank
+        title: Invalid OCR response.
+        status: 502
+        detail: Dostawca OCR zwrócił niepoprawną odpowiedź; poprzednie analizy i wydatek pozostają bez zmian.
+        traceId: synthetic-trace
+    Unavailable:
+      summary: Unavailable
+      value:
+        type: about:blank
+        title: Service temporarily unavailable.
+        status: 503
+        detail: Niedostępna baza, storage lub usługa OCR. Zachowaj formularz; wynik zapisu po utracie odpowiedzi
+          może być niepewny.
+        traceId: synthetic-trace
+    GatewayTimeout:
+      summary: GatewayTimeout
+      value:
+        type: about:blank
+        title: OCR timed out.
+        status: 504
+        detail: Przekroczono czas oczekiwania na OCR; nie zmieniono wydatku.
+        traceId: synthetic-trace
+    FieldValidation:
+      summary: FieldValidation
+      value:
+        type: about:blank
+        title: One or more validation errors occurred.
+        status: 400
+        errors:
+          items[0].quantity:
+          - Quantity must be positive decimal text.
+        traceId: synthetic-trace
+    BankValidation:
+      summary: BankValidation
+      value:
+        type: about:blank
+        title: One or more validation errors occurred.
+        status: 400
+        errors:
+          amount:
+          - Amount must equal the absolute bank transaction amount.

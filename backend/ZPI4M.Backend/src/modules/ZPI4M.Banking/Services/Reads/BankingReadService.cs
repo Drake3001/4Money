@@ -73,6 +73,7 @@ public sealed class BankingReadService(IBankAccountRepository accounts, IBankTra
 		};
 		var read = new BankTransactionQuery
 		{
+			OnlyDebits = query.OnlyDebits,
 			UserId = userId,
 			BankAccountId = query.BankAccountId,
 			SettlementAssignment = query.SettlementAssignment,

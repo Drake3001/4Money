@@ -50,10 +50,20 @@ znajduje się w rozszerzeniach (sekcja 3).
 
 Uzgodniony przepływ powiadomienia o wydatku to Expense → Grouping → Notifications
 → User. Expense przekazuje dane, Grouping ustala odbiorców i wywołuje kontrakt
-Notifications; Notifications nie pobiera encji Expense. Ten przepływ jest
-planowany, a nie zaimplementowany. Relacja FK Notification → Expense jest
+Notifications; Notifications nie pobiera encji Expense. Ten przepływ obsługuje
+ExpenseAdded po utworzeniu wydatku. Edycja i usunięcie nie powiadamiają. Relacja FK Notification → Expense jest
 konfigurowana wyłącznie we wspólnym AppDbContext; nie dodawaj referencji
 projektu Expense do Notifications, bo utworzyłaby cykl zależności.
+
+## Expense — odczyty dla Reports (2026-11-08)
+
+Reports korzysta z IExpenseReadService i DTO w Expense.Services.Contracts.Reports.
+ExpenseReadService odpowiada za autoryzację, walidację i agregaty; repozytorium
+współdzieli filtrowanie i sortowanie z historią. Dane wydatku, pozycji i udziałów
+raportu są pobierane jednym zapytaniem SQL bez śledzenia. ExpenseReportCalculator
+korzysta z istniejącego obliczania udziałów i wartości pozycji. Nie dodano
+referencji Expense → Reports, endpointów ani migracji. Reguły i przykłady:
+[Expense dla Reports](../notes/EXPENSE_REPORTS.md).
 
 ## Warstwy modułu
 
@@ -132,8 +142,64 @@ dopiero po powodzeniu wszystkich zapisów. NotifyAsync może zachować
 SaveChangesAsync; w dołączonym kontekście nie zatwierdza ono transakcji
 koordynatora. Błąd musi przerwać całą operację i spowodować rollback.
 Operacje na wspólnym połączeniu wykonuj kolejno, bez Task.WhenAll i bez
-otwierania zagnieżdżonych transakcji. Serwisy koordynujące Expense/Grouping
-oraz testy atomowości między modułami nie są jeszcze zaimplementowane.
+otwierania zagnieżdżonych transakcji. Tworzenie Expense oraz zapisy Grouping
+korzystają z koordynatora; ExpenseAdded jest dołączany do tej samej transakcji.
+
+### Expense / Grouping — integracja agregatów (2026-11-03)
+
+ExpenseService koordynuje przygotowanie formularza przez IExpenseRequestService
+i pobiera etykiety przez ExpenseQueryService. IExpenseCalculationService
+wylicza dokładne kwoty udziałów metodą największych reszt (remis: UUID ordinal).
+W bazie Expense nadal zapisuje procenty. Grouping otrzymuje wyłącznie neutralny
+ExpenseContribution z kwotami, bez encji ani odczytu tabel Expense.
+
+Kontrolery korzystają z IExpenseService. ExpenseService deleguje szczegóły,
+historię i kategorie do ExpenseQueryService i współdzieli z nim sprawdzanie dostępu.
+Główny plik ExpenseService zawiera tworzenie i preview, Editing edycję
+i usuwanie, Banking dostępne transakcje, a Receipts obsługę paragonu.
+Persistence zawiera wspólną obsługę zapisu i transakcji oraz aktualizację pozycji
+i udziałów. Przygotowana pozycja przenosi zwalidowane ID; zapis edycji nie wiąże
+jej z surowym requestem po indeksie listy. Nie zmienia to kontraktu HTTP.
+
+Tworzenie, edycja i usuwanie używają IGroupingTransactionCoordinator jako jedynego właściciela
+transakcji. EnlistAsync(DbContext) dołącza ExpenseDbContext przez UseTransactionAsync;
+sprawdza wspólne scoped połączenie i odrzuca obcą transakcję. Koordynator odłącza
+wszystkie dołączone konteksty po zakończeniu. EnlistNotificationsAsync deleguje do
+tej samej ścieżki. Zagnieżdżona odmowa/wyjątek blokuje commit; po rollbacku zakres
+DI należy zakończyć, bez globalnego ChangeTracker.Clear.
+
+GroupExpenseContributionService wymaga aktywnego koordynatora. Pod blokadą grupy
+ponownie sprawdza archiwum, walutę i aktualne członkostwo aktora/płatnika/uczestników.
+Następnie wywołuje GroupMemberAggregateService i zapisuje GroupingDbContext.
+Expense zapisuje wydatek/pozycje/procenty na tej samej transakcji, a koordynator
+zatwierdza całość. AggregateService nadal nie wykonuje SaveChanges ani commitu.
+TotalPaid rośnie o pełną kwotę płatnika, TotalShare o wyliczone udziały; liczniki
+rozliczeń pozostają odpowiedzialnością istniejącego GroupSettlementService.
+Błąd dowolnego zapisu/anulowanie/odmowa zewnętrznej operacji wycofuje oba moduły.
+Bankowy konflikt UNIQUE nadal daje 409; niespójność/przepełnienie agregatów także 409.
+
+Runtime używa rzeczywistych GroupMemberService i GroupExpenseMetadataLookup;
+usunięto mosty i flagę UseGroupingMock. Wewnętrzny lookup metadanych jest bez
+śledzenia i obejmuje archiwum po autoryzacji historycznego Expense. Expense nadal
+obsługuje wyłącznie PLN. Preview i GET nie zmieniają agregatów. PUT/DELETE
+odwracają poprzedni wkład i stosują nowy w tej samej transakcji co Expense.
+Po zapisie nowego wydatku Expense wywołuje GroupExpenseNotificationService.
+Serwis wymaga aktywnej transakcji i wcześniej autoryzowanej, zablokowanej grupy;
+korzysta z istniejącego repozytorium członków, wyklucza autora operacji,
+dołącza Notifications do koordynatora i wywołuje NotifyAsync z ExpenseAdded.
+Nie czyta tabel Expense. Brak aktywnych odbiorców nie blokuje commitu,
+a błąd wycofuje wydatek, agregaty i powiadomienie. Nie ma odbudowy danych produkcyjnych.
+Seed odtwarza syntetyczne TotalShare tym samym algorytmem alokacji groszy.
+
+Banking nie importuje Expense. Wewnętrzne zapytanie Banking stosuje warunek
+obciążenia i wyklucza przypisania obu typów przed liczeniem i stronicowaniem.
+Expense dołącza scoped BankingDbContext do transakcji koordynatora Grouping
+przed zapisaniem lub zwolnieniem przypisania przez IBankTransactionAssignmentService.
+BankingDbContext współdzieli NpgsqlConnection z koordynatorem. Konteksty
+BankingConnectionRepository tworzone przez fabrykę zachowują osobne połączenia.
+Rollback wycofuje przypisanie razem z wydatkiem, udziałami i agregatami.
+
+Poniższa checklista nadal obowiązuje, gdy dołączymy zapis Grouping/powiadomień.
 
 ### Do wykonania przy implementacji Expense i Grouping
 
@@ -142,10 +208,10 @@ Przy zapisie wydatku z powiadomieniem oraz operacji grupowej z powiadomieniem
 i powiadomienie wraz z odbiorcami. W przyszłym serwisie koordynującym:
 
 1. Korzystaj z kontekstów z tego samego zakresu DI i wspólnego połączenia.
-2. Przed pierwszym zapisem rozpocznij transakcję przez BeginTransactionAsync
-   na kontekście operacji biznesowej.
-3. Dołącz NotificationsDbContext i każdy inny kontekst zapisujący dane tej
-   operacji przez UseTransactionAsync(transaction.GetDbTransaction()).
+2. Przed pierwszym zapisem wejdź do IGroupingTransactionCoordinator.ExecuteAsync;
+   nie otwieraj niezależnej transakcji Expense.
+3. Dołącz Expense przez EnlistAsync, a Notifications przez EnlistNotificationsAsync;
+   koordynator używa UseTransactionAsync na tym samym połączeniu.
 4. Zapisz dane biznesowe, a następnie wywołaj NotifyAsync. Wcześniejszy zapis
    jest potrzebny m.in. dla FK powiadomienia do nowego wydatku lub grupy.
 5. Wykonaj CommitAsync wyłącznie w koordynatorze, po powodzeniu wszystkich
@@ -204,27 +270,18 @@ je nadpisują. Lokalny `.env` nie jest szablonem do kopiowania sekretów do repo
 
 ## Obecna integracja Receipt i workera OCR
 
-Kontrakt serwisu Receipt zaktualizowano 2026-11-02. Receipt ma
-`IReceiptService` i `IReceiptAnalysisService` (HTTP), pogrupowane w
-`Services/ReceiptService` i `Services/ReceiptAnalysisService`, ze wspólnym
-namespace `ZPI4M.Receipt.Services`. Kontrakt S3 `IObjectStorage` i jego
-implementacja znajdują się w `ZPI4M.Shared.Storage`.
-Receipt nie udostępnia własnych endpointów HTTP. Zgodnie z decyzją z 2026-11-02
-endpointy Expense będą korzystać z `IReceiptService`; wywołania z Expense
-nie są jeszcze zaimplementowane. Jeden wydatek może mieć najwyżej jeden paragon.
+Receipt udostępnia `IReceiptService` i `IReceiptAnalysisService` (HTTP).
+Adapter magazynu plików `IObjectStorage` znajduje się w `ZPI4M.Shared.Storage`.
+Kontroler paragonów deleguje do `IExpenseService`. Analiza przesłanego pliku
+wywołuje worker bez zapisu, a Expense zwraca podpisany oryginalny wynik
+związany z użytkownikiem i skrótem pliku. Zapis Expense weryfikuje proof,
+przechowuje oryginalny JSON w Receipt i zapisuje zatwierdzony formularz.
 
-`ReceiptService.CreateAsync` wymaga argumentu `bool runOcr`. Dla `true` wykonuje
-OCR → upload S3 → zapis własnego kontekstu; dla `false` pomija OCR i zapisuje
-`ExtractionResult = null`. Zwraca `ReceiptCreationResult` z `ReceiptId` i opcjonalnym
-`JsonElement? ExtractionResult`, obejmującym pełną odpowiedź workera
-(`receipt`, `warnings`, `needs_review`). Zapisany JSON odpowiada zwróconej analizie.
-Odczyt rekordu udostępnia `GetByIdAsync`, podpisany URL — `GetFileUrlByIdAsync`,
-a usuwanie — `DeleteAsync`. Nadpisanie lub dopisanie danych wydatku oraz ręczna
-korekta należą do przyszłego serwisu Expense; surowy wynik OCR pozostaje w Receipt.
-Nie jest to transakcja obejmująca magazyn i bazę. Po błędzie zapisu pozostawia
-przesłany plik; przy usuwaniu najpierw usuwa rekord, potem próbuje usunąć plik.
-Uprawnienia dostępu do paragonu nie są egzekwowane przez ten serwis.
-Ograniczenia i zachowanie przy błędach opisuje [status](implementation-status.md#receipt-ocr-i-kategoryzacja--przegląd-2026-10-29).
+`ReceiptDbContext` współdzieli połączenie z Expense i Grouping. Koordynator
+dołącza go jawnie przy zapisie lub usuwaniu rekordu Receipt. Upload pliku wykonuje się po walidacji, przed rozpoczęciem transakcji zapisu.
+Plik pozostaje poza transakcją PostgreSQL. Callback po potwierdzonym rollbacku usuwa nowy plik,
+a callback po commicie usuwa plik zastąpionego lub odpiętego paragonu. Dostęp do
+zapisanego paragonu jest sprawdzany przez Expense.
 
 Worker FastAPI w `workers/extraction_worker` ma osobne zależności Python/uv
 i udostępnia `POST /api/v1/extract`. Domyślny pipeline łączy RapidOCR z analizą
@@ -300,6 +357,9 @@ przez wspólny `AppDbContext` w projekcie `ZPI4M.Database`.
 Migracje całego modelu znajdują się w tym projekcie; tabela historii migracji
 jest skonfigurowana w schemacie `public`.
 
+Relacje między modułami, Notification → Expense i Expense.FkPayerId → User,
+są konfigurowane we wspólnym AppDbContext; FK płatnika używa NoAction.
+
 Nazwy tabel i kolumn są mapowane jawnie, zwykle w snake_case. Przy zmianie
 modelu sprawdź konfigurację, kontekst modułu i wspólny kontekst migracji.
 Nie zakładaj, że sama zmiana właściwości C# aktualizuje istniejącą bazę.
@@ -320,7 +380,7 @@ znajdują się w [instrukcji pracy](development.md#modele-i-migracje).
 | Mobile | Uzgodniono React + Capacitor; Stos technologiczny.txt nadal wymienia alternatywę React Native, brak aplikacji w repo |
 | OCR i storage | Worker FastAPI z OCR i kategoryzacją produktów; Receipt opcjonalnie wywołuje POST /api/v1/extract i korzysta z magazynu zgodnego z S3; dostęp HTTP planowany przez Expense; brak potwierdzenia pełnego przepływu w tej weryfikacji |
 | Automatyzacja | GitHub Actions, pre-commit, narzędzia Python zarządzane przez uv |
-| Testy backendu | Jedenaście projektów: po trzy User, Banking i Notifications (UnitTests, Tests, IntegrationTests) oraz dwa Receipt (UnitTests, IntegrationTests); CI dostarcza PostgreSQL 15 dla testów bazy |
+| Testy backendu | Piętnaście projektów: po trzy User, Banking i Notifications, dwa Receipt i dwa Expense (UnitTests, IntegrationTests), Grouping i Shared; CI dostarcza PostgreSQL 15 dla testów bazy |
 | Infrastruktura | Obecna konfiguracja Terraform dla Proxmox; Linux i Tailscale w środowisku developerskim |
 | Prezentacja | AWS jako założenie docelowe, nie potwierdzone wdrożenie aplikacji |
 
@@ -359,7 +419,7 @@ Nie ma zewnętrznej kolejki. [Kontrakt i parametry workera](../backend/ZPI4M.Bac
 
 Grouping posiada Group, GroupMember (SQL group_user), GroupSettlement i
 GroupInvitation; Limits posiada GroupLimit obok niezmienionego CategoryGroupLimit.
-Expense posiada płatnika i udziały kwotowe. Mapowania wewnątrz modułów są w ich
+Expense posiada płatnika i udziały procentowe (stan po rebase 2026-11-03). Mapowania wewnątrz modułów są w ich
 konfiguracjach; nowe relacje między modułami są wyłącznie w AppDbContext i mają
 DeleteBehavior.NoAction. Nie dodano zależności projektów ani nowego CRUD/API.
 Szczegóły pól i przyszłe niezmienniki opisuje [domena](domain.md#zatwierdzony-model-grup--2026-10-28).
@@ -455,14 +515,14 @@ przed mutacją; wynik nie może być ujemny ani przekraczać numeric(18,2).
 Historyczne członkostwa są zachowane, brakujące nie są tworzone.
 Serwis wymaga aktywnego koordynatora (EnsureActive), blokuje grupę, nie robi
 SaveChanges ani commitu. Wywołanie musi nastąpić dokładnie raz ze zmianą źródła.
-Przyszły Expense musi stosować tę samą transakcję i blokadę grupy.
-Nie podłączono ExpenseDbContext ani CRUD Expense. Brak odbudowy/uzgadniania
-agregatów. Od 2026-11-03 utworzenie rozliczenia tworzy SettlementReceived (5)
+Expense stosuje tę samą transakcję i blokadę grupy.
+ExpenseDbContext jest dołączany dla tworzenia wydatku od 2026-11-03.
+Edycja/usuwanie Expense stosują ten sam koordynator; odbudowa/uzgadnianie agregatów pozostają do wykonania. Od 2026-11-03 utworzenie rozliczenia tworzy SettlementReceived (5)
 wyłącznie dla ToUserId różnego od autora wpisu, również dla byłego członka.
 Nieaktywne konta pomija NotifyAsync. GroupSettlementService jawnie dołącza
 Notifications do transakcji koordynatora; błąd zapisu powiadomienia/odbiorcy
 wycofuje rozliczenie i agregaty. Edycja i usunięcie nie tworzą powiadomień.
-CHECK typów rozszerza istniejąca AddGroupingModel; tymczasowa migracja Expense
+CHECK typów rozszerza istniejąca AddGroupingModel; CompleteExpenseModel
 nie wykonuje operacji na Notifications.
 
 ## Prywatność powiązania bankowego rozliczenia — 2026-11-02
@@ -478,33 +538,30 @@ niepuste BankTransactionId. Edycja/null i DELETE historycznych powiązań
 pozostają dozwolone; wymagają zastąpienia claim/release przy wdrożeniu Banking.
 Walidacja wskazuje konkretne pola zamiast wspólnego komunikatu bankowego.
 
-## Podział migracji Grouping i Expense — 2026-11-02
-Aktualny koniec łańcucha:
-1. 20261102215301_AddGroupingModel — docelowy model Grouping i zachowane Limits.
-2. 20261102215328_AddTemporaryExpenseAggregationSupport — tymczasowe minimum Expense.
+## Migracje po rebase Expense/Grouping — 2026-11-03
 
-Zastępują usunięte migracje 20261028191002_ApprovedGroupingModel i
-20261031165114_AddGroupDescriptionIconsAndArchive. Wcześniejsze opisy tych
-migracji są historyczne; nie wykonuj ich procedur cofania na nowym łańcuchu.
+Po `20261102215301_AddGroupingModel` występuje
+`20261103165622_CompleteExpenseModel`, wygenerowana z końcowego modelu Expense.
+Usunięto tymczasową `AddTemporaryExpenseAggregationSupport` oraz zastąpiono
+siedem migracji gałęzi Expense jedną. Grouping/Limits i migracja AddGroupingModel
+z master pozostają bez zmian. Snapshot/designer wygenerowano ponownie przez EF.
 
-Expense zachowuje Id/_id, Name/name, TransactionTime/transaction_time,
-fk_group_id, fk_receipt_id, fk_bank_transaction_id i udziały z fk_expense_id,
-fk_user_id. Tymczasowe rozszerzenia: FkPayerId/fk_payer_id (wymagany,
-indeks ix_expense_fk_payer_id, FK User) oraz Amount/amount numeric(18,2)
-zamiast Percentage. Nie ma zmian nazw kolumn niezwiązanych z agregacją.
-Grouping nie zależy od encji Expense; jego ExpenseContribution nadal używa
-PaidByUserId jako nazwy kontraktu wartości.
+Expense zachowuje `_id`, `name`, `transaction_time`, `fk_*`, wymaganego
+`FkPayerId`, `Version`, metadane pozycji, kategorie bez Color i udziały procentowe
+`Percentage` numeric(5,2). Kwoty udziałów są wyliczane przez Expense.
+Migracja uwzględnia ograniczenia historycznego SQL init, których nie śledził
+snapshot: zachowuje istniejące FK i CHECK ilości, usuwa CHECK dodatniej ceny,
+a Down przywraca FK przypisania pozycji do użytkownika i CHECK ceny.
+Up/Down wymagają pustych wydatków, pozycji i udziałów; nie konwertują danych ani
+nie zgadują płatnika. Konflikty kategorii powodują rollback migracji.
+Kolejność pustej bazy: SQL init → wszystkie migracje → seed. Seed przelicza
+syntetyczne agregaty Grouping z procentów; nie utrzymuje ich podczas działania API.
+Nie jest to migracja przyrostowa dla bazy po usuniętym łańcuchu.
 
-Migracja Grouping nie zmienia tabel Expense. Jej Up/Down wymagają pustych
-grup i członkostw. Tymczasowa Expense wymaga pustych wydatków/udziałów przy
-Up/Down; nie konwertuje historycznych danych ani nie zgaduje płatnika.
-Seed działa dopiero po obu migracjach i przelicza agregaty z danych syntetycznych.
-
-Przy integracji właściwego PR Expense należy uzgodnić model, relacje, repozytoria,
-tymczasową migrację, designer/snapshot, seed i testy. Samo usunięcie ostatniej
-migracji nie cofa zastosowanego schematu. Lokalna baza po starym łańcuchu wymaga
-kontrolowanego odtworzenia (SQL init → migracje → seed), bez kasowania kontenera
-lub wolumenu. Nie zmieniaj ręcznie pojedynczych wpisów historii EF.
+Tworzenie Expense jest już połączone z koordynatorem, agregatami i rzeczywistymi
+metadanymi Grouping. Edycja/usuwanie stosują tę samą transakcję. ExpenseAdded
+jest podłączone przy tworzeniu; edycja i usuwanie nie powiadamiają.
+Wyłączność bankowego źródła między Expense i rozliczeniem pozostaje osobnym zadaniem.
 
 ## Sugestie rozliczeń — 2026-11-02
 GET /api/groups/{groupId}/settlements/suggestions: aktywny członek

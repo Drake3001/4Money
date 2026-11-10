@@ -54,8 +54,8 @@ public sealed class GroupingModelTests : PostgresFixture
 		await SeedAsync();
 		await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(migrations[approved - 1]));
 		// Newer migrations can be reverted before the Expense migration rejects historical rows.
-		var temporary = Array.FindIndex(migrations, m => m.EndsWith("_AddTemporaryExpenseAggregationSupport", StringComparison.Ordinal));
-		Assert.Equal(migrations[..(temporary + 1)], await db.Database.GetAppliedMigrationsAsync());
+		var expense = Array.FindIndex(migrations, m => m.EndsWith("_CompleteExpenseModel", StringComparison.Ordinal));
+		Assert.Equal(migrations[..(expense + 1)], await db.Database.GetAppliedMigrationsAsync());
 		await migrator.MigrateAsync();
 		Assert.Equal(migrations, await db.Database.GetAppliedMigrationsAsync());
 	}
@@ -70,7 +70,6 @@ public sealed class GroupingModelTests : PostgresFixture
 	[InlineData("UPDATE grouping.group_user SET total_share = -0.01", "23514")]
 	[InlineData("UPDATE grouping.group_user SET total_settlements_sent = -0.01", "23514")]
 	[InlineData("UPDATE grouping.group_user SET total_settlements_received = -0.01", "23514")]
-	[InlineData("UPDATE expense.expense_share SET amount = -0.01", "23514")]
 	[InlineData("UPDATE expense.expense SET fk_payer_id = 'ffffffff-ffff-ffff-ffff-ffffffffffff'", "23503")]
 	[InlineData("UPDATE grouping.group_settlements SET amount = 0", "23514")]
 	[InlineData("UPDATE grouping.group_settlements SET from_user_id = to_user_id", "23514")]
@@ -109,13 +108,13 @@ public sealed class GroupingModelTests : PostgresFixture
 			SELECT NOT EXISTS (
 			 SELECT 1 FROM grouping.group_user m WHERE
 			 m.total_paid <> COALESCE((SELECT sum(amount) FROM expense.expense e WHERE e.fk_group_id=m.group_id AND e.fk_payer_id=m.user_id),0) OR
-			 m.total_share <> COALESCE((SELECT sum(s.amount) FROM expense.expense_share s JOIN expense.expense e ON e._id=s.fk_expense_id WHERE e.fk_group_id=m.group_id AND s.fk_user_id=m.user_id),0) OR
+			 m.total_share <> COALESCE((SELECT sum(round(e.amount * s.percentage / 100, 2)) FROM expense.expense_share s JOIN expense.expense e ON e._id=s.fk_expense_id WHERE e.fk_group_id=m.group_id AND s.fk_user_id=m.user_id),0) OR
 			 m.total_settlements_sent <> COALESCE((SELECT sum(amount) FROM grouping.group_settlements s WHERE s.group_id=m.group_id AND s.from_user_id=m.user_id),0) OR
 			 m.total_settlements_received <> COALESCE((SELECT sum(amount) FROM grouping.group_settlements s WHERE s.group_id=m.group_id AND s.to_user_id=m.user_id),0)
 			) AS "Value"
 			""").SingleAsync());
 		Assert.True(await model.Database.SqlQueryRaw<bool>("""
-			SELECT NOT EXISTS (SELECT 1 FROM expense.expense e WHERE e.amount <> (SELECT sum(s.amount) FROM expense.expense_share s WHERE s.fk_expense_id=e._id)) AS "Value"
+			SELECT NOT EXISTS (SELECT 1 FROM expense.expense e WHERE 100 <> (SELECT sum(s.percentage) FROM expense.expense_share s WHERE s.fk_expense_id=e._id)) AS "Value"
 			""").SingleAsync());
 		Assert.True(await model.Database.SqlQueryRaw<bool>("""
 			SELECT NOT EXISTS (
@@ -144,9 +143,18 @@ public sealed class GroupingModelTests : PostgresFixture
 		Assert.Single((await members.GetPageAsync(Guid.Parse(GroupId), new GroupMemberQuery { IsAdmin = false, SortBy = GroupMemberSortBy.IsAdmin })).Items);
 		await using var expense = new ExpenseDbContext(new DbContextOptionsBuilder<ExpenseDbContext>().UseNpgsql(ConnectionString).Options);
 		var shares = new ExpenseShareRepository(expense);
-		Assert.Equal(1500m, await shares.GetTotalAmountAsync(Guid.Parse("70000000-0000-0000-0000-000000000004")));
-		Assert.Equal(2, (await shares.GetPageAsync(new ExpenseShareQuery { MinAmount = 100m, SortBy = ExpenseShareSortBy.Amount })).Items.Count);
-		Assert.Single((await new ExpenseRepository(expense).GetByGroupAsync(Guid.Parse(GroupId), new ExpenseQuery { Name = "Czynsz", DateFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-10)), DateTo = DateOnly.FromDateTime(DateTime.UtcNow), SortBy = ExpenseSortBy.TransactionTime })).Items);
+		Assert.Equal(100m, await shares.GetTotalPercentageAsync(Guid.Parse("70000000-0000-0000-0000-000000000004")));
+		Assert.Equal(2, (await shares.GetPageAsync(new ExpenseShareQuery { MinPercentage = 55m, SortBy = ExpenseShareSortBy.Percentage })).Items.Count);
+		var expenseHistory = await new ExpenseRepository(expense).GetHistoryAsync(Guid.Parse(AnnaId), [Guid.Parse(GroupId)], new ExpenseHistoryQuery
+		{
+			GroupId = Guid.Parse(GroupId),
+			Search = "Czynsz",
+			TransactionTimeFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-10)),
+			TransactionTimeTo = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1),
+			SortBy = ExpenseSortBy.TransactionTime,
+			Descending = true
+		});
+		Assert.Single(expenseHistory.Items);
 		await ExecuteAsync($"INSERT INTO grouping.group_user (group_id, user_id, joined_at) VALUES ('{GroupId}', '10000000-0000-0000-0000-000000000003', CURRENT_TIMESTAMP);");
 		var joined = await grouping.GroupMembers.SingleAsync(m => m.FkGroupId == Guid.Parse(GroupId) && m.FkUserId == Guid.Parse("10000000-0000-0000-0000-000000000003"));
 		Assert.Equal(DateTimeKind.Utc, joined.JoinedAt.Kind);

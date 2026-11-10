@@ -12,7 +12,7 @@ public sealed class GroupingTransactionCoordinator(GroupingDbContext db, Notific
 	private IDbContextTransaction? active;
 	private bool failed;
 	private bool retired;
-	private bool enlisted;
+	private readonly HashSet<DbContext> enlisted = [];
 	private readonly List<Func<Task>> committedActions = [];
 	private readonly List<Func<Task>> rollbackActions = [];
 
@@ -62,7 +62,12 @@ public sealed class GroupingTransactionCoordinator(GroupingDbContext db, Notific
 		catch
 		{
 			retired = true;
-			if (!committed) await RollbackAsync(transaction, !commitAttempted);
+			if (!committed)
+			{
+				if (commitAttempted && rollbackActions.Count > 0)
+					logger.LogWarning("Commit outcome is unknown. Uploaded files were retained for reconciliation.");
+				await RollbackAsync(transaction, !commitAttempted);
+			}
 			throw;
 		}
 		finally
@@ -70,12 +75,12 @@ public sealed class GroupingTransactionCoordinator(GroupingDbContext db, Notific
 			if (failed) retired = true;
 			active = null;
 			// Detach before callbacks; cleanup errors must not replace the original failure or committed success.
-			if (enlisted)
+			foreach (var context in enlisted)
 			{
-				try { await inbox.Database.UseTransactionAsync(null, CancellationToken.None); }
+				try { await context.Database.UseTransactionAsync(null, CancellationToken.None); }
 				catch (Exception error) { retired = true; logger.LogWarning("Transaction detach failed ({ErrorType}).", error.GetType().Name); }
 			}
-			enlisted = false;
+			enlisted.Clear();
 			if (committed) await RunActionsAsync(committedActions);
 			committedActions.Clear(); rollbackActions.Clear();
 			failed = false;
@@ -92,16 +97,24 @@ public sealed class GroupingTransactionCoordinator(GroupingDbContext db, Notific
 		}
 		catch (Exception error) { logger.LogWarning("Grouping rollback failed ({ErrorType}).", error.GetType().Name); }
 	}
-	public async Task EnlistNotificationsAsync(CancellationToken cancellationToken)
+	public Task EnlistNotificationsAsync(CancellationToken cancellationToken) => EnlistAsync(inbox, cancellationToken);
+
+	public async Task EnlistAsync(DbContext context, CancellationToken cancellationToken = default)
 	{
-		if (active is null || failed) throw new InvalidOperationException("An active Grouping unit of work is required.");
-		if (!ReferenceEquals(db.Database.GetDbConnection(), inbox.Database.GetDbConnection()))
-			throw new InvalidOperationException("Grouping and Notifications must share one scoped connection.");
-		var existing = inbox.Database.CurrentTransaction;
-		if (existing is not null && existing.GetDbTransaction() != active.GetDbTransaction())
-			throw new InvalidOperationException("Notifications is enlisted in a different transaction.");
-		if (existing is null) await inbox.Database.UseTransactionAsync(active.GetDbTransaction(), cancellationToken);
-		enlisted = true;
+		RequireActive();
+		try
+		{
+			ArgumentNullException.ThrowIfNull(context);
+			if (!ReferenceEquals(db.Database.GetDbConnection(), context.Database.GetDbConnection()))
+				throw new InvalidOperationException("Enlisted contexts must share one scoped connection.");
+			var existing = context.Database.CurrentTransaction;
+			if (existing is not null && existing.GetDbTransaction() != active!.GetDbTransaction())
+				throw new InvalidOperationException("The context is enlisted in a different transaction.");
+			if (ReferenceEquals(context, db)) return;
+			if (existing is null) await context.Database.UseTransactionAsync(active!.GetDbTransaction(), cancellationToken);
+			enlisted.Add(context);
+		}
+		catch { failed = true; throw; }
 	}
 	public void AfterCommit(Func<Task> action) { RequireActive(); committedActions.Add(action); }
 	public void AfterRollback(Func<Task> action) { RequireActive(); rollbackActions.Add(action); }

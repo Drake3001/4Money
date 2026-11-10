@@ -29,6 +29,14 @@ public class ExpenseItemRepository : IExpenseItemRepository
 		_context.ExpenseItems.Remove(entity);
 	}
 
+	public void RemoveRange(IEnumerable<ExpenseItem> items) => _context.ExpenseItems.RemoveRange(items);
+
+	public Task DeleteByExpenseAsync(Guid expenseId, CancellationToken cancellationToken = default) =>
+		_context.ExpenseItems.Where(item => item.FkExpenseId == expenseId).ExecuteDeleteAsync(cancellationToken);
+
+	public async Task<IReadOnlyList<ExpenseItem>> GetTrackedByExpenseAsync(Guid expenseId, CancellationToken cancellationToken = default) =>
+		await _context.ExpenseItems.Where(item => item.FkExpenseId == expenseId).ToArrayAsync(cancellationToken);
+
 	public Task<ExpenseItem?> GetByIdAsync(Guid expenseItemId, CancellationToken cancellationToken = default)
 	{
 		return _context.ExpenseItems.SingleOrDefaultAsync(i => i.Id == expenseItemId, cancellationToken);
@@ -37,6 +45,12 @@ public class ExpenseItemRepository : IExpenseItemRepository
 	public Task<bool> ExistsAsync(Guid expenseItemId, CancellationToken cancellationToken = default)
 	{
 		return _context.ExpenseItems.AnyAsync(i => i.Id == expenseItemId, cancellationToken);
+	}
+
+	public async Task<IReadOnlyList<ExpenseItem>> GetAllByExpenseAsync(Guid expenseId, CancellationToken cancellationToken = default)
+	{
+		return await _context.ExpenseItems.AsNoTracking().Where(item => item.FkExpenseId == expenseId)
+			.OrderBy(item => item.Id).ToListAsync(cancellationToken);
 	}
 
 	public async Task<PagedResult<ExpenseItem>> GetByExpenseAsync(Guid expenseId, ExpenseItemQuery query, CancellationToken cancellationToken = default)
@@ -51,8 +65,6 @@ public class ExpenseItemRepository : IExpenseItemRepository
 		}
 		if (query.CategoryId.HasValue)
 			itemsQuery = itemsQuery.Where(i => i.FkCategoryId == query.CategoryId.Value);
-		if (query.UserId.HasValue)
-			itemsQuery = itemsQuery.Where(i => i.FkUserId == query.UserId.Value);
 
 		IOrderedQueryable<ExpenseItem> ordered;
 		switch (query.SortBy)

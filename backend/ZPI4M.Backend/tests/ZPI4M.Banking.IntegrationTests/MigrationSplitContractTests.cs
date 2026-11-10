@@ -8,13 +8,19 @@ namespace ZPI4M.Banking.IntegrationTests;
 public sealed class MigrationSplitContractTests
 {
 	[Fact]
-	public void Grouping_target_keeps_baseline_expense_and_temporary_migration_only_changes_expense()
+	public void GroupingTargetKeepsBaselineExpenseAndBankingFollowsCompleteExpense()
 	{
 		using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql("Host=localhost;Database=unused;Username=unused").Options);
 		var migrations = db.GetService<IMigrationsAssembly>();
 		var group = migrations.Migrations.Single(m => m.Key.EndsWith("_AddGroupingModel", StringComparison.Ordinal));
-		var temporary = migrations.Migrations.Single(m => m.Key.EndsWith("_AddTemporaryExpenseAggregationSupport", StringComparison.Ordinal));
-		Assert.EndsWith("_AddTemporaryExpenseAggregationSupport", temporary.Key);
+		var finalExpense = migrations.Migrations.Single(m => m.Key.EndsWith("_CompleteExpenseModel", StringComparison.Ordinal));
+		var banking = migrations.Migrations.Last();
+		Assert.EndsWith("_AddBankTransactionAssignments", banking.Key);
+		Assert.DoesNotContain(migrations.Migrations.Keys, key => key.EndsWith("_AddTemporaryExpenseAggregationSupport", StringComparison.Ordinal));
+		var bankingTarget = migrations.CreateMigration(banking.Value, db.Database.ProviderName!).TargetModel;
+		Assert.NotNull(bankingTarget.FindEntityType("ZPI4M.Expense.Models.ExpenseShare")!.FindProperty("Percentage"));
+		Assert.NotNull(bankingTarget.FindEntityType("ZPI4M.Banking.Models.BankTransactionAssignment"));
+		Assert.EndsWith("_CompleteExpenseModel", finalExpense.Key);
 		var first = migrations.CreateMigration(group.Value, db.Database.ProviderName!);
 		var expense = first.TargetModel.FindEntityType("ZPI4M.Expense.Models.Expense")!;
 		Assert.Null(expense.FindProperty("FkPayerId"));
@@ -24,9 +30,9 @@ public sealed class MigrationSplitContractTests
 		{
 			Assert.NotEqual("expense", op.GetType().GetProperty("Schema")?.GetValue(op));
 		}
-		var second = migrations.CreateMigration(temporary.Value, db.Database.ProviderName!);
+		var second = migrations.CreateMigration(finalExpense.Value, db.Database.ProviderName!);
 		Assert.NotNull(second.TargetModel.FindEntityType("ZPI4M.Expense.Models.Expense")!.FindProperty("FkPayerId"));
-		Assert.NotNull(second.TargetModel.FindEntityType("ZPI4M.Expense.Models.ExpenseShare")!.FindProperty("Amount"));
+		Assert.NotNull(second.TargetModel.FindEntityType("ZPI4M.Expense.Models.ExpenseShare")!.FindProperty("Percentage"));
 		foreach (var op in second.UpOperations)
 		{
 			var schema = op.GetType().GetProperty("Schema")?.GetValue(op);

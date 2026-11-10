@@ -25,6 +25,14 @@ public sealed class GroupMemberService(IGroupRepository groups, IGroupMemberRepo
 		var member = await members.GetReadAsync(group, user, ct);
 		return member is null ? new(404) : new(200, Map(member));
 	}
+	public async Task<GroupingResult<IReadOnlySet<Guid>>> GetActiveMemberIdsAsync(Guid actor, Guid group,
+		IReadOnlyCollection<Guid> userIds, CancellationToken ct = default)
+	{
+		if (!await members.IsMemberAsync(group, actor, ct)) return new(404);
+		var active = await members.GetActiveUsersAmongAsync(group, userIds, ct);
+		return new(200, active);
+	}
+
 	public Task<GroupingResult> LeaveAsync(Guid actor, Guid group, CancellationToken ct = default) => transactions.ExecuteAsync(token => EndAsync(actor, group, actor, false, token), r => r.Status == 204, ct);
 	public Task<GroupingResult> RemoveAsync(Guid actor, Guid group, Guid user, CancellationToken ct = default) => transactions.ExecuteAsync(token => EndAsync(actor, group, user, true, token), r => r.Status == 204, ct);
 	private async Task<GroupingResult> EndAsync(Guid actor, Guid groupId, Guid user, bool removal, CancellationToken ct)

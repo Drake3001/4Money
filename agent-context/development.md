@@ -8,7 +8,7 @@ opisuje [status](implementation-status.md).
 Rejestracje hosta, łańcuch migracji, konfigurację i polecenia ponownie sprawdzono
 statycznie 2026-10-29; bez uruchamiania aplikacji, testów ani migracji.
 Solucja zawiera po trzy projekty testowe User, Banking i Notifications
-oraz dwa Receipt — łącznie jedenaście. Starsze wyniki uruchomień opisuje status; nie traktuj
+oraz dwa Receipt, dwa Expense, Grouping i Shared — łącznie piętnaście. Starsze wyniki uruchomień opisuje status; nie traktuj
 ich jako nowej weryfikacji obecnej rewizji po rebase.
 
 ## Wymagania
@@ -109,12 +109,33 @@ Oba profile ustawiają `ASPNETCORE_ENVIRONMENT=Development`.
 i środowisko wynikają wtedy z pozostałej konfiguracji (domyślnie Production,
 jeśli nie ustawiono środowiska). Wywołanie `Env.Load()` nadal jest wykonywane.
 
+W VS Code z rozszerzeniem C# Dev Kit można wybrać w panelu Run and Debug
+profil `4Money API (HTTP)` i nacisnąć F5. Konfiguracja w `.vscode/launch.json`
+ustawia katalog roboczy API, aby odczytać jego lokalny `.env`, i korzysta
+z profilu `http`. PostgreSQL i SeaweedFS należy wcześniej uruchomić osobno:
+
+```powershell
+docker compose --env-file containers/local/.env -f containers/local/docker-compose.yml up -d postgres-db seaweedfs
+```
+
+Polecenie wykonuj z głównego katalogu repo. Migracje i opcjonalny seed wykonuje
+się osobno, zgodnie z opisaną wyżej kolejnością. Worker OCR jest potrzebny
+do analizy paragonów; nie jest wymagany do testowania logowania i inboxa.
+
 Uruchamianie z tego katalogu zapewnia właściwy kontekst odczytu `.env` przez
 `DotNetEnv`. Profil HTTP wskazuje `http://localhost:5283`, profil HTTPS także
 `https://localhost:7278`. Host używa przekierowania HTTPS; sprawdź profil
 i konfigurację certyfikatu przy diagnozowaniu lokalnych wywołań.
-W Development host mapuje dokument OpenAPI. Host udostępnia kontrolery User,
-Banking i Notifications;
+W Development host mapuje dokument `/openapi/v1.json` (bez wbudowanego Swagger UI).
+Host udostępnia kontrolery User, Banking, Notifications, Grouping i 10 operacji
+Expense: kategorie, dostępne transakcje, historię, szczegóły, preview tworzenia
+i edycji, POST, PUT, DELETE oraz analizę i odczyt paragonu.
+Runtime używa rzeczywistych członkostw i metadanych Grouping
+we wszystkich środowiskach; usunięto flagę Expense:UseGroupingMock.
+Tworzenie, edycja i usuwanie aktualizują TotalPaid/TotalShare w transakcji
+koordynatora razem z Expense. AddExpenseServices rejestruje tylko usługi Expense;
+host rejestruje implementacje Grouping i User w sekcjach tych modułów.
+Docelowy kontrakt i przykłady opisuje [Expense API](../notes/EXPENSE_API.md).
 `POST /api/users/register` waliduje dane, zapisuje niepotwierdzone konto razem
 ze skrótem tokenu i wysyła wiadomość przez SMTP po zakończeniu zapisu.
 `POST /api/users/confirm-email` przyjmuje JSON z polem `token` i zwraca 204
@@ -653,13 +674,15 @@ Nieaktywne i nieistniejące konta są pomijane. Pusta lista lub brak aktywnych
 kont daje null bez zapisu, a nie błąd operacji biznesowej. Guid.Empty i pozostałe
 niepoprawne dane żądania nadal powodują błąd walidacji.
 
-Program.cs przekazuje kontekstom Expense, Grouping i Notifications tę samą
-scoped instancję NpgsqlConnection, zwalnianą przez DI. Przyszły koordynator
-operacji musi rozpocząć transakcję, dołączyć pozostałe konteksty przez
-UseTransactionAsync i wykonać CommitAsync dopiero po wszystkich zapisach.
+Program.cs przekazuje kontekstom Expense, Grouping, Notifications, Receipt i Banking tę samą
+scoped instancję NpgsqlConnection, zwalnianą przez DI. IGroupingTransactionCoordinator
+rozpoczyna transakcję, dołącza pozostałe konteksty przez EnlistAsync/UseTransactionAsync
+i wykonuje CommitAsync dopiero po wszystkich zapisach.
 NotifyAsync nadal wykonuje SaveChangesAsync. Nie uruchamiaj operacji na tym
 połączeniu równolegle ani nie otwieraj kolejnej transakcji w wywołanym serwisie.
-Koordynacja Expense/Grouping nie jest jeszcze zaimplementowana.
+Tworzenie Expense aktualizuje agregaty i zapisuje ExpenseAdded w tej samej
+transakcji. GroupExpenseNotificationService wybiera pozostałych aktualnych
+członków grupy; NotifyAsync pomija nieaktywne konta. Edycja i usuwanie nie powiadamiają.
 
 `GET /api/notifications` wymaga Bearer JWT. ID użytkownika dostarcza ICurrentUser;
 endpoint nie przyjmuje userId klienta. Parametry query: pageNumber (domyślnie 1,
@@ -784,6 +807,8 @@ Snapshot i plik Designer są generowane wraz z nową migracją i trafiają do Gi
 Przy zmianie typu timestamp sprawdź strefę dotychczasowych danych. Sam typ
 `DateTime` w C# nie określa typu SQL — decyduje konfiguracja EF.
 
+Aktualny squashed łańcuch Expense opisuje [sekcja po rebase](#migracje-po-rebase-expensegrouping--2026-11-03).
+
 [Notatki migracyjne](../notes/MIGRATIONS.md) zawierają również procedury
 odtwarzania i scaffoldingu. To materiał pomocniczy; ponowne generowanie modeli
 z `--force`, kasowanie historii lub modyfikowanie starych migracji nie jest
@@ -816,11 +841,11 @@ bash tools/ci/backend_checks.sh integration --results .cache/backend-results
 Użyj świeżego katalogu wyników przy kolejnych uruchomieniach. Pomocnik wybiera
 śledzone projekty `.UnitTests.csproj` i `.Tests.csproj` dla zestawu unit oraz
 `.IntegrationTests.csproj` dla integration. Solucja zawiera po trzy projekty
-User, Banking i Notifications oraz dwa Receipt (łącznie jedenaście projektów). Komunikat
+User, Banking i Notifications, dwa Receipt, dwa Expense, Grouping i Shared (łącznie piętnaście projektów). Komunikat
 „not configured” nie oznacza wykonania testów.
 
 Workflow backendu uruchamia PostgreSQL i ustawia `TEST_POSTGRES_CONNECTION_STRING`
-dla integracyjnych testów User, Banking i Notifications. Wszystkie zestawy tworzą
+dla integracyjnych testów User, Banking, Notifications i Expense. Wszystkie zestawy tworzą
 własne bazy o losowych nazwach na serwerze testowym.
 Host nadal ładuje `.env` przez `Env.Load()`; testy HTTP używają własnych hostów.
 
@@ -861,9 +886,9 @@ domyślne `http://localhost:8333` odpowiada lokalnemu mapowaniu portu S3.
 Po zmianie portu lub przy dostępie z innego urządzenia dopasuj ten adres.
 
 Kolekcja Storage w Postmanie sprawdza bezpośrednio S3; nie wymaga backendu ani JWT
-i nie potwierdza integracji Receipt. Backend nie ma endpointów Receipt/Storage.
-Pełny przepływ OCR → storage → baza oraz połączenie z Expense pozostają
-osobnym zakresem weryfikacji i implementacji zgodnie ze [statusem](implementation-status.md).
+i nie potwierdza integracji Receipt. Analiza i odczyt paragonu są dostępne przez
+endpointy Expense, a jego zapis przez POST/PUT formularza wydatku.
+Weryfikację z rzeczywistym OCR/storage opisuje [status](implementation-status.md).
 
 ## Integracyjne testy procesu Banking
 
@@ -1016,33 +1041,31 @@ commicie. AfterRollback sprząta nowe uploady tylko po potwierdzonym rollbacku.
 Przy niepewnym wyniku commitu zachowujemy pliki. Cleanup jest best effort,
 nie zmienia potwierdzonego sukcesu. Brak trwałej kolejki/outboxa.
 
-## Podział migracji Grouping i Expense — 2026-11-02
-Aktualny koniec łańcucha:
-1. 20261102215301_AddGroupingModel — docelowy model Grouping i zachowane Limits.
-2. 20261102215328_AddTemporaryExpenseAggregationSupport — tymczasowe minimum Expense.
+## Migracje po rebase Expense/Grouping — 2026-11-03
 
-Zastępują usunięte migracje 20261028191002_ApprovedGroupingModel i
-20261031165114_AddGroupDescriptionIconsAndArchive. Wcześniejsze opisy tych
-migracji są historyczne; nie wykonuj ich procedur cofania na nowym łańcuchu.
+Po `20261102215301_AddGroupingModel` występuje
+`20261103165622_CompleteExpenseModel`, wygenerowana z końcowego modelu Expense.
+Usunięto tymczasową `AddTemporaryExpenseAggregationSupport` oraz zastąpiono
+siedem migracji gałęzi Expense jedną. Grouping/Limits i migracja AddGroupingModel
+z master pozostają bez zmian. Po Expense następuje `20261103203528_AddBankTransactionAssignments`. Designer Banking i snapshot uwzględniają oba modele.
 
-Expense zachowuje Id/_id, Name/name, TransactionTime/transaction_time,
-fk_group_id, fk_receipt_id, fk_bank_transaction_id i udziały z fk_expense_id,
-fk_user_id. Tymczasowe rozszerzenia: FkPayerId/fk_payer_id (wymagany,
-indeks ix_expense_fk_payer_id, FK User) oraz Amount/amount numeric(18,2)
-zamiast Percentage. Nie ma zmian nazw kolumn niezwiązanych z agregacją.
-Grouping nie zależy od encji Expense; jego ExpenseContribution nadal używa
-PaidByUserId jako nazwy kontraktu wartości.
+Expense zachowuje `_id`, `name`, `transaction_time`, `fk_*`, wymaganego
+`FkPayerId`, `Version`, metadane pozycji, kategorie bez Color i udziały procentowe
+`Percentage` numeric(5,2). Kwoty udziałów są wyliczane przez Expense.
+Migracja uwzględnia ograniczenia historycznego SQL init, których nie śledził
+snapshot: zachowuje istniejące FK i CHECK ilości, usuwa CHECK dodatniej ceny,
+a Down przywraca FK przypisania pozycji do użytkownika i CHECK ceny.
+Up/Down wymagają pustych wydatków, pozycji i udziałów; nie konwertują danych ani
+nie zgadują płatnika. Konflikty kategorii powodują rollback migracji.
+Kolejność pustej bazy: SQL init → wszystkie migracje → seed. Seed przelicza
+syntetyczne agregaty Grouping z procentów; nie utrzymuje ich podczas działania API.
+Baza, która wykonała usuniętą tymczasową migrację, wymaga odtworzenia albo osobnej migracji przejściowej.
 
-Migracja Grouping nie zmienia tabel Expense. Jej Up/Down wymagają pustych
-grup i członkostw. Tymczasowa Expense wymaga pustych wydatków/udziałów przy
-Up/Down; nie konwertuje historycznych danych ani nie zgaduje płatnika.
-Seed działa dopiero po obu migracjach i przelicza agregaty z danych syntetycznych.
-
-Przy integracji właściwego PR Expense należy uzgodnić model, relacje, repozytoria,
-tymczasową migrację, designer/snapshot, seed i testy. Samo usunięcie ostatniej
-migracji nie cofa zastosowanego schematu. Lokalna baza po starym łańcuchu wymaga
-kontrolowanego odtworzenia (SQL init → migracje → seed), bez kasowania kontenera
-lub wolumenu. Nie zmieniaj ręcznie pojedynczych wpisów historii EF.
+Od 2026-11-03 tworzenie Expense jest połączone z koordynatorem i aktualizacją
+agregatów oraz rzeczywistymi metadanymi. Odpowiedzialności i kolejność zapisów
+opisuje [architektura](architecture.md#expense--grouping--integracja-agregatów-2026-11-03).
+Nie ma migracji dla tej integracji. Nie uruchamiaj seeda ani odbudowy bazy aplikacji
+w ramach sprawdzenia kodu; testy używają izolowanych baz na osobnym serwerze.
 
 ## Użytkownik Tink przy łączeniu banku — 2026-11-07
 
