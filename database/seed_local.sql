@@ -1,6 +1,7 @@
--- Destructive local reset: run only after SQL init and all EF migrations, including
+-- Destructive local reset: run only after SQL init and all EF migrations.
 -- Shared password for all seeded test accounts: TestPassword1!
--- Storage keys are synthetic; this script does not upload images or call OCR/Tink.
+-- Categories are managed by EF migrations and are preserved by this reset.
+-- This script does not upload images or call OCR/Tink.
 BEGIN;
 SET LOCAL timezone = 'UTC';
 
@@ -20,7 +21,6 @@ TRUNCATE TABLE
     expense.expense_share,
     expense.expense_item,
     expense.expense,
-    expense.category,
     banking.bank_transaction,
     banking.bank_account,
     receipt.receipt,
@@ -52,28 +52,6 @@ INSERT INTO grouping.group_user (user_id, group_id, joined_at) VALUES
     ('10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', CURRENT_TIMESTAMP - INTERVAL '20 days'),
     ('10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', CURRENT_TIMESTAMP - INTERVAL '20 days'),
     ('10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002', CURRENT_TIMESTAMP - INTERVAL '20 days');
-
-INSERT INTO expense.category (_id, name, description, icon) VALUES
-    ('30000000-0000-0000-0000-000000000001', 'żywność i napoje', 'Zakupy spożywcze i napoje bezalkoholowe, również gotowa żywność ze sklepu.', 'shopping-cart'),
-    ('30000000-0000-0000-0000-000000000002', 'restauracje i kawiarnie', 'Posiłki i napoje bezalkoholowe z gastronomii, także dostawy; wymaga kontekstu gastronomicznego.', 'utensils'),
-    ('30000000-0000-0000-0000-000000000003', 'transport i samochód', 'Paliwo, części, serwis auta, parking, taxi, komunikacja miejska i przejazdy lądowe.', 'car'),
-    ('30000000-0000-0000-0000-000000000004', 'rachunki i opłaty', 'Media, prąd, gaz, woda, telefon, internet i opłaty administracyjne.', 'receipt'),
-    ('30000000-0000-0000-0000-000000000005', 'Nieznane', 'Automatyczne dopełnienie kwoty wydatku', 'circle-help'),
-    ('30000000-0000-0000-0000-000000000006', 'alkohol i tytoń', 'Napoje alkoholowe, papierosy i produkty nikotynowe, również kupione w restauracji.', 'wine'),
-    ('30000000-0000-0000-0000-000000000007', 'ubrania i dodatki', 'Odzież, obuwie, torby, biżuteria i dodatki odzieżowe.', 'shirt'),
-    ('30000000-0000-0000-0000-000000000008', 'elektronika', 'Sprzęt elektroniczny, przewody, ładowarki i części elektroniczne.', 'smartphone'),
-    ('30000000-0000-0000-0000-000000000009', 'dom i ogród', 'Wyposażenie, meble, narzędzia, rośliny, artykuły kuchenne i ręczniki papierowe.', 'home'),
-    ('30000000-0000-0000-0000-000000000010', 'chemia gospodarcza', 'Detergenty i środki czystości, np. płyn do naczyń, proszek do prania, płyn do WC.', 'spray-can'),
-    ('30000000-0000-0000-0000-000000000011', 'kosmetyki i higiena', 'Pielęgnacja i higiena osobista, np. szampon, pasta do zębów, podpaski, papier toaletowy.', 'sparkles'),
-    ('30000000-0000-0000-0000-000000000012', 'zdrowie', 'Leki, wyroby medyczne, badania, wizyty lekarskie, dentysta i rehabilitacja.', 'heart-pulse'),
-    ('30000000-0000-0000-0000-000000000013', 'zwierzęta', 'Karma, akcesoria dla zwierząt, ich pielęgnacja i weterynarz.', 'paw-print'),
-    ('30000000-0000-0000-0000-000000000014', 'podróże i noclegi', 'Hotele, loty, wycieczki i usługi turystyczne; nie zgaduj celu zwykłego przejazdu.', 'plane'),
-    ('30000000-0000-0000-0000-000000000015', 'rozrywka i wydarzenia', 'Kino, koncerty, gry, abonamenty rozrywkowe i książki rekreacyjne.', 'ticket'),
-    ('30000000-0000-0000-0000-000000000016', 'sport i hobby', 'Siłownia, sprzęt sportowy, zajęcia rekreacyjne i materiały hobbystyczne.', 'dumbbell'),
-    ('30000000-0000-0000-0000-000000000017', 'edukacja', 'Kursy, podręczniki, szkolenia i opłaty za naukę.', 'graduation-cap'),
-    ('30000000-0000-0000-0000-000000000018', 'usługi', 'Fryzjer, barber, krawiec, naprawa obuwia, dorabianie kluczy; tylko usługi bez trafniejszej kategorii.', 'wrench'),
-    ('30000000-0000-0000-0000-000000000019', 'inne', 'Rozpoznany wydatek, dla którego żadna z pozostałych kategorii nie pasuje; nie służy do oznaczania niepewności.', 'package'),
-    ('30000000-0000-0000-0000-000000000020', 'zniżka', 'Samodzielna pozycja obniżająca wartość zakupów, np. opust za butelki lub rabat na cały paragon. Nie obejmuje zwrotu kaucji ani rabatu przypisanego już do produktu.', 'badge-percent');
 
 INSERT INTO banking.bank_account
     (_id, fk_user_id, name, number, financial_institution_id, type, currency_code, iban, is_closed)

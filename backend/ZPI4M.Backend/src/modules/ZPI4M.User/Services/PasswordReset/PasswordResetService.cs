@@ -20,6 +20,7 @@ public sealed class PasswordResetService(
 	IPasswordHasher<Models.User> passwordHasher,
 	IUserTokenGenerator tokenGenerator,
 	IEmailSender emailSender,
+	UserEmailMessages emailMessages,
 	ILogger<PasswordResetService> logger,
 	IOptions<PasswordResetOptions> options) : IPasswordResetService
 {
@@ -69,19 +70,19 @@ public sealed class PasswordResetService(
 			token.CreatedAt = now;
 			token.ExpiresAt = expiresAt;
 			await dbContext.SaveChangesAsync(cancellationToken);
+			var message = isFirstPassword
+				? emailMessages.PasswordSetup(rawToken, expiresAt)
+				: emailMessages.PasswordReset(rawToken, expiresAt);
+			try
+			{
+				await emailSender.SendAsync(user.Email, message.Subject, message.Body, cancellationToken);
+			}
+			catch (EmailDeliveryException)
+			{
+				logger.LogWarning("Password reset email delivery failed.");
+				return;
+			}
 			await transaction.CommitAsync(cancellationToken);
-		}
-
-		var message = isFirstPassword
-			? UserEmailMessages.PasswordSetup(rawToken, expiresAt)
-			: UserEmailMessages.PasswordReset(rawToken, expiresAt);
-		try
-		{
-			await emailSender.SendAsync(request.Email, message.Subject, message.Body, cancellationToken);
-		}
-		catch (EmailDeliveryException)
-		{
-			logger.LogWarning("Password reset email delivery failed.");
 		}
 	}
 

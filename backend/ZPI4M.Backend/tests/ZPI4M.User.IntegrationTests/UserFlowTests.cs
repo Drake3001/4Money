@@ -468,7 +468,7 @@ public sealed class UserFlowTests : PostgresFixture
 	}
 
 	[PostgresFact]
-	public async Task SmtpFailureKeepsRegisteredAccountAndDoesNotDeactivateExistingAccount()
+	public async Task SmtpFailureRollsBackRegistrationAndNewRequestsAndAllowsRegistrationRetry()
 	{
 		await SetPasswordAsync(AnnaId);
 		await using var host = await StartHostAsync();
@@ -476,11 +476,139 @@ public sealed class UserFlowTests : PostgresFixture
 		await PostAsync(host.Client, "register", Registration(), HttpStatusCode.ServiceUnavailable);
 		Authenticate(host.Client, await LoginAsync(host.Client));
 		await PostAsync(host.Client, "profile/deactivate", new { }, HttpStatusCode.ServiceUnavailable);
+		await PostAsync(host.Client, "profile/change-email", new { newEmail = "changed@example.test", currentPassword = Password }, HttpStatusCode.ServiceUnavailable);
 		await PostAsync(host.Client, "forgot-password", new { email = "anna@example.test" }, HttpStatusCode.Accepted);
 		await using var context = OpenDatabase();
-		Assert.False((await context.Users.SingleAsync(u => u.Login == "new.user")).IsEmailConfirmed);
+		Assert.False(await context.Users.AnyAsync(u => u.Login == "new.user" || u.Email == "new@example.test"));
 		Assert.True((await context.Users.SingleAsync(u => u.Id == AnnaId)).IsActive);
-		Assert.True(await context.UserTokens.AnyAsync(t => t.FkUserId == AnnaId && t.Purpose == UserTokenPurpose.AccountDeactivation));
+		Assert.Equal("anna@example.test", (await context.Users.SingleAsync(u => u.Id == AnnaId)).Email);
+		Assert.All(await context.UserTokens.ToListAsync(), token => Assert.Equal(UserTokenPurpose.RefreshToken, token.Purpose));
+		Email.Fail = false;
+		await PostAsync(host.Client, "register", Registration(), HttpStatusCode.Created);
+		Assert.Single(Email.Messages);
+	}
+
+	[PostgresTheory]
+	[InlineData("resend-confirmation", UserTokenPurpose.EmailConfirmation, 503)]
+	[InlineData("profile/change-email", UserTokenPurpose.EmailChange, 503)]
+	[InlineData("forgot-password", UserTokenPurpose.PasswordReset, 202)]
+	[InlineData("profile/deactivate", UserTokenPurpose.AccountDeactivation, 503)]
+	public async Task FailedResendPreservesPreviousTokenAndAccount(string route, UserTokenPurpose purpose, int expectedStatus)
+	{
+		await SetPasswordAsync(AnnaId);
+		await using var host = await StartHostAsync();
+		if (purpose != UserTokenPurpose.EmailConfirmation)
+			Authenticate(host.Client, await LoginAsync(host.Client));
+		var id = Guid.NewGuid();
+		var hash = new UserTokenGenerator().HashToken("synthetic-previous-token");
+		var created = DateTime.UtcNow.AddMinutes(-2);
+		var expires = DateTime.UtcNow.AddHours(1);
+		var email = purpose == UserTokenPurpose.EmailChange ? "previous@example.test" : "anna@example.test";
+		string passwordHash;
+		await using (var context = OpenDatabase())
+		{
+			var user = await context.Users.SingleAsync(u => u.Id == AnnaId);
+			Assert.NotNull(user.PasswordHash);
+			passwordHash = user.PasswordHash;
+			if (purpose == UserTokenPurpose.EmailConfirmation) user.IsEmailConfirmed = false;
+			context.UserTokens.Add(new UserToken
+			{
+				Id = id,
+				FkUserId = AnnaId,
+				Purpose = purpose,
+				TokenHash = hash,
+				TargetEmail = email,
+				CreatedAt = created,
+				ExpiresAt = expires
+			});
+			await context.SaveChangesAsync();
+		}
+		Email.Fail = true;
+		await PostAsync(host.Client, route, new { email = "anna@example.test", newEmail = "next@example.test", currentPassword = Password }, (HttpStatusCode)expectedStatus);
+		await using var database = OpenDatabase();
+		var token = await database.UserTokens.SingleAsync(t => t.Id == id);
+		Assert.Equal(hash, token.TokenHash);
+		Assert.Equal(email, token.TargetEmail);
+		Assert.Equal(created.Ticks / 10, token.CreatedAt.Ticks / 10);
+		Assert.Equal(expires.Ticks / 10, token.ExpiresAt.Ticks / 10);
+		var unchanged = await database.Users.SingleAsync(u => u.Id == AnnaId);
+		Assert.Equal(passwordHash, unchanged.PasswordHash);
+		Assert.Equal("anna@example.test", unchanged.Email);
+		Assert.True(unchanged.IsActive);
+		Assert.Equal(purpose != UserTokenPurpose.EmailConfirmation, unchanged.IsEmailConfirmed);
+		Assert.Empty(Email.Messages);
+	}
+
+	[PostgresFact]
+	public async Task RegistrationIsInvisibleUntilSmtpAcceptsMessage()
+	{
+		await using var host = await StartHostAsync();
+		Email.BeforeSend = async () =>
+		{
+			await using var database = OpenDatabase();
+			Assert.False(await database.Users.AnyAsync(u => u.Email == "new@example.test"));
+			Assert.Empty(await database.UserTokens.ToListAsync());
+		};
+		await PostAsync(host.Client, "register", Registration(), HttpStatusCode.Created);
+		await using var context = OpenDatabase();
+		Assert.True(await context.Users.AnyAsync(u => u.Email == "new@example.test"));
+		Assert.Single(await context.UserTokens.ToListAsync());
+	}
+
+	[PostgresFact]
+	public async Task InterruptedSmtpRollsBackRegistration()
+	{
+		await using var host = await StartHostAsync();
+		Email.Cancel = true;
+		// TestServer propagates the uncaught cancellation instead of returning an HTTP response.
+		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => host.Client.PostAsJsonAsync("/api/users/register", Registration()));
+		await using var database = OpenDatabase();
+		Assert.False(await database.Users.AnyAsync(u => u.Email == "new@example.test"));
+		Assert.Empty(await database.UserTokens.ToListAsync());
+	}
+
+	[PostgresTheory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task InterruptedPasswordResetSmtpPreservesPreviousToken(bool hasPreviousToken)
+	{
+		await SetPasswordAsync(AnnaId);
+		await using var host = await StartHostAsync();
+		var previousHash = new UserTokenGenerator().HashToken("synthetic-previous-token");
+		var created = DateTime.UtcNow.AddMinutes(-2);
+		var expires = DateTime.UtcNow.AddHours(1);
+		if (hasPreviousToken)
+		{
+			await using var context = OpenDatabase();
+			context.UserTokens.Add(new UserToken
+			{
+				Id = Guid.NewGuid(),
+				FkUserId = AnnaId,
+				Purpose = UserTokenPurpose.PasswordReset,
+				TokenHash = previousHash,
+				TargetEmail = "anna@example.test",
+				CreatedAt = created,
+				ExpiresAt = expires
+			});
+			await context.SaveChangesAsync();
+		}
+		Email.Cancel = true;
+		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => host.Client.PostAsJsonAsync(
+			"/api/users/forgot-password", new { email = "anna@example.test" }));
+		await using var database = OpenDatabase();
+		var tokens = await database.UserTokens.Where(t => t.FkUserId == AnnaId && t.Purpose == UserTokenPurpose.PasswordReset).ToListAsync();
+		if (hasPreviousToken)
+		{
+			var token = Assert.Single(tokens);
+			Assert.Equal(previousHash, token.TokenHash);
+			Assert.Equal(created.Ticks / 10, token.CreatedAt.Ticks / 10);
+			Assert.Equal(expires.Ticks / 10, token.ExpiresAt.Ticks / 10);
+		}
+		else
+		{
+			Assert.Empty(tokens);
+		}
+		Assert.Empty(Email.Messages);
 	}
 
 	[PostgresFact]

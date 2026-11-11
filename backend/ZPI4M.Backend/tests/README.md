@@ -2,7 +2,11 @@
 
 Moduły User i Notifications mają po trzy projekty xUnit:
 
-- `ZPI4M.User.UnitTests`: tokeny, podpis i zawartość JWT, normalizacja i walidacja DTO.
+- `ZPI4M.User.UnitTests`: tokeny, podpis i zawartość JWT, normalizacja i walidacja DTO,
+  szablony HTML i walidacja adresu frontendu w linkach e-mail.
+  Szablon pierwszego hasła Google korzysta z tego samego formularza i akcji
+  `reset` co reset istniejącego hasła.
+
 - `ZPI4M.User.Tests`: kontrakt HTTP kontrolerów z atrapami serwisów, walidacja,
   autoryzacja, identyfikacja właściciela i mapowanie błędów na ProblemDetails.
 - `ZPI4M.User.IntegrationTests`: prawdziwy PostgreSQL, repozytoria, serwisy,
@@ -16,6 +20,16 @@ Moduły User i Notifications mają po trzy projekty xUnit:
 - `ZPI4M.Notifications.IntegrationTests`: PostgreSQL, migracje i seed, atomowość
   NotifyAsync przy błędzie FK, paginacja, filtry, izolacja odbiorców, równoległy
   odczyt pojedynczy/zbiorczy, FK i usuwanie oraz HTTP z prawdziwym JWT i sesją.
+
+Testy User.IntegrationTests obejmują rollback rejestracji przy awarii/anulowaniu
+SMTP, niewidoczność nowego konta przed przyjęciem wiadomości, ponowienie
+rejestracji oraz zachowanie poprzedniego tokenu przy nieudanej ponownej wysyłce
+dla potwierdzenia e-maila, zmiany e-maila, resetu hasła i dezaktywacji.
+Wysyłka jest atrapą; testy nie wysyłają rzeczywistych wiadomości.
+Rejestracja Google wymagająca potwierdzenia adresu ma osobny kontrakt:
+awaria SMTP po commicie zachowuje konto, grupę i token; testy Google sprawdzają
+ponowną wysyłkę. Reset i ustawienie pierwszego hasła zatwierdzają token
+dopiero po przyjęciu wiadomości przez atrapę SMTP.
 
 Uruchom z katalogu `backend/ZPI4M.Backend`:
 

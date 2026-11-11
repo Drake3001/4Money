@@ -16,6 +16,7 @@ public sealed class AccountDeactivationService(
 	UserDbContext dbContext,
 	IUserTokenGenerator tokenGenerator,
 	IEmailSender emailSender,
+	UserEmailMessages emailMessages,
 	IOptions<AccountDeactivationOptions> options) : IAccountDeactivationService
 {
 	public async Task<RequestAccountDeactivationResult> RequestAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -57,18 +58,17 @@ public sealed class AccountDeactivationService(
 			token.CreatedAt = now;
 			token.ExpiresAt = expiresAt;
 			await dbContext.SaveChangesAsync(cancellationToken);
-			await transaction.CommitAsync(cancellationToken);
-		}
-
-		var message = UserEmailMessages.AccountDeactivation(rawToken, expiresAt);
-		try
-		{
-			await emailSender.SendAsync(recipientEmail, message.Subject, message.Body, cancellationToken);
-			return RequestAccountDeactivationResult.Accepted;
-		}
-		catch (EmailDeliveryException)
-		{
-			return RequestAccountDeactivationResult.EmailDeliveryFailed;
+			var message = emailMessages.AccountDeactivation(rawToken, expiresAt);
+			try
+			{
+				await emailSender.SendAsync(recipientEmail, message.Subject, message.Body, cancellationToken);
+				await transaction.CommitAsync(cancellationToken);
+				return RequestAccountDeactivationResult.Accepted;
+			}
+			catch (EmailDeliveryException)
+			{
+				return RequestAccountDeactivationResult.EmailDeliveryFailed;
+			}
 		}
 	}
 

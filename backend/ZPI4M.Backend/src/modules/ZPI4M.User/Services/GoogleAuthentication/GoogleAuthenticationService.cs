@@ -22,6 +22,7 @@ public sealed class GoogleAuthenticationService(
 	IUserSessionService sessions,
 	IUserTokenGenerator tokenGenerator,
 	IEmailSender emailSender,
+	UserEmailMessages emailMessages,
 	IOptions<EmailConfirmationOptions> confirmationOptions) : IGoogleAuthenticationService
 {
 	public async Task<(GoogleAuthenticationResult Result, AuthenticationResponse? Response)> LoginAsync(
@@ -134,7 +135,7 @@ public sealed class GoogleAuthenticationService(
 
 		if (confirmation is not null)
 		{
-			var message = UserEmailMessages.EmailConfirmation(rawToken!, confirmation.ExpiresAt);
+			var message = emailMessages.EmailConfirmation(rawToken!, confirmation.ExpiresAt);
 			try
 			{
 				await emailSender.SendAsync(user.Email, message.Subject, message.Body, cancellationToken);

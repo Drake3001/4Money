@@ -310,7 +310,9 @@ wylogowaniu. Access tokenów JWT nie zapisujemy w bazie. Sam model i repozytoriu
 nie zapewniają tych zachowań. Serwis potwierdzania e-maila używa warunkowego
 usunięcia niewygasłego tokenu i warunkowego potwierdzenia aktualnego adresu
 aktywnego konta w jednej transakcji. Rejestracja zapisuje konto i token razem,
-a następnie wysyła wiadomość. Ponowna wysyłka zastępuje token po wymaganym
+wysyła wiadomość i dopiero po przyjęciu przez SMTP zatwierdza transakcję.
+Błąd wysyłki wycofuje konto i token. Pozostałe żądania mailowe także zachowują
+poprzedni token przy błędzie SMTP. Ponowna wysyłka zastępuje token po wymaganym
 odstępie. Ważność to 24 godziny, odstęp to 60 sekund — wartości domyślne
 z `EmailConfirmationOptions`. Host rejestruje te opcje bez wiązania
 z konfiguracją, więc JSON i env obecnie ich nie nadpisują.

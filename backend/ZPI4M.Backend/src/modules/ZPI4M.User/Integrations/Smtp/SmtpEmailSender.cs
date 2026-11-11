@@ -27,7 +27,12 @@ public sealed class SmtpEmailSender : IEmailSender
 			message.From.Add(new MailboxAddress(options.SenderName, options.SenderEmail));
 			message.To.Add(MailboxAddress.Parse(recipientEmail));
 			message.Subject = subject;
-			message.Body = new TextPart("plain") { Text = body };
+			message.Body = new BodyBuilder
+			{
+				HtmlBody = body,
+				TextBody = System.Net.WebUtility.HtmlDecode(
+					System.Text.RegularExpressions.Regex.Replace(body, "<[^>]+>", "\n"))
+			}.ToMessageBody();
 
 			var security = options.SecurityMode switch
 			{
@@ -49,7 +54,9 @@ public sealed class SmtpEmailSender : IEmailSender
 			}
 
 			await client.SendAsync(message, cancellationToken);
-			await client.DisconnectAsync(true, cancellationToken);
+			// The server has accepted DATA. Close locally without a second network operation
+			// that could report a false delivery failure after successful acceptance.
+			await client.DisconnectAsync(false, CancellationToken.None);
 		}
 		catch (SslHandshakeException exception)
 		{

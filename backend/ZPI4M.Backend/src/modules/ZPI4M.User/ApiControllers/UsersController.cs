@@ -101,7 +101,7 @@ public sealed class UsersController : ControllerBase
 			UserRegistrationResult.LoginOrEmailAlreadyInUse => Problem(
 				statusCode: StatusCodes.Status409Conflict, title: "Login or email is already in use."),
 			UserRegistrationResult.EmailDeliveryFailed => Problem(
-				statusCode: StatusCodes.Status503ServiceUnavailable, title: "Account created, but confirmation email could not be sent."),
+				statusCode: StatusCodes.Status503ServiceUnavailable, title: "Confirmation email could not be sent. Account was not created; retry registration."),
 			_ => throw new InvalidOperationException("Unknown registration result.")
 		};
 	}

@@ -1,6 +1,49 @@
 # Stan implementacji i kwestie otwarte
 
-## Weryfikacja po rebase — 2026-11-10
+**Frontend paragonów i OCR — weryfikacja 2026-11-11:** usunięto wywołania
+nieistniejących endpointów osobnego uploadu, odczytu, analizy po ID i usuwania
+paragonu. Wybrany plik i podgląd pozostają lokalne; analiza wysyła multipart
+`file` do `POST /api/expenses/receipts/analyze`. Zapis POST/PUT Expense wysyła
+razem `expense` (JSON), `file` i opcjonalny `ocrProof`. Nieudany zapis zachowuje
+plik i dowód do ponowienia, a odrzucenie pliku zwalnia lokalny podgląd.
+Odczyt zapisanego paragonu korzysta z `GET /api/expenses/{expenseId}/receipt`
+i pola `analysis`. Odpięcie odbywa się przez `removeReceipt` przy edycji Expense.
+Mapowanie OCR obsługuje datę `YYYY-MM-DD` i obiekty ostrzeżeń; formularz nie wymaga
+godziny, której kontrakt Expense nie zapisuje. Preview edycji przekazuje expenseId i version.
+Build TypeScript/Vite i 12 testów Node zaliczone, bez pominięć. Testy obejmują
+format żądań, mapowanie odpowiedzi i lokalny cykl pliku z ponowieniem zapisu.
+Nie wykonywano rzeczywistego OCR, uploadu do storage ani testu interakcji
+w przeglądarce; konfiguracja działających usług zewnętrznych pozostaje wymagana.
+
+**Reset i pierwsze hasło User — weryfikacja 2026-11-11:** `PasswordSetup`
+korzysta ze wspólnego szablonu HTML i linku `?action=reset#token=...`.
+`PasswordResetService` wysyła SMTP po SaveChanges, przed commitem; awaria
+lub anulowanie wysyłki wycofuje nowy token i zachowuje poprzedni oraz jego daty.
+Odpowiedź forgot-password przy awarii SMTP pozostaje 202.
+Testy User Release: UnitTests 64/64, Tests (HTTP) 101/101,
+IntegrationTests 89/89 na jednorazowym PostgreSQL 15, bez błędów i pominięć.
+Obejmuje trzy wcześniej nieudane scenariusze i dwa nowe przypadki anulowania
+SMTP przy resecie z poprzednim tokenem i bez niego. Kompilacja tych projektów
+bez zgłoszonych ostrzeżeń; kontrola whitespace zmienionych plików C# zaliczona.
+Nie uruchamiano ponownie całej solucji ani rzeczywistej wysyłki SMTP.
+Kontener PostgreSQL i jego wolumeny usunięto po testach.
+Ujednolicono opisy kolejności SMTP i commitu z zachowaniem wyjątku rejestracji
+Google wymagającej potwierdzenia adresu, która wysyła SMTP po commicie.
+
+**Linki mailowe User — weryfikacja 2026-11-04:** wiadomości HTML z przyciskiem
+obsługują potwierdzenie rejestracji, zmianę e-maila, reset hasła i dezaktywację.
+Frontend pobiera token z fragmentu URL: potwierdzenia wykonuje automatycznie,
+reset wymaga nowego hasła. Usunięto testowe linki. Formularze przypominają o spamie.
+Adres frontendu ustawia UserEmailLinks:FrontendBaseUrl; w Compose USER_EMAIL_FRONTEND_URL.
+Zwykła rejestracja i wystawianie nowych tokenów są zatwierdzane po przyjęciu
+przez SMTP; awaria wycofuje zapis i zachowuje poprzednie tokeny. Wyjątkiem jest
+rejestracja Google wymagająca potwierdzenia adresu: SMTP działa po commicie,
+a awaria zachowuje konto, grupę i token do ponownej wysyłki.
+Ograniczenia SMTP/bazy opisuje architektura.
+Build API Release: zero błędów/ostrzeżeń. User: 29 testów jednostkowych,
+64 HTTP i 37 integracyjnych PostgreSQL zaliczone, bez pominięć. Frontend:
+build TypeScript/Vite i 5 testów Node zaliczone. Nie wysyłano rzeczywistych
+wiadomości ani nie potwierdzono dostarczenia do skrzynki.
 
 Przegląd User, testów, AGENTS.md, agent-context i opisów Postmana wykrył
 pozostałości łączenia gałęzi. Naprawiono sygnaturę fixture User z callbackiem
@@ -369,6 +412,44 @@ normalizacji, odrzucenia niedostępnych kont, wyszukiwania wyłącznie po e-mail
 dla wartości z `@` oraz zmiany adresu.
 Nie potwierdzono ich wykonania na bazie; nie zmieniano bazy aplikacji.
 
+## Frontend developerski — 2026-11-03
+
+`frontend/` zawiera ekrany konta, grup, rozliczeń, bankowości, powiadomień
+i wydatków oraz klienta HTTP z JWT i odświeżaniem sesji. Nazwa `src/mocks/`
+jest historyczna: katalog zawiera typy i pomocniki UI; dane pobiera `src/api/`.
+Zsynchronizowano lockfile, podłączono Tailwind CSS 4 i poprawiono kolejność
+providerów (UserProvider otacza Provider odczytujący sesję). Bez sesji aplikacja
+wyświetla logowanie. Build obejmuje kontrolę typów TypeScript.
+
+Przeglądarka używa względnego `/api`; proxy dev/preview kieruje żądania do
+`API_PROXY_TARGET` (lokalnie localhost:5283, w Compose backend:8080).
+Nie wymaga to CORS backendu. Jawne `VITE_API_BASE_URL` omija proxy i przy
+osobnym origin wymaga CORS. Produkcyjne serwowanie dist wymaga osobnego
+reverse proxy API lub jawnego adresu API. Compose używa Node 22, bind mount,
+wolumenu zależności, npm ci przy starcie i portu 5173. Mobile i obraz produkcyjny
+pozostają do implementacji. Polecenia opisują
+[frontend](../frontend/README.md) i [kontenery](../containers/local/README.md).
+
+Aktualna weryfikacja 2026-11-03: instalacja zależności i ponowne npm ci offline
+z cache (również z włączonymi skryptami), build z kontrolą typów, Compose config --quiet i dwa
+testy npm test zakończone powodzeniem. Testy sprawdzają render logowania z pełnym
+drzewem providerów oraz przekazywanie POST, query, Authorization i odpowiedzi
+401 przez serwer Vite do syntetycznego serwera HTTP. Nie potwierdzają działania
+backendu z bazą ani integracji zewnętrznych. Docker Desktop jest wyłączony,
+host przeglądarki niedostępny; bez nowego testu kontenerów i wizualnego UI.
+Nie uruchamiano migracji ani seeda. Historia/edycja/usuwanie Expense i operacje
+Receipt/OCR nadal zwracają 501; frontend pokazuje wspólny dialog niedostępności.
+
+Wcześniejsza weryfikacja szablonu Vite (przed powyższymi zmianami): Compose config --quiet, build obrazu, start wyłącznie frontendu,
+lint i build aplikacji wewnątrz kontenera oraz restart z istniejącym wolumenem
+zakończone powodzeniem. HTTP zwraca 200 ze stroną startową. Po tymczasowej
+zmianie App.tsx połączenie WebSocket Vite odebrało js-update bez restartu;
+tekst szablonu przywrócono. Nie potwierdzono wizualnego działania strony ani
+kliknięcia licznika: host dostępu do przeglądarki był niedostępny, a odczyt
+stanu okna Chrome nie powiódł się. Nie uruchamiano migracji ani seeda.
+Ówczesny `npm audit` zgłaszał 12 wpisów moderate wynikających z podatności minimatch
+w drzewie narzędzi ESLint (zależności developerskie); bez high/critical.
+
 ## Zmiany po review — 2026-10-28
 
 - Seed dostosowano do migracji Receipt z 2026-10-28: zapisuje `storage_key`
@@ -483,7 +564,7 @@ z lokalnego cache. Kontrole stylu i formatowania zmienionych plików oraz
 | Baza | Modele i konfiguracje Banking, Expense, Grouping, Limits, Notifications, Receipt i User; wspólny AppDbContext i migracje | Obecność migracji nie potwierdza ich zastosowania na każdej bazie |
 | Expense | Historia, szczegóły, tworzenie, preview tworzenia i edycji, PUT oraz DELETE. Zmiany wydatków i sald Grouping zapisują się atomowo. | Paragon można dodać, wymienić lub usunąć przy zapisie formularza. ExpenseAdded działa przy tworzeniu. Ochrona ponowień, spójny odczyt historii i trwałe sprzątanie plików pozostają osobnymi etapami. |
 | Repozytoria | Banking; Group/GroupMember; User/UserToken; Category/Expense/ExpenseItem/ExpenseShare; CategoryGroupLimit; Receipt; Notification/NotificationRecipient | BankingConnectionRepository sam zapisuje próby i połączenia; podstawowe repozytoria pozostawiają SaveChangesAsync serwisowi; warunkowe UPDATE/DELETE wykonują się od razu; brak kompletnego API wszystkich encji |
-| User | Rejestracja, potwierdzenie i ponowna wysyłka e-maila; login z JWT i hashowanym refresh tokenem, rotacja refresh, logout; jedna sesja na konto i weryfikacja jej aktualności przy uwierzytelnieniu; limity IP; GET/PUT api/users/profile; zmiana e-maila z aktualnym hasłem i potwierdzeniem tokenem; forgot-password/reset-password z unieważnieniem sesji; dezaktywacja po potwierdzeniu e-mailem z usunięciem wszystkich tokenów; login nieaktywnego konta po poprawnym haśle zwraca 403; wspólny IEmailSender/SmtpEmailSender i UserEmailMessages | Brak strony potwierdzenia/resetu, zmiany hasła po podaniu aktualnego hasła; konfiguracja JWT wymaga klucza w środowisku; istnieją projekty testów jednostkowych, HTTP i PostgreSQL; brak potwierdzenia dostarczenia wiadomości do rzeczywistej skrzynki |
+| User | Rejestracja, potwierdzenie i ponowna wysyłka e-maila; login z JWT i hashowanym refresh tokenem, rotacja refresh, logout; jedna sesja na konto i weryfikacja jej aktualności przy uwierzytelnieniu; limity IP; GET/PUT api/users/profile; zmiana e-maila z aktualnym hasłem i potwierdzeniem tokenem; forgot-password/reset-password z unieważnieniem sesji; dezaktywacja po potwierdzeniu e-mailem z usunięciem wszystkich tokenów; login nieaktywnego konta po poprawnym haśle zwraca 403; wspólny IEmailSender/SmtpEmailSender i UserEmailMessages | Strony potwierdzeń i resetu dostępne od 2026-11-04 (opis powyżej). Brak zmiany hasła po podaniu aktualnego hasła; konfiguracja JWT wymaga klucza w środowisku; istnieją projekty testów jednostkowych, HTTP i PostgreSQL; brak potwierdzenia dostarczenia wiadomości do rzeczywistej skrzynki |
 | Banking | Próby/połączenia, adapter Tink, callback, odczyt zgód oraz refresh on demand przez trwały worker PostgreSQL, import kont i BOOKED per rachunek; IBankingReadService oraz HTTP GET list/szczegółów rachunków i transakcji | Nowy import wymaga osobnego potwierdzenia Sandbox i zastosowania migracji AddBanking do właściwej bazy; brak odłączania banku i odnawiania zgód |
 | Receipt / OCR | Analiza pliku bez zapisu, upload przy zapisie Expense, odczyt rekordu i podpisanego URL oraz usuwanie; StorageKey z unikalnym indeksem; dwa projekty testowe | Własne endpointy Receipt są celowo wykluczone; brak potwierdzenia pełnego przepływu z rzeczywistym OCR/storage w bieżącej weryfikacji; seed zawiera syntetyczny klucz bez pliku |
 | Kategoryzacja | Klasyfikacja i propozycje nazw produktów w workerze Python; Expense mapuje nazwy kategorii na ID w propozycji formularza, którą użytkownik może poprawić | Worker nie zapisuje encji .NET; niejednoznaczna lub nieznana nazwa wymaga wyboru kategorii; historyczne eksperymenty nie potwierdzają jakości aktualnego pipeline |

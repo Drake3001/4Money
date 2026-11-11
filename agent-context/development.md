@@ -28,8 +28,10 @@ Generowanie nie wymaga uruchomionej bazy ani builda backendu.
 
 ## Lokalna baza i API
 
-Docker uruchamia cztery usługi przez jeden `containers/local/docker-compose.yml`
-i jeden `containers/local/.env`: PostgreSQL, backend, SeaweedFS i OCR. Pełna
+Docker uruchamia pięć usług przez jeden `containers/local/docker-compose.yml`
+i jeden `containers/local/.env`: frontend Vite, PostgreSQL, backend, SeaweedFS i OCR. Sam
+frontend można uruchomić niezależnie przez `docker compose up --build -d frontend`
+z katalogu `containers/local/`; nie wymaga instalacji Node na hoście. Pełna
 konfiguracja, porty i przejście ze starych Compose są w
 [instrukcji kontenerów](../containers/local/README.md). Pliki `.env` w katalogach
 API i workera są potrzebne tylko do uruchamiania tych aplikacji bez Dockera.
@@ -138,12 +140,14 @@ koordynatora razem z Expense. AddExpenseServices rejestruje tylko usługi Expens
 host rejestruje implementacje Grouping i User w sekcjach tych modułów.
 Docelowy kontrakt i przykłady opisuje [Expense API](../notes/EXPENSE_API.md).
 `POST /api/users/register` waliduje dane, zapisuje niepotwierdzone konto razem
-ze skrótem tokenu i wysyła wiadomość przez SMTP po zakończeniu zapisu.
+ze skrótem tokenu w otwartej transakcji. Zatwierdza ją dopiero po przyjęciu
+wiadomości przez SMTP; błąd wysyłki wycofuje konto i token.
 `POST /api/users/confirm-email` przyjmuje JSON z polem `token` i zwraca 204
 po potwierdzeniu adresu albo 400 dla niepoprawnego, wygasłego lub zużytego tokenu.
 Generator tworzy 32 losowe bajty kodowane jako Base64Url (43 znaki); w bazie
-przechowujemy skrót SHA-256. Wysyłany e-mail zawiera jawny token i termin
-ważności; strony potwierdzenia jeszcze nie ma. Logowanie opisano poniżej.
+przechowujemy skrót SHA-256. E-mail HTML zawiera przycisk i termin ważności.
+Token jest we fragmencie linku (`#token=...`), a frontend wywołuje odpowiedni POST.
+Po potwierdzeniu adresu pokazuje logowanie z komunikatem sukcesu.
 Stan kodu opisuje [status](implementation-status.md).
 
 ## Rejestracja i potwierdzenie adresu
@@ -164,8 +168,9 @@ Zapis nowego konta tworzy też zwykłą grupę „Wydatki osobiste” w PLN z je
 członkiem będącym administratorem. Robi to trigger PostgreSQL w transakcji
 rejestracji, przed potwierdzeniem e-maila. Kontrakt odpowiedzi nie zawiera grupy;
 po potwierdzeniu i logowaniu jest dostępna przez zwykłe API Grouping.
-Błąd zapisu grupy lub członkostwa wycofuje rejestrację. Awaria późniejszej
-wysyłki SMTP pozostawia konto i grupę, tak jak dotychczas pozostawiała konto.
+Błąd zapisu grupy lub członkostwa wycofuje rejestrację. W zwykłej rejestracji
+awaria SMTP przed commitem wycofuje konto, token, grupę i członkostwo.
+Rejestracja Google ma osobny kontrakt opisany w sekcji Google poniżej.
 
 1. Wywołaj `POST /api/users/register` z polami `login`, `name`, `surname`,
    `email`, `password`, `birthDate` (data w formacie `YYYY-MM-DD`).
@@ -187,11 +192,11 @@ przyjmuje istniejący token i zużywa go, natomiast `resend-confirmation`
 wystawia nowy token i wysyła wiadomość. Ponowne wywołanie `confirm-email`
 nie wysyła maila i nie odnawia wygasłego tokenu.
 
-Awaria SMTP zwraca 503. Jeśli nastąpiła podczas rejestracji, konto i token są
-już zapisane: należy skorzystać z ponownej wysyłki po wymaganym odstępie,
-zamiast ponawiać rejestrację. Anulowanie żądania po zapisie również nie usuwa
-konta. Nie ma automatycznych ponowień wysyłki: błąd po zaakceptowaniu wiadomości
-przez serwer SMTP nie pozwala zagwarantować, czy wiadomość została dostarczona.
+Awaria SMTP zwraca 503 i wycofuje zapis konta oraz tokenu; można ponowić
+rejestrację tym samym adresem. Anulowanie przed commitem także wycofuje zapis.
+Przy ponownej wysyłce awaria zachowuje poprzedni token i jego daty.
+Nie ma automatycznych ponowień. SMTP potwierdza przyjęcie wiadomości,
+nie jej dostarczenie do skrzynki. Zobacz ograniczenia transakcji w architekturze.
 Treść i temat wiadomości tworzy `UserEmailMessages.EmailConfirmation` w
 `Integrations/Smtp`. Serwisy wywołują wspólny `IEmailSender.SendAsync`.
 Token i dane logowania SMTP nie trafiają do odpowiedzi API ani logów aplikacji.
@@ -398,7 +403,11 @@ próby, wiele instancji wymaga sticky sessions lub przyszłego wspólnego magazy
 `IUserSessionService` tworzy wspólną sesję dla logowania Google i hasłem.
 Wywołujący blokuje rekord konta i zatwierdza transakcję; nowe logowanie usuwa
 poprzednią sesję. Rejestracja Google zapisuje konto, grupę startową i sesję
-atomowo. SMTP działa po commit. Model i warunki cofania migracji opisuje
+atomowo. Przy rejestracji Google wymagającej potwierdzenia adresu SMTP działa
+po commicie: awaria pozostawia konto, grupę i token, a użytkownik może ponowić
+wysyłkę przez resend-confirmation. To wyjątek od wysyłki przed commitem
+w zwykłej rejestracji oraz przy wystawianiu tokenów resetu hasła, zmiany e-maila,
+dezaktywacji i ponownego potwierdzenia adresu. Model i warunki cofania migracji opisuje
 [domena](domain.md#konto-i-tokeny-użytkownika), a ręczną pracę z tokenem i cookie
 [Postman](../postman/README.md#google).
 
@@ -576,15 +585,15 @@ EmailChange__ResendCooldownSeconds=60
 
 Wysyłka wykorzystuje istniejącą konfigurację Smtp i wspólny IEmailSender.
 Temat i treść tworzy UserEmailMessages.EmailChange, a błąd wysyłki obsługuje EmailChangeService.
-Awaria SMTP zwraca 503; poprzedni adres pozostaje bez zmian, nowy token jest już
-zapisany. Ponowienie żądania po wymaganym odstępie wystawia i wysyła nowy token.
+Awaria SMTP zwraca 503; poprzedni adres i poprzedni token pozostają bez zmian.
+Nieudana wysyłka nie rozpoczyna nowego odstępu między żądaniami.
 Token nie jest zwracany w API ani logowany. Nie ma automatycznych ponowień SMTP.
 
 Request i confirm blokują najpierw użytkownika, następnie operują na tokenach.
 TryConsumeAsync warunkowo usuwa aktualny niewygasły token. TryChangeEmailAsync
 wykonuje warunkowy UPDATE konta; RemoveByUserAsync i SaveChangesAsync usuwają
 pozostałe tokeny. Wszystkie operacje potwierdzenia są w jednej transakcji,
-a SMTP przy żądaniu działa po zatwierdzeniu zapisu. Migracja nie jest potrzebna.
+a SMTP przy żądaniu działa przed zatwierdzeniem zapisu. Migracja nie jest potrzebna.
 
 Ręczna weryfikacja w Postmanie: login, żądanie zmiany (202), GET profilu ze starym
 adresem (200), potwierdzenie tokenem z nowej skrzynki (204), GET starym JWT (401),
@@ -607,12 +616,13 @@ Oba endpointy PasswordResetController są anonimowe i mają Cache-Control: no-st
 
    Adres jest przycinany i zamieniany na małe litery. Dla aktywnego konta
    z potwierdzonym e-mailem zapisujemy hash tokenu PasswordReset, TargetEmail
-   równy aktualnemu adresowi, CreatedAt i ExpiresAt. SMTP działa po zatwierdzeniu
-   transakcji. Wiadomość zawiera token do ręcznego skopiowania do Postmana;
-   link do frontendu nie jest jeszcze zaimplementowany.
+   równy aktualnemu adresowi, CreatedAt i ExpiresAt. SMTP działa przed zatwierdzeniem
+   transakcji. Przycisk w wiadomości HTML otwiera formularz nowego hasła z tokenem.
+   Błąd wysyłki wycofuje nowy token i zachowuje poprzedni, jeżeli istniał.
 
    Dla konta Google bez hasła ten sam przepływ ustawia pierwsze hasło lokalne.
-   SMTP wysyła wtedy `UserEmailMessages.PasswordSetup`; dalszy krok to zwykły
+   SMTP wysyła wtedy HTML `UserEmailMessages.PasswordSetup` z linkiem
+   `?action=reset#token=...` do tego samego formularza; dalszy krok to zwykły
    `reset-password`. Hasło Google pozostaje niezależne. Po zatwierdzeniu wszystkie
    sesje są unieważniane; można zalogować się przez Google albo login/e-mail i hasło.
 
@@ -622,8 +632,8 @@ Oba endpointy PasswordResetController są anonimowe i mają Cache-Control: no-st
    ogólne ostrzeżenie, bez adresu, tokenu, hasła i szczegółów wyjątku SMTP.
    Status i treść odpowiedzi nie wskazują, czy istnieje konto; czasy odpowiedzi
    nie są wyrównywane, ponieważ wysyłka SMTP jest wykonywana w ramach żądania.
-   202 nie gwarantuje dostarczenia wiadomości. Po awarii można ponowić żądanie
-   po upływie odstępu; nie ma automatycznych ponowień wysyłki.
+   202 nie gwarantuje dostarczenia wiadomości. Nieudana wysyłka nie rozpoczyna
+   nowego odstępu; nie ma automatycznych ponowień wysyłki.
 
 2. `POST /api/users/reset-password` przyjmuje:
 
@@ -702,9 +712,10 @@ dotnet run --file tools/ef.cs -- database update
 
 Żądanie dezaktywacji nie wymaga hasła w body; wymaga aktualnej sesji,
 a potwierdzenie posiadania adresu następuje przez token wysłany e-mailem.
-Wiadomość na razie zawiera surowy token do Postmana. Przyszły link powinien
-otwierać stronę frontendu przekazującą token do POST confirm-deactivation;
-samo GET linku nie jest obecnie endpointem zmieniającym stan konta.
+Przycisk w wiadomości HTML otwiera frontend, który automatycznie wykonuje
+POST confirm-deactivation i pokazuje wynik. Samo pobranie HTML przez GET nie
+zmienia konta; potwierdzenie wykonuje JavaScript strony. Wiadomość uprzedza
+o skutku kliknięcia. Awaria SMTP wycofuje nowy token, zachowując poprzedni.
 
 Token jest generowany kryptograficznie (43 znaki Base64Url), w bazie zostaje
 tylko SHA-256. Domyślnie ważność wynosi 30 minut, odstęp między wysyłkami 60 sekund.
@@ -726,10 +737,26 @@ bez wysyłki. Nie ma reaktywacji ani fizycznego usuwania konta.
 
 ## Konfiguracja SMTP
 
+Linki ustawia `UserEmailLinks:FrontendBaseUrl` w appsettings.json (domyślnie
+`http://localhost:5173`), nadpisywane przez `UserEmailLinks__FrontendBaseUrl`.
+W Compose odpowiada temu `USER_EMAIL_FRONTEND_URL` w containers/local/.env.
+Podaj adres frontendu dostępny z przeglądarki odbiorcy, np. adres Tailscale,
+bez query i fragmentu. Host waliduje HTTP/HTTPS przy starcie.
+Link ma postać `/?action=confirm-email#token=...`; pozostałe akcje to
+`confirm-email-change`, `confirm-deactivation` i `reset`. Frontend odczytuje
+fragment, wywołuje API i usuwa token z adresu po sukcesie. Reset wymaga wpisania
+nowego hasła; pozostałe potwierdzenia wykonują się po otwarciu strony.
+Zmiana e-maila, reset hasła i dezaktywacja czyszczą lokalną sesję po sukcesie.
+Po żądaniu wiadomości formularze przypominają o sprawdzeniu folderu Spam/Oferty.
+
+Do ręcznych testów POST w Postmanie skopiuj i zdekoduj wartość `token` z fragmentu
+linku, zamiast klikać przycisk: otwarcie strony może zużyć jednorazowy token.
+
 `IEmailSender` z modułu User ma implementację `SmtpEmailSender` opartą na MailKit.
 Interfejs, implementacja i `EmailDeliveryException` są razem w `Integrations/Smtp`.
 Enum `SmtpSecurityMode` jest zdefiniowany w pliku `SmtpOptions.cs`.
-Wysyła wiadomości tekstowe; każda wysyłka tworzy osobne połączenie SMTP.
+Wysyła wiadomości HTML z tekstowym wariantem alternatywnym; każda wysyłka
+tworzy osobne połączenie SMTP.
 Wszystkie przepływy konta korzystają bezpośrednio z tego samego IEmailSender.
 Tematy i treści są w Integrations/Smtp/UserEmailMessages.cs: EmailConfirmation,
 EmailChange, PasswordReset, PasswordSetup i AccountDeactivation zwracają EmailMessage (Subject, Body), którego
@@ -849,7 +876,9 @@ migracji, konfiguracji Tink i `FOURMONEY_DATABASE_DSN` dla lokalnej bazy.
 Reset usuwa lokalne dane i sesje; zdalne zasoby poprzednich runów pozostają.
 
 `database/seed_local.sql` to lokalny reset danych przez TRUNCATE, nie migracja
-ani aktualizacja przyrostowa. Obecny seed tworzy pięć syntetycznych kont:
+ani aktualizacja przyrostowa. Zachowuje `expense.category`; kategorie są
+dodawane przez migracje EF i nie są ponownie wstawiane przez seed.
+Obecny seed tworzy pięć syntetycznych kont:
 seed_anna, seed_bartek, seed_celina, seed_dawid i postman.banking. Wspólne hasło
 testowe to `TestPassword1!`; seed_dawid jest celowo nieaktywny. Te dane są
 wyłącznie lokalne. Nie zmieniaj hasła bazy PostgreSQL na hasło kont aplikacji.

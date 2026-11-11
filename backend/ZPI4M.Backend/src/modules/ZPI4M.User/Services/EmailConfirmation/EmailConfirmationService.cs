@@ -17,6 +17,7 @@ public sealed class EmailConfirmationService : IEmailConfirmationService
 	private readonly UserDbContext _dbContext;
 	private readonly IUserTokenGenerator _tokenGenerator;
 	private readonly IEmailSender _emailSender;
+	private readonly UserEmailMessages _emailMessages;
 	private readonly EmailConfirmationOptions _options;
 
 	public EmailConfirmationService(
@@ -25,6 +26,7 @@ public sealed class EmailConfirmationService : IEmailConfirmationService
 		UserDbContext dbContext,
 		IUserTokenGenerator tokenGenerator,
 		IEmailSender emailSender,
+		UserEmailMessages emailMessages,
 		IOptions<EmailConfirmationOptions> options)
 	{
 		_users = users;
@@ -32,6 +34,7 @@ public sealed class EmailConfirmationService : IEmailConfirmationService
 		_dbContext = dbContext;
 		_tokenGenerator = tokenGenerator;
 		_emailSender = emailSender;
+		_emailMessages = emailMessages;
 		_options = options.Value;
 	}
 
@@ -118,18 +121,17 @@ public sealed class EmailConfirmationService : IEmailConfirmationService
 			token.CreatedAt = now;
 			token.ExpiresAt = expiresAt;
 			await _dbContext.SaveChangesAsync(cancellationToken);
-			await transaction.CommitAsync(cancellationToken);
-		}
-
-		var message = UserEmailMessages.EmailConfirmation(rawToken, expiresAt);
-		try
-		{
-			await _emailSender.SendAsync(request.Email, message.Subject, message.Body, cancellationToken);
-			return ResendEmailConfirmationResult.Accepted;
-		}
-		catch (EmailDeliveryException)
-		{
-			return ResendEmailConfirmationResult.EmailDeliveryFailed;
+			var message = _emailMessages.EmailConfirmation(rawToken, expiresAt);
+			try
+			{
+				await _emailSender.SendAsync(request.Email, message.Subject, message.Body, cancellationToken);
+				await transaction.CommitAsync(cancellationToken);
+				return ResendEmailConfirmationResult.Accepted;
+			}
+			catch (EmailDeliveryException)
+			{
+				return ResendEmailConfirmationResult.EmailDeliveryFailed;
+			}
 		}
 	}
 }

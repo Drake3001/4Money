@@ -59,8 +59,12 @@ plik lub dodaj brakujące zmienne w wybranym środowisku.
 2. Uzupełnij lokalnie `userLogin`, `userEmail` (dostępna skrzynka), `userPassword`
    i dane profilu. Hasło ma mieć 8–128 znaków, wielką literę, cyfrę i znak specjalny.
    `userBirthDate` ma format `YYYY-MM-DD`. Nie eksportuj prawdziwych danych do Git.
-3. Uruchom rejestrację przez **Send**. Token z maila wklej do
+3. Uruchom rejestrację przez **Send**. Token z fragmentu `#token=...` linku w mailu wklej do
    `userEmailConfirmationToken`, wyślij potwierdzenie, potem login.
+   Nie otwieraj wcześniej linku w przeglądarce: frontend automatycznie zużywa
+   token potwierdzenia. Ta sama zasada dotyczy zmiany e-maila i dezaktywacji.
+   Przy błędzie SMTP rejestracja wycofuje konto, a żądania nowych tokenów
+   zachowują poprzednie tokeny. Można ponowić nieudaną rejestrację.
    Login zapisuje `fourMoneyAccessToken` i `fourMoneyRefreshToken` w środowisku.
    Żądania chronione pobierają Bearer automatycznie; refresh token trafia do body.
 4. Pobierz lub edytuj profil. PUT wysyła komplet pól. Puste `userPhone`

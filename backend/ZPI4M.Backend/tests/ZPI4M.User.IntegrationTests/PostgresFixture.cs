@@ -139,6 +139,8 @@ public abstract class PostgresFixture : IAsyncLifetime
 		builder.Services.AddScoped<IPasswordHasher<Models.User>, PasswordHasher<Models.User>>();
 		builder.Services.AddSingleton<IUserTokenGenerator, UserTokenGenerator>();
 		builder.Services.AddSingleton<IEmailSender>(Email);
+		builder.Services.AddSingleton<UserEmailMessages>();
+		builder.Services.AddOptions<UserEmailLinkOptions>();
 		builder.Services.AddScoped<IUserRegistrationService, UserRegistrationService>();
 		builder.Services.AddScoped<IEmailConfirmationService, EmailConfirmationService>();
 		builder.Services.AddScoped<IUserProfileService, UserProfileService>();
@@ -174,14 +176,28 @@ public abstract class PostgresFixture : IAsyncLifetime
 	{
 		public List<(string Recipient, string Body)> Messages { get; } = [];
 		public bool Fail { get; set; }
-		public string LastToken => Regex.Match(Messages[^1].Body, @"(?m)^[A-Za-z0-9_-]{43}$").Value;
-		public Task SendAsync(string recipient, string subject, string body, CancellationToken cancellationToken = default)
+		public Func<Task>? BeforeSend { get; set; }
+		public bool Cancel { get; set; }
+		public string LastToken
+		{
+			get
+			{
+				Assert.NotEmpty(Messages);
+				var match = Regex.Match(Messages[^1].Body, @"#token=([A-Za-z0-9_-]{43})");
+				Assert.True(match.Success, "The email must contain a frontend link with a token in #token=...");
+				return match.Groups[1].Value;
+			}
+		}
+		public async Task SendAsync(string recipient, string subject, string body, CancellationToken cancellationToken = default)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
+			if (BeforeSend is not null)
+				await BeforeSend();
+			if (Cancel)
+				throw new OperationCanceledException("Simulated interrupted SMTP request.");
 			if (Fail)
 				throw new EmailDeliveryException("Simulated SMTP failure.", new IOException("Test failure."));
 			Messages.Add((recipient, body));
-			return Task.CompletedTask;
 		}
 	}
 }

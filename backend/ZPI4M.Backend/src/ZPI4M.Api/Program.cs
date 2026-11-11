@@ -210,6 +210,11 @@ builder.Services.AddOptions<SmtpOptions>()
 		(!string.IsNullOrWhiteSpace(options.Username) && !string.IsNullOrEmpty(options.Password)),
 		"SMTP username and password must both be provided or both be empty.");
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+builder.Services.AddOptions<UserEmailLinkOptions>()
+	.BindConfiguration(UserEmailLinkOptions.SectionName)
+	.Validate(UserEmailLinkOptions.IsValid, "UserEmailLinks:FrontendBaseUrl must be an absolute HTTP(S) URL without credentials, query or fragment.")
+	.ValidateOnStart();
+builder.Services.AddSingleton<UserEmailMessages>();
 
 // Notifications module
 builder.Services.AddDbContext<NotificationsDbContext>((provider, options) =>

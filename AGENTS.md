@@ -43,7 +43,8 @@ analiza poszczególnych produktów, a także podział kosztów między użytkown
 | `backend/ZPI4M.Backend/` | Solucja .NET, moduły, host API, migracje i testy |
 | `agent-context/` | Kontekst tematyczny i bieżący status implementacji |
 | `../doc/` (lokalne `ZPI/doc`) | Źródłowe wymagania TXT i diagramy poza repozytorium |
-| `containers/local/` | Jeden Compose PostgreSQL, backendu, SeaweedFS i OCR; wspólny .env i .env.example; instrukcja uruchomienia |
+| `frontend/` | React + TypeScript + Vite i Tailwind; ekrany i klient API, proxy developerskie; ograniczenia w statusie implementacji |
+| `containers/local/` | Jeden Compose frontendu Vite, PostgreSQL, backendu, SeaweedFS i OCR; wspólny .env i .env.example; instrukcja uruchomienia |
 | `containers/deploy/` | Miejsce na przyszłą konfigurację wdrożenia; obecnie tylko .gitkeep |
 | `database/init/` | SQL inicjalizujący bazę przed zastosowaniem migracji |
 | `database/seed_local.sql` | Reset i syntetyczne dane lokalne; uruchamiaj po migracjach |
@@ -166,7 +167,7 @@ potwierdzenia działania usług zewnętrznych.
 - Nowa baza wymaga kolejności: SQL init → migracje EF → seed. Seed czyści dane,
   nie naprawia schematu ani historii EF. Rebase nie cofa już zastosowanych zmian bazy;
   odtworzenie lokalnego wolumenu wymaga zgody na usunięcie danych w danym zadaniu.
-- Docker używa wyłącznie `containers/local/.env` dla wszystkich czterech usług;
+- Docker używa wyłącznie `containers/local/.env` dla wszystkich pięciu usług;
   szablon i instrukcja są w `containers/local/`. Pliki `.env` API i workera służą
   uruchomieniu bez Dockera. Compose ustawia adresy zależności po nazwach usług;
   nie podawaj localhost jako adresu zależności wewnątrz kontenera.

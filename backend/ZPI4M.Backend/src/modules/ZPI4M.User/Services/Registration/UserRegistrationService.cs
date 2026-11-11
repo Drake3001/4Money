@@ -19,6 +19,7 @@ public sealed class UserRegistrationService : IUserRegistrationService
 	private readonly IPasswordHasher<Models.User> _passwordHasher;
 	private readonly IUserTokenGenerator _tokenGenerator;
 	private readonly IEmailSender _emailSender;
+	private readonly UserEmailMessages _emailMessages;
 	private readonly EmailConfirmationOptions _confirmationOptions;
 
 	public UserRegistrationService(
@@ -27,6 +28,7 @@ public sealed class UserRegistrationService : IUserRegistrationService
 		IPasswordHasher<Models.User> passwordHasher,
 		IUserTokenGenerator tokenGenerator,
 		IEmailSender emailSender,
+		UserEmailMessages emailMessages,
 		IOptions<EmailConfirmationOptions> confirmationOptions)
 	{
 		_users = users;
@@ -34,6 +36,7 @@ public sealed class UserRegistrationService : IUserRegistrationService
 		_passwordHasher = passwordHasher;
 		_tokenGenerator = tokenGenerator;
 		_emailSender = emailSender;
+		_emailMessages = emailMessages;
 		_confirmationOptions = confirmationOptions.Value;
 	}
 
@@ -75,6 +78,7 @@ public sealed class UserRegistrationService : IUserRegistrationService
 		};
 		user.UserTokens.Add(confirmationToken);
 
+		await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 		_users.Add(user);
 		try
 		{
@@ -91,7 +95,7 @@ public sealed class UserRegistrationService : IUserRegistrationService
 			return (UserRegistrationResult.LoginOrEmailAlreadyInUse, null);
 		}
 
-		var message = UserEmailMessages.EmailConfirmation(rawToken, confirmationToken.ExpiresAt);
+		var message = _emailMessages.EmailConfirmation(rawToken, confirmationToken.ExpiresAt);
 		try
 		{
 			await _emailSender.SendAsync(user.Email, message.Subject, message.Body, cancellationToken);
@@ -101,6 +105,7 @@ public sealed class UserRegistrationService : IUserRegistrationService
 			return (UserRegistrationResult.EmailDeliveryFailed, null);
 		}
 
+		await transaction.CommitAsync(cancellationToken);
 		var response = new RegisterUserResponse(
 			user.Id, user.Login, user.Name, user.Surname, user.Email,
 			user.BirthDate, user.IsEmailConfirmed, user.CreatedAt);

@@ -19,6 +19,7 @@ public sealed class EmailChangeService(
 	IPasswordHasher<Models.User> passwordHasher,
 	IUserTokenGenerator tokenGenerator,
 	IEmailSender emailSender,
+	UserEmailMessages emailMessages,
 	IOptions<EmailChangeOptions> options) : IEmailChangeService
 {
 	public async Task<ChangeEmailResult> RequestAsync(Guid userId, ChangeEmailRequest request, CancellationToken cancellationToken = default)
@@ -79,18 +80,17 @@ public sealed class EmailChangeService(
 			token.CreatedAt = now;
 			token.ExpiresAt = expiresAt;
 			await dbContext.SaveChangesAsync(cancellationToken);
-			await transaction.CommitAsync(cancellationToken);
-		}
-
-		var message = UserEmailMessages.EmailChange(rawToken, expiresAt);
-		try
-		{
-			await emailSender.SendAsync(request.NewEmail, message.Subject, message.Body, cancellationToken);
-			return ChangeEmailResult.Accepted;
-		}
-		catch (EmailDeliveryException)
-		{
-			return ChangeEmailResult.EmailDeliveryFailed;
+			var message = emailMessages.EmailChange(rawToken, expiresAt);
+			try
+			{
+				await emailSender.SendAsync(request.NewEmail, message.Subject, message.Body, cancellationToken);
+				await transaction.CommitAsync(cancellationToken);
+				return ChangeEmailResult.Accepted;
+			}
+			catch (EmailDeliveryException)
+			{
+				return ChangeEmailResult.EmailDeliveryFailed;
+			}
 		}
 	}
 

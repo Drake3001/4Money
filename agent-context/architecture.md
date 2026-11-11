@@ -39,7 +39,9 @@ Funkcja tworzy zwykłą grupę „Wydatki osobiste” w PLN i aktywne członkost
 administratora z zerowymi agregatami. Nie wywołuje serwisów Grouping ani
 Notifications; kod rejestracji i zależności projektów pozostają bez zmian.
 Zapis grupy i członkostwa uczestniczy w transakcji INSERT użytkownika;
-błąd wycofuje całą operację. SMTP pozostaje po zapisie rejestracji.
+błąd wycofuje całą operację. Zwykła rejestracja wysyła SMTP po SaveChanges,
+przed commitem; awaria wycofuje także grupę i członkostwo. Rejestracja Google
+wysyła potwierdzenie po commicie i zachowuje konto oraz grupę przy awarii SMTP.
 Trigger obejmuje także seed i ręczny SQL; nie uzupełnia istniejących kont.
 Zmiany tabel User/Grouping muszą uwzględniać tę funkcję. Down usuwa wyłącznie
 trigger i funkcję, pozostawiając grupy i członkostwa.
@@ -262,8 +264,23 @@ Potwierdzanie i ponowna wysyłka używają `UserRepository.GetByIdForUpdateAsync
 w transakcji: parametryzowane zapytanie PostgreSQL `SELECT ... FOR UPDATE`
 blokuje rekord użytkownika przed operacjami na tokenie. Dzięki wspólnej
 kolejności blokad żądania potwierdzenia i ponownej wysyłki są serializowane
-dla danego konta. Wywołania SMTP odbywają się po zakończeniu zapisu/transakcji.
+dla danego konta. W zwykłej rejestracji, ponownej wysyłce potwierdzenia,
+zmianie e-maila, resecie lub ustawieniu pierwszego hasła i dezaktywacji
+wywołania SMTP odbywają się po SaveChanges, ale przed commitem.
+Zwykła rejestracja zatwierdza konto i token dopiero po przyjęciu wiadomości przez SMTP;
+wymienione żądania mailowe w ten sam sposób zatwierdzają rotację tokenu.
+Awaria lub anulowanie przed commitem wycofuje zapis i zachowuje poprzedni token.
+Blokada użytkownika jest utrzymywana podczas sieciowej wysyłki, ograniczonej
+timeoutem SMTP. Hasło, adres i aktywność konta zmienia dopiero potwierdzenie tokenu.
+
+PostgreSQL i SMTP nie uczestniczą we wspólnej transakcji rozproszonej. Przyjęcie
+przez SMTP nie gwarantuje dostarczenia do skrzynki. Jeśli SMTP przyjmie mail,
+ale klient dostanie timeout albo commit bazy zawiedzie, wysłany link może być
+nieważny. Użytkownik może ponowić żądanie; nie gwarantujemy wysyłki exactly-once.
 Serwisy User wysyłają wiadomości bezpośrednio przez wspólny IEmailSender.
+Wyjątkiem jest rejestracja Google wymagająca potwierdzenia adresu: najpierw
+zatwierdza konto, grupę i token, potem wysyła SMTP. Awaria daje 503, ale zachowuje
+te dane; ponowna wysyłka jest dostępna przez resend-confirmation.
 W Integrations/Smtp znajdują się adapter SmtpEmailSender, konfiguracja,
 UserEmailMessages.cs z tematami oraz treściami i rekordem EmailMessage
 (Subject, Body) w tym samym pliku. Nie ma folderu Services/Email ani osobnych
@@ -399,8 +416,8 @@ znajdują się w [instrukcji pracy](development.md#modele-i-migracje).
 | Backend | C#, .NET 10, ASP.NET Core, EF Core, Npgsql |
 | API | Obecnie OpenAPI w Development; Swagger i Postman wymieniono w planie narzędzi |
 | Baza lokalna | PostgreSQL 15 Alpine w Docker Compose |
-| Kontenery aplikacji | Jeden containers/local/docker-compose.yml: PostgreSQL, backend .NET, SeaweedFS 4.48 i worker OCR; jedna konfiguracja containers/local/.env; wewnętrzna komunikacja po nazwach usług |
-| Web | Docelowo React; brak aplikacji frontendowej w obecnym repo |
+| Kontenery aplikacji | Jeden containers/local/docker-compose.yml: frontend Vite, PostgreSQL, backend .NET, SeaweedFS 4.48 i worker OCR; jedna konfiguracja containers/local/.env; wewnętrzna komunikacja po nazwach usług |
+| Web | React + TypeScript + Vite i Tailwind; ekrany i klient API z JWT. Przeglądarka używa /api przez proxy Vite dev/preview do API_PROXY_TARGET (lokalnie localhost:5283, Compose backend:8080). Kontener developerski Node 22, bind mount kodu, osobny wolumen node_modules i HMR z opcjonalnym pollingiem; bez obrazu produkcyjnego. Uruchomienie: frontend/README.md i containers/local/README.md; ograniczenia: implementation-status.md |
 | Mobile | Uzgodniono React + Capacitor; Stos technologiczny.txt nadal wymienia alternatywę React Native, brak aplikacji w repo |
 | OCR i storage | Worker FastAPI z OCR i kategoryzacją produktów; Receipt opcjonalnie wywołuje POST /api/v1/extract i korzysta z magazynu zgodnego z S3; dostęp HTTP planowany przez Expense; brak potwierdzenia pełnego przepływu w tej weryfikacji |
 | Automatyzacja | GitHub Actions, pre-commit, narzędzia Python zarządzane przez uv |
