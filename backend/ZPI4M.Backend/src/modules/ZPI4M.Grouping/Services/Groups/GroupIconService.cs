@@ -1,3 +1,4 @@
+using ZPI4M.Shared.Images;
 using ZPI4M.Shared.Storage;
 namespace ZPI4M.Grouping.Services.Groups;
 
@@ -19,25 +20,26 @@ public sealed class GroupIconService(IObjectStorage storage, Microsoft.Extension
 	}
 	public async Task<string> UploadAsync(Guid groupId, Stream content, string contentType, CancellationToken ct)
 	{
-		await using var buffer = new FileStream(Path.Combine(Path.GetTempPath(), $"group-icon-{Guid.NewGuid():N}"), FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 81920, FileOptions.Asynchronous | FileOptions.DeleteOnClose);
-		var bytes = new byte[81920];
-		int read;
-		while ((read = await content.ReadAsync(bytes, ct)) > 0)
+		byte[] bytes;
+		try
 		{
-			if (buffer.Length + read > 5 * 1024 * 1024) throw new GroupIconException(413);
-			await buffer.WriteAsync(bytes.AsMemory(0, read), ct);
+			bytes = await IconImageProcessor.NormalizeAsync(content, contentType, ct);
 		}
-		if (buffer.Length == 0) throw new GroupIconException(400);
-		buffer.Position = 0;
-		var header = new byte[12];
-		var count = await buffer.ReadAsync(header, ct);
-		var png = count >= 8 && header.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 });
-		var jpeg = count >= 3 && header[0] == 255 && header[1] == 216 && header[2] == 255;
-		var webp = count == 12 && System.Text.Encoding.ASCII.GetString(header, 0, 4) == "RIFF" && System.Text.Encoding.ASCII.GetString(header, 8, 4) == "WEBP";
-		if (!(contentType == "image/png" && png || contentType == "image/jpeg" && jpeg || contentType == "image/webp" && webp)) throw new GroupIconException(415);
-		buffer.Position = 0;
+		catch (IconImageException exception)
+		{
+			throw new GroupIconException(exception.Status);
+		}
+		using var normalized = new MemoryStream(bytes);
 		var key = $"groups/{groupId}/icons/{Guid.NewGuid():N}";
-		await storage.UploadAsync(key, buffer, contentType, ct);
+		try
+		{
+			await storage.UploadAsync(key, normalized, IconImageProcessor.ContentType, ct);
+		}
+		catch
+		{
+			await CleanupAsync(key);
+			throw;
+		}
 		return key;
 	}
 	public Task<FileUrlResult> GetUrlAsync(string key, CancellationToken ct) => storage.GetReadUrlAsync(key, ct);

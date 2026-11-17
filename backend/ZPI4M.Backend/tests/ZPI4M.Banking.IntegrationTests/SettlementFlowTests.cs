@@ -35,7 +35,7 @@ public sealed class SettlementFlowTests : PostgresFixture
 		var tx = new GroupingTransactionCoordinator(db, inbox, NullLogger<GroupingTransactionCoordinator>.Instance);
 		var groups = new GroupRepository(db); var members = new GroupMemberRepository(db);
 		var aggregates = new GroupMemberAggregateService(groups, members, tx);
-		await test(db, tx, aggregates, new GroupSettlementService(db, groups, members, new GroupSettlementRepository(db), aggregates, tx, TimeProvider.System, null!, new NotificationService(new NotificationRepository(inbox), new NotificationRecipientRepository(inbox), inbox, new UserLookupService(users))));
+		await test(db, tx, aggregates, new GroupSettlementService(db, groups, members, new GroupSettlementRepository(db), aggregates, tx, TimeProvider.System, null!, new NotificationService(new NotificationRepository(inbox), new NotificationRecipientRepository(inbox), inbox, new UserLookupService(users)), new UserDisplayNameLookup(users)));
 	}
 	private static CreateGroupSettlementRequest Create() => new() { FromUserId = Anna, ToUserId = Bartek, Amount = 5, Method = SettlementMethod.Cash, SettledAt = DateTimeOffset.UtcNow.AddMinutes(-1) };
 	[PostgresFact]
@@ -129,7 +129,7 @@ public sealed class SettlementFlowTests : PostgresFixture
 			var coordinator = new GroupingTransactionCoordinator(scope, inbox, NullLogger<GroupingTransactionCoordinator>.Instance);
 			var groups = new GroupRepository(scope); var members = new GroupMemberRepository(scope);
 			var aggregate = new GroupMemberAggregateService(groups, members, coordinator);
-			return (await new GroupSettlementService(scope, groups, members, new GroupSettlementRepository(scope), aggregate, coordinator, TimeProvider.System, null!, new NotificationService(new NotificationRepository(inbox), new NotificationRecipientRepository(inbox), inbox, new UserLookupService(users))).CreateAsync(Anna, Group, Create())).Status;
+			return (await new GroupSettlementService(scope, groups, members, new GroupSettlementRepository(scope), aggregate, coordinator, TimeProvider.System, null!, new NotificationService(new NotificationRepository(inbox), new NotificationRecipientRepository(inbox), inbox, new UserLookupService(users)), new UserDisplayNameLookup(users)).CreateAsync(Anna, Group, Create())).Status;
 		}
 		var statuses = await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => Add()));
 		Assert.All(statuses, status => Assert.Equal(201, status));

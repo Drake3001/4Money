@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <EmbeddedResource Include="Assets/logo-4money.png" LogicalName="ZPI4M.Banking.Logo.png" />
   </ItemGroup>
 
   <ItemGroup>

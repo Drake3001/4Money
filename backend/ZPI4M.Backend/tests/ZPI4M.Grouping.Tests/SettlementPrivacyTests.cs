@@ -27,7 +27,7 @@ public sealed class SettlementPrivacyTests
 		var members = Proxy<IGroupMemberRepository>((_, _) => Task.FromResult(true));
 		var rows = new[] { new GroupSettlement { Id = Guid.NewGuid(), GroupId = group, BankTransactionId = id, SettledAt = DateTime.UtcNow }, new GroupSettlement { Id = Guid.NewGuid(), GroupId = group, BankTransactionId = id, SettledAt = DateTime.UtcNow } };
 		var repo = Proxy<IGroupSettlementRepository>((method, _) => method.Name == "GetAsync" ? Task.FromResult<GroupSettlement?>(rows[0]) : Task.FromResult(new PagedResult<GroupSettlement>(rows, 2, 1, 20)));
-		var service = new GroupSettlementService(null!, null!, members, repo, null!, null!, TimeProvider.System, bank, null!);
+		var service = new GroupSettlementService(null!, null!, members, repo, null!, null!, TimeProvider.System, bank, null!, null!);
 		var page = await service.ListAsync(actor, group, new());
 		Assert.All(page.Value!.Items, s => Assert.Equal(visible ? (Guid?)id : null, s.BankTransactionId)); Assert.Equal(1, calls);
 		await service.GetAsync(actor, group, rows[0].Id); Assert.Equal(2, calls);
@@ -38,9 +38,9 @@ public sealed class SettlementPrivacyTests
 		var bank = Proxy<IBankingReadService>((_, _) => throw new Exception("Unexpected banking lookup"));
 		var row = new GroupSettlement { Id = Guid.NewGuid(), SettledAt = DateTime.UtcNow };
 		var repo = Proxy<IGroupSettlementRepository>((_, _) => Task.FromResult<GroupSettlement?>(row));
-		var denied = new GroupSettlementService(null!, null!, Proxy<IGroupMemberRepository>((_, _) => Task.FromResult(false)), repo, null!, null!, TimeProvider.System, bank, null!);
+		var denied = new GroupSettlementService(null!, null!, Proxy<IGroupMemberRepository>((_, _) => Task.FromResult(false)), repo, null!, null!, TimeProvider.System, bank, null!, null!);
 		Assert.Equal(404, (await denied.GetAsync(Guid.NewGuid(), Guid.NewGuid(), row.Id)).Status);
-		var allowed = new GroupSettlementService(null!, null!, Proxy<IGroupMemberRepository>((_, _) => Task.FromResult(true)), repo, null!, null!, TimeProvider.System, bank, null!);
+		var allowed = new GroupSettlementService(null!, null!, Proxy<IGroupMemberRepository>((_, _) => Task.FromResult(true)), repo, null!, null!, TimeProvider.System, bank, null!, null!);
 		Assert.Null((await allowed.GetAsync(Guid.NewGuid(), Guid.NewGuid(), row.Id)).Value!.BankTransactionId);
 	}
 
@@ -50,7 +50,7 @@ public sealed class SettlementPrivacyTests
 	[InlineData("amount")]
 	public async Task Validation_reports_the_actual_invalid_field(string field)
 	{
-		var service = new GroupSettlementService(null!, null!, null!, null!, null!, new ValidationOnlyTransactions(), TimeProvider.System, null!, null!);
+		var service = new GroupSettlementService(null!, null!, null!, null!, null!, new ValidationOnlyTransactions(), TimeProvider.System, null!, null!, null!);
 		var request = new CreateGroupSettlementRequest
 		{
 			FromUserId = Guid.NewGuid(),

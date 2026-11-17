@@ -46,7 +46,7 @@ public sealed class SettlementSuggestionFlowTests : PostgresFixture
 		Assert.Empty(db.ChangeTracker.Entries()); Assert.Equal(count, await db.GroupSettlements.CountAsync());
 		Assert.Equal(404, (await service.GetAsync(former, group)).Status);
 		var coordinator = new GroupingTransactionCoordinator(db, inbox, NullLogger<GroupingTransactionCoordinator>.Instance);
-		var writes = new GroupSettlementService(db, groups, members, new GroupSettlementRepository(db), new GroupMemberAggregateService(groups, members, coordinator), coordinator, TimeProvider.System, null!, new NotificationService(new NotificationRepository(inbox), new NotificationRecipientRepository(inbox), inbox, new UserLookupService(users)));
+		var writes = new GroupSettlementService(db, groups, members, new GroupSettlementRepository(db), new GroupMemberAggregateService(groups, members, coordinator), coordinator, TimeProvider.System, null!, new NotificationService(new NotificationRepository(inbox), new NotificationRecipientRepository(inbox), inbox, new UserLookupService(users)), new UserDisplayNameLookup(users));
 		foreach (var suggestion in result.Value.Suggestions)
 			Assert.Equal(201, (await writes.CreateAsync(admin, group, new() { FromUserId = suggestion.FromUserId, ToUserId = suggestion.ToUserId, Amount = suggestion.Amount, Method = SettlementMethod.Cash, SettledAt = DateTimeOffset.UtcNow.AddSeconds(-1) })).Status);
 		Assert.Empty((await service.GetAsync(admin, group)).Value!.Suggestions);

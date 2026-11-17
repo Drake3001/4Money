@@ -1,5 +1,6 @@
-import { useEffect, type ReactNode } from 'react'
-import { X } from 'lucide-react'
+import { createContext, useContext, useEffect, useId, useState, type ComponentProps, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import { Eye, EyeOff, X } from 'lucide-react'
 
 export const cx = (...a: (string | false | null | undefined)[]) => a.filter(Boolean).join(' ')
 
@@ -22,7 +23,7 @@ export function Card({ children, className = '' }: { children: ReactNode; classN
 }
 export function H({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
   return (
-    <div className="mb-4 flex items-center justify-between gap-3">
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
       <h3 className="font-display text-xl font-semibold">{children}</h3>
       {aside}
     </div>
@@ -32,7 +33,7 @@ export function H({ children, aside }: { children: ReactNode; aside?: ReactNode 
 export function PageTitle({ title, sub, aside }: { title: string; sub?: string; aside?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
-      <div>
+      <div className="min-w-0">
         <h1 className="font-display text-2xl font-bold">{title}</h1>
         {sub && <p className="mt-1 text-ink2">{sub}</p>}
       </div>
@@ -74,33 +75,68 @@ export function Btn({ children, onClick, variant = 'primary', disabled, classNam
   )
 }
 
-export const inputCls = 'w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-ink2/60 focus:border-personal focus:outline-none'
-export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+export const inputCls = 'w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-ink2/60 focus:border-ink focus:outline-none'
+export function PasswordInput({ className, id, ...props }: Omit<ComponentProps<'input'>, 'type'>) {
+  const [visible, setVisible] = useState(false)
+  const generatedId = useId()
+  const inputId = id ?? generatedId
+  return <span className="relative block">
+    <input {...props} id={inputId} type={visible ? 'text' : 'password'} className={cx(inputCls, 'pr-12', className)} />
+    <button type="button" disabled={props.disabled} onClick={() => setVisible((value) => !value)} aria-label={visible ? 'Ukryj hasło' : 'Pokaż hasło'} aria-pressed={visible} aria-controls={inputId} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-xl text-ink2/60 transition hover:text-ink disabled:cursor-not-allowed disabled:opacity-50">
+      {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+    </button>
+  </span>
+}
+export function Field({ label, children, hint, error, reserveHint = false }: { label: string; children: ReactNode; hint?: string; error?: string; reserveHint?: boolean }) {
+  const invalid = !!error || (reserveHint && !!hint)
+  const message = error || hint
   return (
-    <label className="block">
+    <label className={cx('block', invalid && '[&_input]:!border-danger [&_select]:!border-danger [&_textarea]:!border-danger')}>
       <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink2">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-xs text-ink2">{hint}</span>}
+      {reserveHint ? <span role={invalid ? 'alert' : undefined} className={cx('mt-1 block h-7 overflow-y-auto text-xs leading-[1.25]', invalid ? 'text-danger' : 'text-ink2')}>{message}</span> : message && <span role={invalid ? 'alert' : undefined} className={cx('mt-1 block text-xs', invalid ? 'text-danger' : 'text-ink2')}>{message}</span>}
     </label>
   )
 }
 
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+const ModalContext = createContext(false)
+
+export function MessageSlot({ children, field = false }: { children?: ReactNode; field?: boolean }) {
+  return <div className={field ? 'h-8 min-w-0 pt-1' : 'h-14 min-w-0'}>
+    <div className="max-h-full overflow-y-auto [overflow-wrap:anywhere] [&>[role=alert]]:py-2">{children}</div>
+  </div>
+}
+
+export function FormMessage({ id, children, field = false }: { id?: string; children?: ReactNode; field?: boolean }) {
+  return <MessageSlot field={field}>
+    {children && <p id={id} role="alert" className={field ? 'text-xs leading-[1.25] text-danger !py-0' : 'rounded-xl bg-danger-soft px-3 py-2 text-sm leading-5 text-danger'}>{children}</p>}
+  </MessageSlot>
+}
+
+export function ModalErrorSlot({ children }: { children?: ReactNode }) {
+  const inModal = useContext(ModalContext)
+  return inModal ? <MessageSlot>{children}</MessageSlot> : <>{children}</>
+}
+
+export function Modal({ title, onClose, children, className }: { title: string; onClose: () => void; children: ReactNode; className?: string }) {
   useEffect(() => {
     const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
   }, [onClose])
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 sm:items-center sm:p-4" onMouseDown={onClose}>
-      <div role="dialog" aria-label={title} onMouseDown={(e) => e.stopPropagation()} className="animate-rise soft-scroll max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-2xl">
-        <div className="mb-5 flex items-start justify-between">
-          <h2 className="font-display text-2xl font-semibold">{title}</h2>
-          <button aria-label="Zamknij" onClick={onClose} className="rounded-lg p-1.5 text-ink2 hover:bg-wash"><X size={20} /></button>
+  // Keep the overlay outside scrolling/animated ancestors so fixed positioning uses the viewport.
+  if (typeof document === 'undefined') return null
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4" onMouseDown={onClose}>
+      <div role="dialog" aria-modal="true" aria-label={title} onMouseDown={(e) => e.stopPropagation()} className={cx('animate-rise soft-scroll max-h-[calc(100dvh-2rem)] w-full min-w-0 max-w-xl shrink-0 overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl [overflow-wrap:anywhere] [scrollbar-gutter:stable]', className)}>
+        <div className="mb-5 flex shrink-0 items-start justify-between gap-3">
+          <h2 className="min-w-0 font-display text-2xl font-semibold">{title}</h2>
+          <button aria-label="Zamknij" onClick={onClose} className="shrink-0 rounded-lg p-1.5 text-ink2 hover:bg-wash"><X size={20} /></button>
         </div>
-        {children}
+        <ModalContext.Provider value={true}>{children}</ModalContext.Provider>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -133,10 +169,10 @@ export function Table({ head, children }: { head: string[]; children: ReactNode 
 }
 export const Td = ({ children, className = '' }: { children?: ReactNode; className?: string }) => <td className={cx('px-3 py-3 align-middle', className)}>{children}</td>
 
-export function Pager({ page, onPage }: { page: { pageNumber: number; totalPages: number; totalCount: number; pageSize: number; hasPreviousPage: boolean; hasNextPage: boolean }; onPage: (n: number) => void }) {
+export function Pager({ page, onPage, itemSummary }: { page: { pageNumber: number; totalPages: number; totalCount: number; pageSize: number; hasPreviousPage: boolean; hasNextPage: boolean }; onPage: (n: number) => void; itemSummary?: string }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-3 py-3 text-sm">
-      <span className="text-ink2">Strona {page.pageNumber} z {page.totalPages} · wyników: {page.totalCount} · {page.pageSize} na stronę</span>
+      <span className="text-ink2">Strona {page.pageNumber} z {page.totalPages} · {itemSummary ?? `wyników: ${page.totalCount}`} · {page.pageSize} na stronę</span>
       <div className="flex gap-2">
         <Btn variant="ghost" disabled={!page.hasPreviousPage} onClick={() => onPage(page.pageNumber - 1)} className="!min-h-9 !px-3">Poprzednia</Btn>
         <Btn variant="ghost" disabled={!page.hasNextPage} onClick={() => onPage(page.pageNumber + 1)} className="!min-h-9 !px-3">Następna</Btn>

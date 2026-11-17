@@ -21,6 +21,7 @@ export default function GroupForm({ id }: { id?: string }) {
   const setIcon = (v: IconValue) => setEdited((e) => ({ ...e, icon: v }))
   const [err, setErr] = useState<number | null>(null)
   const [touched, setTouched] = useState(false)
+  const [preparingIcon, setPreparingIcon] = useState(false)
 
   const len = charCount(description)
   const nameBad = !name.trim()
@@ -32,6 +33,7 @@ export default function GroupForm({ id }: { id?: string }) {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
+    if (preparingIcon) return
     setTouched(true); setErr(null)
     if (nameBad || descBad) return
     const input = { name: name.trim(), description, icon: icon.icon, iconFile: icon.file, removeIcon: icon.removeIcon }
@@ -55,28 +57,31 @@ export default function GroupForm({ id }: { id?: string }) {
         <PageTitle title={id ? 'Edytuj grupę' : 'Nowa grupa'} />
       </div>
       <Card>
-        <form onSubmit={submit} noValidate className="space-y-5">
-          <Field label="Nazwa" hint={touched && nameBad ? undefined : 'Wymagana. Spacje na początku i końcu zostaną usunięte.'}>
-            <input value={name} onChange={(e) => setName(e.target.value)} className={cx(inputCls, touched && nameBad && '!border-danger')} placeholder="np. Mieszkanie" />
+        <form onSubmit={submit} noValidate className="space-y-3">
+          <Field label="Nazwa" error={touched && nameBad ? 'Nazwa nie może być pusta.' : undefined} reserveHint>
+            <input value={name} onChange={(e) => setName(e.target.value)} aria-invalid={touched && nameBad} className={cx(inputCls, touched && nameBad && '!border-danger')} placeholder="np. Mieszkanie" />
           </Field>
-          {touched && nameBad && <p className="-mt-3 text-xs text-danger">Nazwa nie może być pusta.</p>}
-
-          <Field label="Opis (opcjonalnie)">
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className={cx(inputCls, descBad && '!border-danger')} />
-          </Field>
-          <p className={cx('-mt-3 text-right text-xs', descBad ? 'text-danger' : 'text-ink2')}>{len} / {MAX_DESCRIPTION}</p>
 
           <div>
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink2">Waluta</span>
-            <p className="text-sm font-semibold">PLN</p>
-            <p className="text-xs text-ink2">4Money obsługuje wyłącznie PLN.{id ? ' Waluty nie można zmienić po utworzeniu grupy.' : ''}</p>
+            <Field label="Opis (opcjonalnie)">
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} aria-invalid={descBad} className={cx(inputCls, descBad && '!border-danger')} />
+            </Field>
+            <div className="mt-1 flex h-7 items-start justify-between gap-3 text-xs">
+              <span role={descBad ? 'alert' : undefined} className="text-danger">{descBad ? `Opis może mieć maksymalnie ${MAX_DESCRIPTION} znaków.` : ''}</span>
+              <span className={cx('shrink-0', descBad ? 'text-danger' : 'text-ink2')}>{len} / {MAX_DESCRIPTION} znaków</span>
+            </div>
           </div>
 
-          <IconPicker value={icon} onChange={setIcon} existing={existing ? { id: existing.id, icon: existing.icon, hasCustomIcon: existing.hasCustomIcon } : undefined} />
+          <div>
+            <p className="text-sm font-semibold">WALUTA: PLN</p>
+            <p className="text-xs text-ink2">4Money obecnie obsługuje wyłącznie PLN.</p>
+          </div>
+
+          <IconPicker value={icon} onChange={setIcon} onPreparingChange={setPreparingIcon} existing={existing ? { id: existing.id, icon: existing.icon, hasCustomIcon: existing.hasCustomIcon } : undefined} />
           <ErrorBox code={err} />
           <div className="flex flex-wrap justify-end gap-2">
             <Btn variant="ghost" onClick={back}>Anuluj</Btn>
-            <Btn type="submit">{id ? 'Zapisz zmiany' : 'Utwórz grupę'}</Btn>
+            <Btn type="submit" disabled={preparingIcon}>{id ? 'Zapisz zmiany' : 'Utwórz grupę'}</Btn>
           </div>
         </form>
       </Card>

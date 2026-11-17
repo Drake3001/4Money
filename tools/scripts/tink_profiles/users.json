@@ -2,6 +2,21 @@
   "version": 1,
   "users": [
     {
+      "fourMoneyUserId": "10000000-0000-0000-0000-000000000001",
+      "key": "seed-anna",
+      "preset": "basic-pln"
+    },
+    {
+      "fourMoneyUserId": "10000000-0000-0000-0000-000000000002",
+      "key": "seed-bartek",
+      "preset": "basic-pln"
+    },
+    {
+      "fourMoneyUserId": "10000000-0000-0000-0000-000000000003",
+      "key": "seed-celina",
+      "preset": "basic-pln"
+    },
+    {
       "fourMoneyUserId": "10000000-0000-0000-0000-000000000010",
       "key": "postman-banking",
       "preset": "basic-pln"

@@ -8,6 +8,19 @@ import { renderToString } from 'react-dom/server'
 let backend, vite, origin, received
 const originalTarget = process.env.API_PROXY_TARGET
 
+function setupWindow(location) {
+  globalThis.window = {
+    location,
+    matchMedia: (media) => ({
+      media,
+      matches: false,
+      addEventListener() {},
+      removeEventListener() {},
+    }),
+  }
+  globalThis.localStorage = { getItem: () => null }
+}
+
 before(async () => {
   backend = createHttpServer(async (req, res) => {
     let body = ''
@@ -33,8 +46,7 @@ after(async () => {
 })
 
 test('app renders the login screen with the complete provider tree', async () => {
-  globalThis.window = { location: { search: '' } }
-  globalThis.localStorage = { getItem: () => null }
+  setupWindow({ search: '', hash: '' })
   const { default: App } = await vite.ssrLoadModule('/src/App.tsx')
   const html = renderToString(createElement(App))
   assert.match(html, /Logowanie/)
@@ -67,8 +79,7 @@ test('email links select public action pages and never render the one-time token
     reset: 'Ustaw nowe hasło',
   }
   for (const [action, title] of Object.entries(titles)) {
-    globalThis.window = { location: { search: `?action=${action}`, hash: '#token=synthetic-email-secret' } }
-    globalThis.localStorage = { getItem: () => null }
+    setupWindow({ search: `?action=${action}`, hash: '#token=synthetic-email-secret' })
     const html = renderToString(createElement(App))
     assert.ok(html.includes(title), action)
     assert.ok(!html.includes('synthetic-email-secret'))
@@ -79,7 +90,7 @@ test('email links select public action pages and never render the one-time token
 
 test('missing email token disables reset and routing preserves invitations', async () => {
   const { default: App } = await vite.ssrLoadModule('/src/App.tsx')
-  globalThis.window = { location: { search: '?action=reset', hash: '' } }
+  setupWindow({ search: '?action=reset', hash: '' })
   const html = renderToString(createElement(App))
   assert.ok(html.includes('Link jest niekompletny'))
   assert.match(html, /<button[^>]*disabled=""[^>]*>Zapisz hasło/)

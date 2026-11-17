@@ -6,9 +6,9 @@ import type {
   ReceiptAnalysisResponse, ReceiptOcrResponse, ReceiptResponse,
 } from './types'
 import type { Category, ExpenseDetail, ExpenseForm, OcrAnalysis, OcrItem, Preview, Receipt } from '../mocks/expenses'
-import { isNum, num } from '../mocks/expenses'
+import { isNum, num, RECEIPT_MIME_BY_EXTENSION } from '../mocks/expenses'
 import type { Tx } from '../mocks/bank'
-import type { BankFilter, ExpenseListItem, ExpenseQuery } from '../expensesContext'
+import type { BankFilter, BankPageFilter, ExpenseListItem, ExpenseQuery } from '../expensesContext'
 
 const n = (s: string | null | undefined) => (s === null || s === undefined || s === '' ? 0 : Number(s))
 const opt = (s: string | null | undefined) => (s === null || s === undefined || s === '' || !Number.isFinite(Number(s)) ? undefined : Number(s))
@@ -52,7 +52,8 @@ export function toListItem(e: ExpenseListItemResponse): ExpenseListItem {
 export function toAnalysis(a: ReceiptAnalysisResponse): OcrAnalysis {
   const p = a.proposal
   const items: OcrItem[] = p.items.map((i) => ({
-    name: i.name ?? '', unit: i.unit ?? undefined, unitPrice: opt(i.unitPrice), quantity: opt(i.quantity), discount: opt(i.discount), categoryId: i.categoryId ?? undefined,
+    name: i.name ?? '', unit: i.unit ?? undefined, unitPrice: opt(i.unitPrice), quantity: opt(i.quantity), discount: opt(i.discount),
+    categoryId: i.categoryId ?? undefined, needsReview: i.needsReview,
   }))
   return {
     name: p.name ?? undefined, merchant: p.merchant ?? undefined, amount: opt(p.amount), currency: p.currencyCode ?? undefined,
@@ -87,18 +88,41 @@ function formBody(f: ExpenseForm) {
   }
 }
 
-const dayStart = (d: string) => new Date(`${d}T00:00:00`).toISOString()
-const nextDayStart = (d: string) => { const x = new Date(`${d}T00:00:00`); x.setDate(x.getDate() + 1); return x.toISOString() }
+const nextDay = (d: string) => {
+  const date = new Date(`${d}T00:00:00Z`)
+  date.setUTCDate(date.getUTCDate() + 1)
+  return date.toISOString().slice(0, 10)
+}
 const dot = (s: string) => (s.trim() ? String(num(s)) : undefined)
 
 export type ReceiptAttachment = { file: File; ocrProof?: string }
+
+function receiptUploadFile(file: File): File {
+  if (file.type && file.type !== 'application/octet-stream') return file
+  const extension = /\.([a-z0-9]+)$/i.exec(file.name)?.[1]?.toLowerCase()
+  if (!extension || !Object.hasOwn(RECEIPT_MIME_BY_EXTENSION, extension)) return file
+
+  return new File([file], file.name, { type: RECEIPT_MIME_BY_EXTENSION[extension], lastModified: file.lastModified })
+}
+
 function saveExpense(method: 'POST' | 'PUT', path: string, body: unknown, attachment?: ReceiptAttachment) {
   if (!attachment) return method === 'POST' ? api.post<ExpenseResponse>(path, body) : api.put<ExpenseResponse>(path, body)
   const form = new FormData()
   form.set('expense', JSON.stringify(body))
-  form.set('file', attachment.file)
+  form.set('file', receiptUploadFile(attachment.file))
   if (attachment.ocrProof) form.set('ocrProof', attachment.ocrProof)
   return api.upload<ExpenseResponse>(method, path, form)
+}
+
+async function availableBankTransactionsPage(f: BankPageFilter): Promise<Page<Tx>> {
+  // Expense amount filters use debit magnitudes; the Banking API uses signed amounts.
+  const lo = f.minAmount.trim() ? Math.abs(num(f.minAmount)) : null, hi = f.maxAmount.trim() ? Math.abs(num(f.maxAmount)) : null
+  const page = await api.get<Page<AvailableBankTransactionResponse>>('/api/expenses/available-bank-transactions', {
+    pageNumber: f.pageNumber, pageSize: f.pageSize, bankAccountId: f.accountId, dateFrom: f.dateFrom, dateTo: f.dateTo,
+    minAmount: hi !== null ? String(-hi) : undefined, maxAmount: lo !== null ? String(-lo) : undefined,
+    description: f.description.trim(), sortBy: f.sortBy, descending: f.descending,
+  })
+  return { ...page, items: page.items.map(toTx) }
 }
 
 export const expensesApi = {
@@ -106,8 +130,8 @@ export const expensesApi = {
   list: async (q: ExpenseQuery): Promise<Page<ExpenseListItem>> => {
     const p = await api.get<Page<ExpenseListItemResponse>>('/api/expenses', {
       pageNumber: q.pageNumber, pageSize: q.pageSize, groupId: q.groupId, participantId: q.participantId, payerId: q.payerId,
-      // Start is inclusive and end exclusive, so "to" is the beginning of the next local day.
-      transactionTimeFrom: q.dateFrom ? dayStart(q.dateFrom) : undefined, transactionTimeTo: q.dateTo ? nextDayStart(q.dateTo) : undefined,
+      // The API accepts DateOnly; its exclusive end is the day after the selected "to" date.
+      transactionTimeFrom: q.dateFrom || undefined, transactionTimeTo: q.dateTo ? nextDay(q.dateTo) : undefined,
       minAmount: dot(q.minAmount), maxAmount: dot(q.maxAmount), categoryId: q.categoryId, search: q.search.trim(),
       hasReceipt: q.hasReceipt, hasBankTransaction: q.hasBankTransaction, sortBy: q.sortBy, descending: q.descending,
     })
@@ -120,15 +144,14 @@ export const expensesApi = {
   update: async (id: string, f: ExpenseForm, version: string, attachment?: ReceiptAttachment) => toExpenseDetail(await saveExpense('PUT', `/api/expenses/${id}`, { ...formBody(f), version, removeReceipt: !f.receiptId }, attachment)),
   remove: (id: string, version: string) => api.del(`/api/expenses/${id}`, { version }),
   availableBankTransactions: async (f: BankFilter): Promise<Tx[]> => {
-    // The API keeps the bank sign (debits are negative); the UI filters by absolute amount.
-    const lo = f.minAmount.trim() ? Math.abs(num(f.minAmount)) : null, hi = f.maxAmount.trim() ? Math.abs(num(f.maxAmount)) : null
-    const p = await api.get<Page<AvailableBankTransactionResponse>>('/api/expenses/available-bank-transactions', {
-      pageNumber: 1, pageSize: 100, bankAccountId: f.accountId, dateFrom: f.dateFrom, dateTo: f.dateTo,
-      minAmount: hi !== null ? String(-hi) : undefined, maxAmount: lo !== null ? String(-lo) : undefined, description: f.description.trim(), sortBy: 'date', descending: true,
-    })
-    return p.items.map(toTx)
+    return (await availableBankTransactionsPage({ ...f, pageNumber: 1, pageSize: 100, sortBy: 'date', descending: true })).items
   },
+  availableBankTransactionsPage,
   bankTransaction: async (id: string) => toTx(await api.get<BankTransactionResponse>(`/api/banking/transactions/${id}`)),
   receipt: async (expenseId: string) => toReceipt(await api.get<ReceiptResponse>(`/api/expenses/${expenseId}/receipt`)),
-  analyzeReceipt: async (file: File) => { const form = new FormData(); form.set('file', file); return api.upload<ReceiptOcrResponse>('POST', '/api/expenses/receipts/analyze', form) },
+  analyzeReceipt: async (file: File) => {
+    const form = new FormData()
+    form.set('file', receiptUploadFile(file))
+    return api.upload<ReceiptOcrResponse>('POST', '/api/expenses/receipts/analyze', form)
+  },
 }

@@ -26,7 +26,7 @@ public sealed class SettlementPrivacyTests : PostgresFixture
 		await using var bank = new BankingDbContext(new DbContextOptionsBuilder<BankingDbContext>().UseNpgsql(ConnectionString).Options);
 		await using var user = new UserDbContext(new DbContextOptionsBuilder<UserDbContext>().UseNpgsql(ConnectionString).Options);
 		var lookup = new BankingReadService(new BankAccountRepository(bank), new BankTransactionRepository(bank), new UserBankingProfileService(user));
-		var service = new GroupSettlementService(db, new GroupRepository(db), new GroupMemberRepository(db), new GroupSettlementRepository(db), null!, null!, TimeProvider.System, lookup, null!);
+		var service = new GroupSettlementService(db, new GroupRepository(db), new GroupMemberRepository(db), new GroupSettlementRepository(db), null!, null!, TimeProvider.System, lookup, null!, null!);
 		var group = Guid.Parse("20000000-0000-0000-0000-000000000001");
 		var admin = Guid.Parse("10000000-0000-0000-0000-000000000001");
 		var owner = Guid.Parse("10000000-0000-0000-0000-000000000002");

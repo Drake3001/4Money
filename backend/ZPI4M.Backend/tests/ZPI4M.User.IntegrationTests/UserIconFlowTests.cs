@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using ImageMagick;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -17,7 +18,13 @@ namespace ZPI4M.User.IntegrationTests;
 public sealed class UserIconFlowTests : PostgresFixture
 {
 	private const string Preset = "icons/presets/users/anna.png";
-	private static readonly byte[] Png = Convert.FromHexString("89504E470D0A1A0A");
+	private static readonly byte[] Png = CreatePng();
+
+	private static byte[] CreatePng()
+	{
+		using var image = new MagickImage(MagickColors.Red, 32, 32);
+		return image.ToByteArray(MagickFormat.Png);
+	}
 
 	[PostgresFact]
 	public async Task UploadPreservePresetRemoveAndSignedReadUseOnlyAuthenticatedOwner()
@@ -31,7 +38,12 @@ public sealed class UserIconFlowTests : PostgresFixture
 		var key = Assert.IsType<string>(profile.IconStorageKey);
 		Assert.StartsWith($"users/{AnnaId}/icons/", key);
 		Assert.Null(profile.Icon);
-		Assert.Equal(Png, Storage.Objects[key]);
+		using (var saved = new MagickImage(Storage.Objects[key]))
+		{
+			Assert.Equal(MagickFormat.WebP, saved.Format);
+			Assert.Equal(32u, saved.Width);
+			Assert.Equal(32u, saved.Height);
+		}
 		using (var url = await host.Client.GetAsync("/api/users/profile/icon"))
 		{
 			Assert.Equal(HttpStatusCode.OK, url.StatusCode);

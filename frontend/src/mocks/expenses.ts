@@ -5,26 +5,13 @@ import type { Tx } from './bank'
 export { ME_ID, mockName }
 export { userLabel, shortId } from './groups'
 
-// ---- Categories (GET /api/categories). The list lives on the server; this registry is filled by the Expense provider. Colours are a frontend concern.
+// ---- Categories (GET /api/categories). The React provider owns the list. Colours are a frontend concern.
 export type Category = { id: string; name: string; description: string; icon: string; isSystemGenerated: boolean }
 /** Id used for "no category" in forms and fallbacks. */
 export const UNKNOWN_CATEGORY_ID = ''
-export const CATEGORIES: Category[] = []
-export const SELECTABLE_CATEGORIES: Category[] = []
-export const setCategories = (list: Category[]) => {
-  CATEGORIES.splice(0, CATEGORIES.length, ...list)
-  SELECTABLE_CATEGORIES.splice(0, SELECTABLE_CATEGORIES.length, ...list.filter((c) => !c.isSystemGenerated))
-}
+export const DISCOUNT_CATEGORY_ID = '30000000-0000-0000-0000-000000000020'
 const FALLBACK_CATEGORY: Category = { id: '', name: 'Nieznane', description: 'Kategoria nieznana', icon: '', isSystemGenerated: true }
-export const category = (id?: string | null) => CATEGORIES.find((c) => c.id === id) ?? FALLBACK_CATEGORY
-const PALETTE = ['#1aa57a', '#3a9bd0', '#e08a4a', '#d99a2b', '#5b6b86', '#8d7b6b', '#d4604f', '#8a6bc2', '#1f8a96', '#8b96a8']
-export const categoryColor = (c: Category) => {
-  if (c.isSystemGenerated || !c.id) return '#a0a8b8'
-  let h = 0
-  for (const ch of c.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0
-  return PALETTE[h % PALETTE.length]
-}
-
+export const category = (id: string | null | undefined, categories: readonly Category[]) => categories.find((c) => c.id === id) ?? FALLBACK_CATEGORY
 // ---- Types
 export type ExpenseItem = { id: string; categoryId: string; name: string; unit: string | null; unitPrice: number; quantity: number; discount: number; isSystemGenerated?: boolean }
 export type Share = { userId: string; percentage: number }
@@ -34,15 +21,26 @@ export type ExpenseDetail = {
   bankTransactionId: string | null; receiptId: string | null; canEdit: boolean; canDelete: boolean
 }
 
-export type OcrItem = { name: string; unit?: string; unitPrice?: number; quantity?: number; discount?: number; categoryId?: string }
+export type OcrItem = { name: string; unit?: string; unitPrice?: number; quantity?: number; discount?: number; categoryId?: string; needsReview?: boolean }
 export type OcrAnalysis = {
   name?: string; merchant?: string; amount?: number; currency?: string; transactionDate?: string; transactionTime?: string
   items: OcrItem[]; warnings: string[]; needsReview: boolean
 }
 export type Receipt = { id: string; fileName: string; mimeType: string; size: number | null; previewUrl: string | null; createdAt: string; originalAnalysis: OcrAnalysis | null; latestAnalysis: OcrAnalysis | null; isLocal?: boolean }
 
-export const RECEIPT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'image/tiff', 'image/bmp', 'application/pdf']
-export const RECEIPT_EXT = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'tif', 'tiff', 'bmp', 'pdf']
+export const RECEIPT_MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  tif: 'image/tiff',
+  tiff: 'image/tiff',
+  bmp: 'image/bmp',
+  pdf: 'application/pdf',
+}
+export const RECEIPT_EXT = Object.keys(RECEIPT_MIME_BY_EXTENSION)
 export const MAX_RECEIPT_BYTES = 20 * 1024 * 1024
 export const PAGE_SIZE = 20
 
@@ -86,12 +84,13 @@ export type Preview = {
   shares: { userId: string; percentage: number; amount: number }[]
   bankTransactionId: string | null; receiptId: string | null
 }
-export type Problems = { fields: Record<string, string>; items: Record<string, string[]>; list: string[] }
+export type Problems = { fields: Record<string, string>; items: Record<string, string[]>; itemFields: Record<string, Partial<Record<keyof FormItem, string>>>; list: string[] }
 
 // Shared by live validation, POST /expenses/preview, create and update.
 export function computeExpense(f: ExpenseForm, ctx: { activePayers: string[]; bankAmount?: number | null }): { problems: Problems; preview: Preview | null } {
   const fields: Record<string, string> = {}
   const items: Record<string, string[]> = {}
+  const itemFields: Problems['itemFields'] = {}
   const list: string[] = []
   const bad = (k: string, m: string) => { fields[k] = m; list.push(m) }
 
@@ -104,13 +103,20 @@ export function computeExpense(f: ExpenseForm, ctx: { activePayers: string[]; ba
   const normal: PreviewItem[] = []
   f.items.forEach((it) => {
     const errs: string[] = []
+    const fieldErrors: Partial<Record<keyof FormItem, string>> = {}
+    const badItem = (key: keyof FormItem, message: string) => { fieldErrors[key] = message; errs.push(message) }
     const price = num(it.unitPrice), qty = num(it.quantity), disc = it.discount.trim() === '' ? 0 : num(it.discount)
-    if (!it.name.trim()) errs.push('Podaj nazwę produktu.')
-    if (!it.categoryId) errs.push('Wybierz kategorię produktu.')
-    if (!isNum(it.unitPrice) || price < 0) errs.push('Podaj poprawną cenę jednostkową.')
-    if (!isNum(it.quantity) || qty <= 0) errs.push('Ilość musi być dodatnia.')
-    if (it.discount.trim() !== '' && !Number.isFinite(disc)) errs.push('Rabat musi być liczbą.')
-    if (errs.length === 0 && itemTotal({ unitPrice: price, quantity: qty, discount: disc }) < 0) errs.push('Wartość produktu po rabacie nie może być ujemna.')
+    const isDiscount = it.categoryId === DISCOUNT_CATEGORY_ID
+    if (!it.name.trim()) badItem('name', 'Podaj nazwę produktu.')
+    if (!it.categoryId) badItem('categoryId', 'Wybierz kategorię produktu.')
+    if (!isNum(it.unitPrice)) badItem('unitPrice', 'Uzupełnij cenę jednostkową')
+    else if (isDiscount && (price >= 0 || r2(price) >= 0)) badItem('unitPrice', 'Dla kategorii „Zniżka” wprowadź ujemną cenę jednostkową')
+    if (!isNum(it.quantity) || qty <= 0) badItem('quantity', 'Ilość musi być dodatnia.')
+    else if (isDiscount && qty !== 1) badItem('quantity', 'Dla kategorii „Zniżka” ilość musi być równa 1.')
+    if (!Number.isFinite(disc) || disc > 0) badItem('discount', 'Rabat musi być liczbą mniejszą lub równą zero.')
+    else if (isDiscount && disc !== 0) badItem('discount', 'Dla kategorii „Zniżka” rabat musi być równy zero.')
+    else if (disc !== 0 && isNum(it.unitPrice) && isNum(it.quantity) && qty > 0 && itemTotal({ unitPrice: price, quantity: qty, discount: disc }) < 0) badItem('discount', 'Wartość produktu po rabacie nie może być ujemna.')
+    itemFields[it.id] = fieldErrors
     if (errs.length) { items[it.id] = errs; list.push(`Produkt „${it.name.trim() || 'bez nazwy'}”: ${errs[0]}`) }
     else normal.push({ id: it.id, categoryId: it.categoryId, name: it.name.trim(), unit: it.unit.trim() || null, unitPrice: r2(price), quantity: qty, discount: r2(disc), total: itemTotal({ unitPrice: price, quantity: qty, discount: disc }) })
   })
@@ -138,13 +144,13 @@ export function computeExpense(f: ExpenseForm, ctx: { activePayers: string[]; ba
   })
   if (f.shares.length > 0 && !fields.shares && Math.abs(sum - 100) > 0.001) bad('shares', `Udziały muszą dawać dokładnie 100% (obecnie ${fmtPct(sum)}).`)
 
-  if (list.length) return { problems: { fields, items, list }, preview: null }
+  if (list.length) return { problems: { fields, items, itemFields, list }, preview: null }
 
   const unknownAmount = r2(total - known)
   const finalItems: PreviewItem[] = [...normal]
   if (unknownAmount > 0.001) finalItems.push({ id: 'system-unknown', categoryId: UNKNOWN_CATEGORY_ID, name: 'Nieznane', unit: null, unitPrice: unknownAmount, quantity: 1, discount: 0, isSystemGenerated: true, total: unknownAmount })
   return {
-    problems: { fields, items, list },
+    problems: { fields, items, itemFields, list },
     preview: {
       totalAmount: total, items: finalItems, unknownAmount: unknownAmount > 0.001 ? unknownAmount : 0,
       shares: shareAmounts(total, f.shares.map((s) => ({ userId: s.userId, percentage: num(s.percentage) }))),
@@ -171,11 +177,15 @@ export const toFormItems = (items: ExpenseItem[]): FormItem[] =>
 export function formFromExpense(e: ExpenseDetail): ExpenseForm {
   const t = toLocalParts(e.transactionTime)
   return {
-    groupId: e.groupId, payerId: e.payerId, name: e.name, merchant: e.merchant ?? '', amount: e.bankTransactionId ? '' : String(e.totalAmount),
+    groupId: e.groupId, payerId: e.payerId, name: e.name, merchant: e.merchant ?? '', amount: String(e.totalAmount),
     date: t.date, time: t.time, items: toFormItems(e.items), shares: e.shares.map((s) => ({ userId: s.userId, percentage: String(s.percentage) })),
     bankTransactionId: e.bankTransactionId, receiptId: e.receiptId,
   }
 }
 
+
+export function bankFormValues(tx: Tx): Pick<ExpenseForm, 'bankTransactionId' | 'name' | 'date' | 'amount'> {
+  return { bankTransactionId: tx.id, name: tx.description ?? '', date: tx.date, amount: String(Math.abs(Number(tx.amount))) }
+}
 
 export type { Tx }

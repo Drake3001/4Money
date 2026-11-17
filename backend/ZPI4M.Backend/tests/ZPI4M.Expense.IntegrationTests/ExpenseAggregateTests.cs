@@ -85,7 +85,7 @@ public sealed class ExpenseAggregateTests : PostgresFixture
 		var notification = await inbox.Notifications.AsNoTracking().SingleAsync(value => value.FkExpenseId == expenseId);
 		Assert.Equal(NotificationType.ExpenseAdded, notification.Type);
 		Assert.Equal("Nowy wydatek", notification.Title);
-		Assert.Equal("Dodano wydatek „Aggregate integration” za 10,00 zł w grupie „Dom”.", notification.Text);
+		Assert.Equal("Anna Testowa dodał(a) wydatek w grupie Dom.", notification.Text);
 		Assert.Null(notification.FkGroupId);
 		var recipients = await inbox.NotificationRecipients.AsNoTracking()
 			.Where(value => value.FkNotificationId == notification.Id).ToArrayAsync();
@@ -417,7 +417,7 @@ public sealed class ExpenseAggregateTests : PostgresFixture
 			Transactions = new(Grouping, Inbox, NullLogger<GroupingTransactionCoordinator>.Instance);
 			Groups = new GroupRepository(Grouping);
 			var members = new GroupMemberRepository(Grouping);
-			Members = new GroupMemberService(Groups, members, Grouping, Transactions);
+			Members = new GroupMemberService(Groups, members, Grouping, Transactions, new UserDisplayNameLookup(Users));
 			var aggregates = new GroupMemberAggregateService(Groups, members, Transactions);
 			var notifications = new NotificationService(new NotificationRepository(Inbox), new NotificationRecipientRepository(Inbox), Inbox, new UserLookupService(Users));
 			var expenseRepository = new ExpenseRepository(Expense);
@@ -429,9 +429,9 @@ public sealed class ExpenseAggregateTests : PostgresFixture
 			Queries = new(expenseRepository, items, shares, categories, Members, metadata, names ?? new UserDisplayNameLookup(Users), calculations);
 			Expenses = new(Expense, expenseRepository, items, shares, categories,
 				Members, new ExpenseRequestService(calculations), Queries, new UnusedBanking(), metadata,
-				Transactions, new GroupExpenseContributionService(Grouping, Groups, members, aggregates, Transactions), new GroupExpenseNotificationService(members, notifications, Transactions), receiptService, Receipts, new ReceiptOcrProof(Options.Create(new ReceiptOcrProofOptions { SigningKey = Convert.ToBase64String(new byte[32]) }), TimeProvider.System), Banking,
+				Transactions, new GroupExpenseContributionService(Grouping, Groups, members, aggregates, Transactions), new GroupExpenseNotificationService(members, notifications, Transactions, new UserDisplayNameLookup(Users)), receiptService, Receipts, new ReceiptOcrProof(Options.Create(new ReceiptOcrProofOptions { SigningKey = Convert.ToBase64String(new byte[32]) }), TimeProvider.System), Banking,
 				new BankTransactionAssignmentService(new BankTransactionAssignmentRepository(Banking)));
-			Settlements = new(Grouping, Groups, members, new GroupSettlementRepository(Grouping), aggregates, Transactions, TimeProvider.System, null!, null!);
+			Settlements = new(Grouping, Groups, members, new GroupSettlementRepository(Grouping), aggregates, Transactions, TimeProvider.System, null!, null!, null!);
 		}
 		public async ValueTask DisposeAsync()
 		{

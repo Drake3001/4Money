@@ -78,6 +78,11 @@ public class ContractTests
 					Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(route + "?" + query)).StatusCode);
 			Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(group + "/members?membership=bad")).StatusCode);
 			Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(group + "/members?descending=true")).StatusCode);
+			foreach (var sortBy in new[] { "name", "joinedAt" })
+				foreach (var descending in new[] { "false", "true" })
+					Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/groups?sortBy={sortBy}&descending={descending}")).StatusCode);
+			Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/groups?sortBy=unknown")).StatusCode);
+			Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/groups?sortBy=")).StatusCode);
 		}
 	}
 }

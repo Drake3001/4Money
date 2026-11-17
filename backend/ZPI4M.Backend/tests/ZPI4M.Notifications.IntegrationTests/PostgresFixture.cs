@@ -45,7 +45,7 @@ public abstract class PostgresFixture : IAsyncLifetime
 	protected static readonly Guid CelinaId = Guid.Parse("10000000-0000-0000-0000-000000000003");
 	protected static readonly Guid InactiveId = Guid.Parse("10000000-0000-0000-0000-000000000004");
 	protected static readonly Guid FirstNotificationId = Guid.Parse("90000000-0000-0000-0000-000000000001");
-	protected static readonly Guid GeneralNotificationId = Guid.Parse("90000000-0000-0000-0000-000000000003");
+	protected static readonly Guid SettlementNotificationId = Guid.Parse("90000000-0000-0000-0000-000000000003");
 	private const string SigningKey = "notifications-integration-signing-key-at-least-32-bytes";
 	private readonly string _databaseName = "notifications_tests_" + Guid.NewGuid().ToString("N");
 	private string? _maintenance;

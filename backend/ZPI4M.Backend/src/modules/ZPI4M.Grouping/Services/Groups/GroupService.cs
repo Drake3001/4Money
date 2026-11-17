@@ -43,7 +43,14 @@ public sealed class GroupService(GroupingDbContext db, IUserLookupService users,
 	public async Task<GroupingResult<PagedResult<GroupResponse>>> GetPageAsync(Guid userId, GroupListRequest query, CancellationToken ct = default)
 	{
 		Validator.ValidateObject(query, new ValidationContext(query), true);
-		var page = await groups.GetMembershipPageAsync(userId, new GroupMembershipQuery { IsMember = query.Membership switch { "active" => true, "former" => false, _ => null }, PageNumber = query.PageNumber, PageSize = query.PageSize, Descending = query.Descending }, ct);
+		var page = await groups.GetMembershipPageAsync(userId, new GroupMembershipQuery
+		{
+			IsMember = query.Membership switch { "active" => true, "former" => false, _ => null },
+			SortBy = query.SortBy == "joinedAt" ? GroupMembershipSortBy.JoinedAt : GroupMembershipSortBy.Name,
+			PageNumber = query.PageNumber,
+			PageSize = query.PageSize,
+			Descending = query.Descending
+		}, ct);
 		return new(200, new(page.Items.Select(item => Map(item.Group, item.IsMember)).ToArray(), page.TotalCount, page.PageNumber, page.PageSize));
 	}
 	public async Task<GroupingResult<GroupResponse>> GetAsync(Guid userId, Guid groupId, CancellationToken ct = default)

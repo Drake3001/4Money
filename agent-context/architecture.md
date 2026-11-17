@@ -157,11 +157,12 @@ Jego zapisy zatwierdzają własne transakcje i nie zapisują ani nie odłączaj�
 atomowe. Odczyty, refresh i rejestr przypisań zachowują dotychczasowy scoped
 kontekst; przypisania nadal wymagają jawnej transakcji wywołującego.
 
-Od 2026-10-28 host przekazuje ExpenseDbContext, GroupingDbContext i
-NotificationsDbContext tę samą scoped instancję NpgsqlConnection. Połączenie
-zwalnia DI, a konteksty mają contextOwnsConnection: false. Pozostałe konteksty,
-w tym AppDbContext migracji, zachowują konfigurację przez connection string.
-Jest to przygotowanie do integracji: wspólne połączenie nie rozpoczyna ani nie
+Przegląd 2026-11-15: host przekazuje ExpenseDbContext, GroupingDbContext,
+NotificationsDbContext, ReceiptDbContext i scoped BankingDbContext tę samą
+scoped instancję NpgsqlConnection. Połączenie zwalnia DI, a konteksty mają
+contextOwnsConnection: false. User, Limits, AppDbContext migracji i konteksty
+tworzone przez fabrykę Banking zachowują osobne połączenia.
+Wspólne połączenie nie rozpoczyna ani nie
 współdzieli automatycznie transakcji. Serwis koordynujący rozpoczyna transakcję,
 dołącza pozostałe konteksty przez UseTransactionAsync i wykonuje końcowy commit
 dopiero po powodzeniu wszystkich zapisów. NotifyAsync może zachować
@@ -225,13 +226,14 @@ BankingDbContext współdzieli NpgsqlConnection z koordynatorem. Konteksty
 BankingConnectionRepository tworzone przez fabrykę zachowują osobne połączenia.
 Rollback wycofuje przypisanie razem z wydatkiem, udziałami i agregatami.
 
-Poniższa checklista nadal obowiązuje, gdy dołączymy zapis Grouping/powiadomień.
+Poniższa checklista obowiązuje także przy rozbudowie już podłączonych zapisów
+Expense/Grouping i powiadomień.
 
 ### Do wykonania przy implementacji Expense i Grouping
 
 Przy zapisie wydatku z powiadomieniem oraz operacji grupowej z powiadomieniem
 (np. dołączeniu członka) obowiązuje jedna transakcja obejmująca zapis biznesowy
-i powiadomienie wraz z odbiorcami. W przyszłym serwisie koordynującym:
+i powiadomienie wraz z odbiorcami. W serwisie koordynującym:
 
 1. Korzystaj z kontekstów z tego samego zakresu DI i wspólnego połączenia.
 2. Przed pierwszym zapisem wejdź do IGroupingTransactionCoordinator.ExecuteAsync;
@@ -305,7 +307,8 @@ Od 2026-10-28 pary interfejs/implementacja UserLookupService i
 UserBankingProfileService znajdują się odpowiednio w User `Services/Lookup`
 i `Services/BankingProfile`. NotificationService i INotificationService są
 w Notifications `Services/Notifications`. Namespace’y odpowiadają katalogom.
-Szablon API `.env.example` zawiera tylko poświadczenia, także SMTP. Niesekretne
+Szablon API `.env.example` zawiera poświadczenia, także SMTP, wymagany
+`FRONTEND_URL` oraz opcjonalne ustawienia Google i prefiksów storage. Niesekretne
 wartości domyślne znajdują się w `appsettings.json`, a zmienne środowiskowe
 je nadpisują. Lokalny `.env` nie jest szablonem do kopiowania sekretów do repozytorium.
 
@@ -409,6 +412,48 @@ SQL w `database/init` tworzy bazową strukturę przy pierwszej inicjalizacji
 kontenera. Historia migracji rozwija ten stan. Procedura i ograniczenia
 znajdują się w [instrukcji pracy](development.md#modele-i-migracje).
 
+## Frontend i granica przeglądarki — przegląd 2026-11-15
+
+`App.tsx` składa UserProvider → Provider → GroupsProvider → ExpensesProvider.
+Nawigacja widoków jest stanem React; specjalne wejścia z linków e-mail
+i zaproszeń interpretuje `emailLinks.ts`. `src/api/client.ts` obsługuje Bearer,
+rotację refresh tokenu współdzieloną przez równoległe żądania 401 i jednorazowe
+ponowienie. Sesja trafia do localStorage; ID token Google pozostaje w pamięci
+komponentu. `src/mocks/` zawiera typy, walidację i formatowanie, a nie symulację API.
+HTTP 501 otwiera wspólny dialog niedostępności; błąd sieci ma kod klienta 0.
+
+Widoki obejmują konto, grupy/zaproszenia/rozliczenia, Expense z OCR, Banking
+i inbox. Pulpit pokazuje odczyty bankowe i ostatnie powiadomienia; nie jest
+implementacją Reports ani Limits. Biblioteka wykresów w zależnościach nie
+potwierdza istnienia raportów. Wspólny Modal korzysta z portalu do document.body.
+
+Łączenie banku otwiera nową kartę z URL Tink. Główna karta odpytuje próbę
+co 3 sekundy, a aktywny refresh co 2,5 sekundy. Zapamiętywane są ID ostatniej
+próby i refreshu, nie pełna historia zadań. Callback API przy Accept: text/html
+zwraca samodzielną stronę wyniku bez przekierowania do kolejnej sesji frontendu;
+użytkownik wraca do pierwotnej karty. Dla klienta JSON zachowuje DTO/ProblemDetails.
+Obsługuje to BankingBrowserResponse oraz filtr błędów bazy dla callbacku,
+z zachowaniem statusów HTTP, no-store i ograniczeń CSP/referrer.
+
+Uzupełnienie przeglądu frontendu 2026-11-17: obecność źródła bankowego Expense
+wynika z `bankTransactionId`, niezależnie od dostępności DTO transakcji. Dla
+innego płatnika formularz i szczegóły nie pobierają prywatnych danych Banking;
+pokazują informację o powiązaniu i właścicielu. Formularz zachowuje kwotę Expense
+na potrzeby preview/zapisu oraz OCR, blokuje płatnika i kwotę, ukrywa zmianę
+i odłączenie transakcji. Są to ograniczenia UI; nie zastępują autoryzacji API.
+
+Provider w `store.tsx` automatycznie pobiera connections, consents i accounts
+po zalogowaniu; błąd dowolnego żądania w `Promise.all` ustawia wspólny błąd
+bankowości. BankingPage scala identyczne komunikaty błędów żądań i udostępnia je
+podwidokom przez lokalny kontekst, aby nie powielać alertów. Wyniki refreshu
+mapuje osobno `refreshErrorText` w `mocks/bank.ts`. Interpretację kodu
+`BANKING_TINK_UNAVAILABLE` opisuje [diagnostyka](development.md#diagnostyka-błędów-banking--2026-11-17).
+
+Linki e-mail User są niezależnym przepływem: wymagany `FRONTEND_URL` w hoście
+zasila UserEmailLinkOptions i podlega walidacji przy starcie. Logo maili jest
+osadzonym zasobem MIME CID, a daty ważności są formatowane w Europe/Warsaw.
+Konfigurację i polecenia opisuje [development](development.md).
+
 ## Stos obecny i docelowy
 
 | Obszar | Stan potwierdzony / założenie |
@@ -419,7 +464,7 @@ znajdują się w [instrukcji pracy](development.md#modele-i-migracje).
 | Kontenery aplikacji | Jeden containers/local/docker-compose.yml: frontend Vite, PostgreSQL, backend .NET, SeaweedFS 4.48 i worker OCR; jedna konfiguracja containers/local/.env; wewnętrzna komunikacja po nazwach usług |
 | Web | React + TypeScript + Vite i Tailwind; ekrany i klient API z JWT. Przeglądarka używa /api przez proxy Vite dev/preview do API_PROXY_TARGET (lokalnie localhost:5283, Compose backend:8080). Kontener developerski Node 22, bind mount kodu, osobny wolumen node_modules i HMR z opcjonalnym pollingiem; bez obrazu produkcyjnego. Uruchomienie: frontend/README.md i containers/local/README.md; ograniczenia: implementation-status.md |
 | Mobile | Uzgodniono React + Capacitor; Stos technologiczny.txt nadal wymienia alternatywę React Native, brak aplikacji w repo |
-| OCR i storage | Worker FastAPI z OCR i kategoryzacją produktów; Receipt opcjonalnie wywołuje POST /api/v1/extract i korzysta z magazynu zgodnego z S3; dostęp HTTP planowany przez Expense; brak potwierdzenia pełnego przepływu w tej weryfikacji |
+| OCR i storage | Worker FastAPI z OCR i kategoryzacją produktów; Receipt opcjonalnie wywołuje POST /api/v1/extract i korzysta z magazynu zgodnego z S3; HTTP analizy, zapisu i odczytu paragonu jest dostępne przez Expense; brak nowego potwierdzenia pełnego przepływu z rzeczywistymi usługami |
 | Automatyzacja | GitHub Actions, pre-commit, narzędzia Python zarządzane przez uv |
 | Testy backendu | Piętnaście projektów: po trzy User, Banking i Notifications, dwa Receipt i dwa Expense (UnitTests, IntegrationTests), Grouping i Shared; CI dostarcza PostgreSQL 15 dla testów bazy |
 | Infrastruktura | Obecna konfiguracja Terraform dla Proxmox; Linux i Tailscale w środowisku developerskim |
@@ -430,7 +475,7 @@ rachunków oraz transakcji na żądanie. Publiczny `IBankingReadService` udostę
 lokalne listy i szczegóły rachunków/transakcji przez DI, z wymaganym właścicielem
 i osobnymi kontraktami danych w `Services/Contracts`. Odczyt nie wymaga Tink,
 nie uruchamia synchronizacji. Expense może użyć
-tego interfejsu do wyboru transakcji; tworzenie wydatku i powiązania pozostaje
+tego interfejsu do wyboru transakcji i utrzymywania przypisania; tworzenie wydatku pozostaje
 w Expense. `BankingReadController` udostępnia listy i szczegóły rachunków oraz
 transakcji frontendowi przez cztery endpointy GET, z właścicielem z JWT, osobnymi
 DTO HTTP i kwotami jako tekst dziesiętny zachowujący dokładność.
@@ -475,6 +520,14 @@ Storage jest współdzielony w ZPI4M.Shared.Storage: IObjectStorage, S3ObjectSto
 FileUrlResult i konfiguracja STORAGE_*. Klucze generuje moduł wywołujący;
 Receipt używa RECEIPT_STORAGE_PREFIX (domyślnie receipts/). Testy adaptera:
 ZPI4M.Shared.UnitTests.
+
+Od 2026-11-12 normalizacja ikon User i Grouping jest wspólna w
+`ZPI4M.Shared.Images.IconImageProcessor` (Magick.NET). Pomocnik dekoduje i skaluje
+obraz do WebP; nie zna użytkowników, grup, kluczy storage ani transakcji.
+Moduły mapują jego błędy i wykonują upload/sprzątanie we własnych serwisach.
+Frontend ma analogiczny wspólny pomocnik `src/shared/iconImage.ts` dla lokalnej
+konwersji HEIC/HEIF i zmniejszenia przed wysłaniem. Kontrakt limitów:
+[development](development.md#zdjęcia-profilu-i-prefiksy-storage).
 
 UserIconService korzysta z tego samego IObjectStorage bez zależności od Grouping.
 Wybór presetu i upload są częścią aktualizacji profilu, z blokadą rekordu konta
@@ -626,7 +679,7 @@ wierzyciel (kolejki priorytetowe, remisy po UserId), O(n log n), decimal.
 Nie gwarantuje minimum; DTO jawnie zwraca optimalityGuaranteed=false.
 Sugestie są odczytem i nie stanowią zlecenia płatności ani zapisów rozliczeń.
 Bez migracji, Banking, odczytów Expense i odbudowy agregatów.
-Kontrakt frontendowy: agent-context/grouping-frontedn.md.
+Kontrakty HTTP i sortowanie grup: [README Grouping](../backend/ZPI4M.Backend/src/modules/ZPI4M.Grouping/README.md).
 
 ## Dostęp do danych Grouping — 2026-11-02
 Serwisy biznesowe Grouping kierują zapytania i operacje na zbiorach do repozytoriów.
@@ -650,10 +703,12 @@ Zapisy wymagają jawnej transakcji scoped BankingDbContext; serwis jej nie otwie
 nie zatwierdza ani nie wycofuje i nie zapisuje innych oczekujących zmian EF.
 Repozytorium wykonuje SQL od razu, blokując rekord BankTransaction na czas
 transakcji i rozstrzygając konflikty bez nadpisywania konsumenta.
-Banking zachowuje osobne połączenie. Integracja z przepływami biznesowymi oraz
-dołączenie kontekstu do ich transakcji pozostają na później; przyszły koordynator
-musi zapewnić atomowy zapis/usunięcie przypisania razem z powiązaniem konsumenta.
-Sam rejestr nie zapewnia spójności z kolumnami źródłowymi konsumentów.
+Scoped BankingDbContext współdzieli połączenie z koordynatorem Grouping.
+Expense dołącza go do transakcji i utrzymuje przypisania przy tworzeniu,
+edycji i usuwaniu. Konteksty fabryki używane do prób/połączeń zachowują osobne
+połączenia. GroupSettlement nadal odrzuca nowe powiązania bankowe; integracja
+tego konsumenta pozostaje do wykonania. Sam rejestr nie zapewnia spójności
+z kolumnami źródłowymi konsumentów.
 
 ## Inicjalizacja użytkownika Tink przy łączeniu banku — 2026-11-07
 

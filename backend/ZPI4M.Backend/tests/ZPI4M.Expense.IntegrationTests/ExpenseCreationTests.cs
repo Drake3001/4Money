@@ -309,7 +309,7 @@ public sealed class ExpenseCreationTests : PostgresFixture
 		queries = new ExpenseQueryService(expenseRepository, items, shares, categories, memberService, metadata, new UserNamesStub(), calculations);
 		return new(db, expenseRepository, items, shares, categories,
 			memberService, new ExpenseRequestService(calculations), queries, new NoBanking(), metadata,
-			transactions, new GroupExpenseContributionService(grouping, groupRepository, memberships, aggregates, transactions), new GroupExpenseNotificationService(memberships, notifications, transactions), receipts, receiptDb, new ReceiptOcrProof(Options.Create(new ReceiptOcrProofOptions { SigningKey = Convert.ToBase64String(new byte[32]) }), TimeProvider.System), bankingDb,
+			transactions, new GroupExpenseContributionService(grouping, groupRepository, memberships, aggregates, transactions), new GroupExpenseNotificationService(memberships, notifications, transactions, new UserDisplayNameLookup(users)), receipts, receiptDb, new ReceiptOcrProof(Options.Create(new ReceiptOcrProofOptions { SigningKey = Convert.ToBase64String(new byte[32]) }), TimeProvider.System), bankingDb,
 			new BankTransactionAssignmentService(new BankTransactionAssignmentRepository(bankingDb)));
 	}
 

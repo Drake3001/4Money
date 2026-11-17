@@ -60,6 +60,7 @@ Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables();
+var frontendUrl = builder.Configuration["FRONTEND_URL"] ?? "";
 
 // Add services to the container.
 
@@ -212,7 +213,8 @@ builder.Services.AddOptions<SmtpOptions>()
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddOptions<UserEmailLinkOptions>()
 	.BindConfiguration(UserEmailLinkOptions.SectionName)
-	.Validate(UserEmailLinkOptions.IsValid, "UserEmailLinks:FrontendBaseUrl must be an absolute HTTP(S) URL without credentials, query or fragment.")
+	.Configure(options => options.FrontendBaseUrl = frontendUrl)
+	.Validate(UserEmailLinkOptions.IsValid, "FRONTEND_URL must be an absolute HTTP(S) URL without credentials, query or fragment.")
 	.ValidateOnStart();
 builder.Services.AddSingleton<UserEmailMessages>();
 

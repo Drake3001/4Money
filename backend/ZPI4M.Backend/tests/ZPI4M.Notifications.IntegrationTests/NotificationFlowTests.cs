@@ -75,11 +75,11 @@ public sealed class NotificationFlowTests : PostgresFixture
 		var repository = new NotificationRecipientRepository(db);
 		var first = await repository.GetPageAsync(AnnaId, pageSize: 1);
 		Assert.Equal(3, first.TotalCount);
-		Assert.Equal(GeneralNotificationId, Assert.Single(first.Items).FkNotificationId);
+		Assert.Equal(SettlementNotificationId, Assert.Single(first.Items).FkNotificationId);
 		Assert.Null(first.Items[0].ReadAt);
 		Assert.True(first.HasNextPage);
 		Assert.Equal(FirstNotificationId, Assert.Single((await repository.GetPageAsync(AnnaId, 2, 1)).Items).FkNotificationId);
-		Assert.Equal(GeneralNotificationId, Assert.Single((await repository.GetPageAsync(AnnaId, isRead: false)).Items).FkNotificationId);
+		Assert.Equal(SettlementNotificationId, Assert.Single((await repository.GetPageAsync(AnnaId, isRead: false)).Items).FkNotificationId);
 		var readPage = await repository.GetPageAsync(AnnaId, isRead: true);
 		Assert.Equal(2, readPage.TotalCount);
 		Assert.Equal(FirstNotificationId, readPage.Items[0].FkNotificationId);
@@ -91,7 +91,7 @@ public sealed class NotificationFlowTests : PostgresFixture
 		var empty = await repository.GetPageAsync(Guid.NewGuid());
 		Assert.Equal(0, empty.TotalCount);
 		Assert.Empty(empty.Items);
-		Assert.Null(await db.NotificationRecipients.Where(r => r.FkNotificationId == GeneralNotificationId && r.FkUserId == AnnaId).Select(r => r.ReadAt).SingleAsync());
+		Assert.Null(await db.NotificationRecipients.Where(r => r.FkNotificationId == SettlementNotificationId && r.FkUserId == AnnaId).Select(r => r.ReadAt).SingleAsync());
 		await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => repository.GetPageAsync(AnnaId, pageSize: 101));
 		await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => repository.GetPageAsync(AnnaId, int.MaxValue, 100));
 	}
@@ -147,7 +147,7 @@ public sealed class NotificationFlowTests : PostgresFixture
 		Assert.Equal(3, (await repository.GetPageAsync(AnnaId, isRead: true)).TotalCount);
 		Assert.Empty((await repository.GetPageAsync(AnnaId, isRead: false)).Items);
 		Assert.Equal(oldRead, await db.NotificationRecipients.Where(r => r.FkUserId == AnnaId && r.FkNotificationId == FirstNotificationId).Select(r => r.ReadAt).SingleAsync());
-		Assert.Equal(readAt, await db.NotificationRecipients.Where(r => r.FkUserId == AnnaId && r.FkNotificationId == GeneralNotificationId).Select(r => r.ReadAt).SingleAsync());
+		Assert.Equal(readAt, await db.NotificationRecipients.Where(r => r.FkUserId == AnnaId && r.FkNotificationId == SettlementNotificationId).Select(r => r.ReadAt).SingleAsync());
 		Assert.Equal(2, (await repository.GetPageAsync(BartekId, isRead: false)).TotalCount);
 		await repository.MarkAllAsReadAsync(Guid.NewGuid(), readAt);
 		var newId = await NotifyAsync(new(NotificationType.General, "Nowe", "T", [AnnaId]));
@@ -190,13 +190,13 @@ public sealed class NotificationFlowTests : PostgresFixture
 		using var list = await host.Client.GetAsync($"/api/notifications?userId={BartekId}&pageSize=1&isRead=false");
 		Assert.Equal(HttpStatusCode.OK, list.StatusCode);
 		var page = await list.Content.ReadFromJsonAsync<PagedResult<NotificationResponse>>();
-		Assert.Equal(GeneralNotificationId, Assert.Single(page!.Items).Id);
+		Assert.Equal(SettlementNotificationId, Assert.Single(page!.Items).Id);
 		Assert.False(page.Items[0].IsRead);
 		using var foreign = await host.Client.PutAsync("/api/notifications/90000000-0000-0000-0000-000000000002/read", null);
 		Assert.Equal(HttpStatusCode.NotFound, foreign.StatusCode);
-		using var read = await host.Client.PutAsync($"/api/notifications/{GeneralNotificationId}/read", null);
+		using var read = await host.Client.PutAsync($"/api/notifications/{SettlementNotificationId}/read", null);
 		Assert.Equal(HttpStatusCode.NoContent, read.StatusCode);
-		using var repeated = await host.Client.PutAsync($"/api/notifications/{GeneralNotificationId}/read", null);
+		using var repeated = await host.Client.PutAsync($"/api/notifications/{SettlementNotificationId}/read", null);
 		Assert.Equal(HttpStatusCode.NoContent, repeated.StatusCode);
 		using var all = await host.Client.PutAsync("/api/notifications/read-all", null);
 		Assert.Equal(HttpStatusCode.NoContent, all.StatusCode);
@@ -222,7 +222,7 @@ public sealed class NotificationFlowTests : PostgresFixture
 		using var inactive = await host.Client.GetAsync("/api/notifications");
 		Assert.Equal(HttpStatusCode.Unauthorized, inactive.StatusCode);
 		await using var db = OpenDatabase();
-		Assert.Null(await db.NotificationRecipients.Where(r => r.FkUserId == AnnaId && r.FkNotificationId == GeneralNotificationId).Select(r => r.ReadAt).SingleAsync());
+		Assert.Null(await db.NotificationRecipients.Where(r => r.FkUserId == AnnaId && r.FkNotificationId == SettlementNotificationId).Select(r => r.ReadAt).SingleAsync());
 	}
 
 	[PostgresFact]

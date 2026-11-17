@@ -55,9 +55,13 @@ export function Provider({ children }: { children: ReactNode }) {
   }, [refreshUnread])
   const markAllRead = useCallback(async () => {
     const r = await run(() => notifications.markAllRead())
-    if (r.ok) { setNotifVersion((v) => v + 1); void refreshUnread() }
+    if (r.ok) {
+      setNotifVersion((v) => v + 1)
+      void refreshUnread()
+      showToast('Oznaczono wszystkie powiadomienia jako przeczytane')
+    }
     return r
-  }, [refreshUnread])
+  }, [refreshUnread, showToast])
   useEffect(() => { if (signedIn) void refreshUnread() }, [signedIn, route.name, refreshUnread])
 
   // ---- Banking

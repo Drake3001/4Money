@@ -29,6 +29,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Integrations/Smtp/Assets/logo-4money.png" LogicalName="ZPI4M.User.EmailLogo.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\ZPI4M.Shared\ZPI4M.Shared.csproj" />
   </ItemGroup>
 

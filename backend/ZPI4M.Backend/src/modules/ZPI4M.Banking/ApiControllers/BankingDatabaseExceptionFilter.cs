@@ -24,6 +24,13 @@ public sealed class BankingDatabaseExceptionFilter(ProblemDetailsFactory problem
 		{
 			response.Headers["Referrer-Policy"] = "no-referrer";
 			response.Headers.RetryAfter = "5";
+			var page = BankingBrowserResponse.Create(context.HttpContext.Request, false, StatusCodes.Status503ServiceUnavailable);
+			if (page is not null)
+			{
+				context.Result = page;
+				context.ExceptionHandled = true;
+				return;
+			}
 		}
 		var problem = problems.CreateProblemDetails(context.HttpContext,
 			StatusCodes.Status503ServiceUnavailable, title: "The banking operation is temporarily unavailable.");

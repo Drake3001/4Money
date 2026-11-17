@@ -6,8 +6,12 @@ export type AuthenticationResponse = { accessToken: string; accessTokenExpiresAt
 export type UserProfileResponse = {
   id: string; login: string; name: string; surname: string; email: string; phone: string | null; birthDate: string; icon: string | null
   isEmailConfirmed: boolean; createdAt: string; lastLoginTime: string | null
+  iconStorageKey: string | null; hasPassword: boolean; isGoogleLinked: boolean
 }
 export type RegisterUserResponse = { id: string; login: string; name: string; surname: string; email: string; birthDate: string; isEmailConfirmed: boolean; createdAt: string }
+export type GoogleChallengeResponse = { clientId: string; nonce: string; expiresAt: string }
+export type GoogleRegistrationInput = { idToken: string; login: string; name: string; surname: string; birthDate: string }
+export type GoogleRegistrationResponse = { user: RegisterUserResponse; authentication: AuthenticationResponse | null; requiresEmailConfirmation: boolean }
 
 // ---- Banking
 export type StartBankConnectionResponse = { attemptId: string; authorizationUrl: string; expiresAt: string }
@@ -37,6 +41,7 @@ export type GroupResponse = {
 export type GroupMemberResponse = {
   userId: string; groupId: string; isMember: boolean; joinedAt: string; totalPaid: number; totalShare: number
   totalSettlementsSent: number; totalSettlementsReceived: number
+  displayName?: string | null
 }
 export type GroupInvitationResponse = { id: string; groupId: string; createdByUserId: string; maxUses: number; useCount: number; expiresAt: string; isActive: boolean }
 export type CreateGroupInvitationResponse = { invitation: GroupInvitationResponse; token: string }

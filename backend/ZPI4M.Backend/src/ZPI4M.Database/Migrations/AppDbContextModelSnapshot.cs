@@ -474,28 +474,28 @@ namespace ZPI4M.Database.Migrations
                             Id = new Guid("30000000-0000-0000-0000-000000000001"),
                             Description = "Zakupy spożywcze i napoje bezalkoholowe, również gotowa żywność ze sklepu.",
                             Icon = "shopping-cart",
-                            Name = "żywność i napoje"
+                            Name = "Żywność i napoje"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000002"),
                             Description = "Posiłki i napoje bezalkoholowe z gastronomii, także dostawy; wymaga kontekstu gastronomicznego.",
                             Icon = "utensils",
-                            Name = "restauracje i kawiarnie"
+                            Name = "Restauracje i kawiarnie"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000003"),
                             Description = "Paliwo, części, serwis auta, parking, taxi, komunikacja miejska i przejazdy lądowe.",
                             Icon = "car",
-                            Name = "transport i samochód"
+                            Name = "Transport i samochód"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000004"),
                             Description = "Media, prąd, gaz, woda, telefon, internet i opłaty administracyjne.",
                             Icon = "receipt",
-                            Name = "rachunki i opłaty"
+                            Name = "Rachunki i opłaty"
                         },
                         new
                         {
@@ -509,105 +509,112 @@ namespace ZPI4M.Database.Migrations
                             Id = new Guid("30000000-0000-0000-0000-000000000006"),
                             Description = "Napoje alkoholowe, papierosy i produkty nikotynowe, również kupione w restauracji.",
                             Icon = "wine",
-                            Name = "alkohol i tytoń"
+                            Name = "Alkohol i tytoń"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000007"),
                             Description = "Odzież, obuwie, torby, biżuteria i dodatki odzieżowe.",
                             Icon = "shirt",
-                            Name = "ubrania i dodatki"
+                            Name = "Ubrania i dodatki"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000008"),
                             Description = "Sprzęt elektroniczny, przewody, ładowarki i części elektroniczne.",
                             Icon = "smartphone",
-                            Name = "elektronika"
+                            Name = "Elektronika"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000009"),
                             Description = "Wyposażenie, meble, narzędzia, rośliny, artykuły kuchenne i ręczniki papierowe.",
                             Icon = "home",
-                            Name = "dom i ogród"
+                            Name = "Dom i ogród"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000010"),
                             Description = "Detergenty i środki czystości, np. płyn do naczyń, proszek do prania, płyn do WC.",
                             Icon = "spray-can",
-                            Name = "chemia gospodarcza"
+                            Name = "Chemia gospodarcza"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000011"),
                             Description = "Pielęgnacja i higiena osobista, np. szampon, pasta do zębów, podpaski, papier toaletowy.",
                             Icon = "sparkles",
-                            Name = "kosmetyki i higiena"
+                            Name = "Kosmetyki i higiena"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000012"),
                             Description = "Leki, wyroby medyczne, badania, wizyty lekarskie, dentysta i rehabilitacja.",
                             Icon = "heart-pulse",
-                            Name = "zdrowie"
+                            Name = "Zdrowie"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000013"),
                             Description = "Karma, akcesoria dla zwierząt, ich pielęgnacja i weterynarz.",
                             Icon = "paw-print",
-                            Name = "zwierzęta"
+                            Name = "Zwierzęta"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000014"),
                             Description = "Hotele, loty, wycieczki i usługi turystyczne; nie zgaduj celu zwykłego przejazdu.",
                             Icon = "plane",
-                            Name = "podróże i noclegi"
+                            Name = "Podróże i noclegi"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000015"),
                             Description = "Kino, koncerty, gry, abonamenty rozrywkowe i książki rekreacyjne.",
                             Icon = "ticket",
-                            Name = "rozrywka i wydarzenia"
+                            Name = "Rozrywka i wydarzenia"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000016"),
                             Description = "Siłownia, sprzęt sportowy, zajęcia rekreacyjne i materiały hobbystyczne.",
                             Icon = "dumbbell",
-                            Name = "sport i hobby"
+                            Name = "Sport i hobby"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000017"),
                             Description = "Kursy, podręczniki, szkolenia i opłaty za naukę.",
                             Icon = "graduation-cap",
-                            Name = "edukacja"
+                            Name = "Edukacja"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000018"),
                             Description = "Fryzjer, barber, krawiec, naprawa obuwia, dorabianie kluczy; tylko usługi bez trafniejszej kategorii.",
                             Icon = "wrench",
-                            Name = "usługi"
+                            Name = "Usługi"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000019"),
                             Description = "Rozpoznany wydatek, dla którego żadna z pozostałych kategorii nie pasuje; nie służy do oznaczania niepewności.",
                             Icon = "package",
-                            Name = "inne"
+                            Name = "Inne"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000020"),
                             Description = "Samodzielna pozycja obniżająca wartość zakupów, np. opust za butelki lub rabat na cały paragon. Nie obejmuje zwrotu kaucji ani rabatu przypisanego już do produktu.",
                             Icon = "badge-percent",
-                            Name = "zniżka"
+                            Name = "Zniżka"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000021"),
+                            Description = "Kaucje za opakowania i ich zwroty.",
+                            Icon = "recycle",
+                            Name = "Kaucja"
                         });
                 });
 

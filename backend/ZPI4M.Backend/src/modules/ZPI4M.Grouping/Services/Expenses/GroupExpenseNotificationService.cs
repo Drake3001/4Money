@@ -1,16 +1,16 @@
-using System.Globalization;
 using ZPI4M.Grouping.Repositories.GroupMemberRepository;
 using ZPI4M.Grouping.Services.ExpenseMetadata;
 using ZPI4M.Grouping.Services.Transactions;
 using ZPI4M.Notifications.DTOs;
 using ZPI4M.Notifications.Models;
 using ZPI4M.Notifications.Services.Notifications;
+using ZPI4M.User.Services.Lookup;
 
 namespace ZPI4M.Grouping.Services.Expenses;
 
 /// <summary>Notifies members after Expense saves a new expense in the shared transaction.</summary>
 public sealed class GroupExpenseNotificationService(IGroupMemberRepository members,
-	INotificationService notifications, IGroupingTransactionCoordinator transactions) : IGroupExpenseNotificationService
+	INotificationService notifications, IGroupingTransactionCoordinator transactions, IUserDisplayNameLookup names) : IGroupExpenseNotificationService
 {
 	public Task NotifyAddedAsync(Guid actor, Guid expenseId, string expenseName, decimal amount,
 		GroupExpenseMetadata group, CancellationToken cancellationToken = default)
@@ -21,9 +21,10 @@ public sealed class GroupExpenseNotificationService(IGroupMemberRepository membe
 			var recipients = await members.GetActiveUserIdsAsync(group.Id, actor, token);
 			if (recipients.Count == 0) return true;
 			await transactions.EnlistNotificationsAsync(token);
-			var formattedAmount = amount.ToString("F2", CultureInfo.GetCultureInfo("pl-PL"));
+			var labels = await names.GetAsync([actor], token);
+			var author = labels.GetValueOrDefault(actor, "Użytkownik");
 			await notifications.NotifyAsync(new CreateNotificationRequest(NotificationType.ExpenseAdded,
-				"Nowy wydatek", $"Dodano wydatek „{expenseName}” za {formattedAmount} zł w grupie „{group.Name}”.",
+				"Nowy wydatek", $"{author} dodał(a) wydatek w grupie {group.Name}.",
 				recipients, ExpenseId: expenseId), token);
 			return true;
 		}, success => success, cancellationToken);

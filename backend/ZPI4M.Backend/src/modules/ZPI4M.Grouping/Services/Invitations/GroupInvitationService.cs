@@ -21,7 +21,7 @@ using ZPI4M.User.Services.Lookup;
 using Group = ZPI4M.Grouping.Models.Group;
 namespace ZPI4M.Grouping.Services.Invitations;
 
-public sealed class GroupInvitationService(GroupingDbContext db, IGroupInvitationRepository repository, INotificationService notifications, IUserLookupService users, IGroupIconService icons, TimeProvider clock, IGroupingTransactionCoordinator transactions, IGroupRepository groups, IGroupMemberRepository members) : IGroupInvitationService
+public sealed class GroupInvitationService(GroupingDbContext db, IGroupInvitationRepository repository, INotificationService notifications, IUserLookupService users, IGroupIconService icons, TimeProvider clock, IGroupingTransactionCoordinator transactions, IGroupRepository groups, IGroupMemberRepository members, IUserDisplayNameLookup names) : IGroupInvitationService
 {
 	public static string GenerateToken() => WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
 	public static string Hash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
@@ -121,7 +121,9 @@ public sealed class GroupInvitationService(GroupingDbContext db, IGroupInvitatio
 		var recipients = await members.GetActiveUserIdsAsync(group.Id, user, ct);
 		await transactions.EnlistNotificationsAsync(ct);
 		await db.SaveChangesAsync(ct);
-		await notifications.NotifyAsync(new CreateNotificationRequest(NotificationType.GroupMemberJoined, "Nowy członek grupy", "Do grupy dołączył nowy członek.", recipients, group.Id), ct);
+		var labels = await names.GetAsync([user], ct);
+		var memberName = labels.GetValueOrDefault(user, "Użytkownik");
+		await notifications.NotifyAsync(new CreateNotificationRequest(NotificationType.GroupMemberJoined, "Nowy członek grupy", $"{memberName} dołączył(a) do grupy {group.Name}.", recipients, group.Id), ct);
 
 		return new(200, Map(member));
 	}

@@ -11,7 +11,13 @@ Omitted/null description on PUT clears it.
 Icon is a preset key; IconStorageKey is a custom upload key. Requests cannot supply
 IconStorageKey. PUT without an icon instruction preserves the existing image;
 removeIcon=true clears it. Preset/file/remove instructions are mutually exclusive.
-Uploads accept PNG/JPEG/WebP signatures and matching MIME, max 5 MiB.
+Uploads accept PNG/JPEG/WebP/HEIC/HEIF signatures and matching MIME, max 5 MiB.
+User and Grouping use `Shared.Images.IconImageProcessor`: decode the first frame,
+validate dimensions (up to 16384 px per side and 64 million pixels), apply EXIF
+orientation, fit inside 512 × 512 without enlarging, remove metadata and store
+WebP. Invalid/truncated images are rejected before storage. Presets and existing
+images are not rewritten. The shared frontend helper `src/shared/iconImage.ts`
+accepts originals up to 25 MiB and converts/resizes locally before upload.
 Oversize returns 413, invalid format 415, storage failures 503.
 
 GET /api/groups/icon-presets lists signed previews from GROUP_ICON_PRESET_PREFIX
@@ -48,6 +54,22 @@ All lists accept pageNumber (default 1), pageSize (default 20, maximum 100)
 and declare Shared.PagedResult<T> responses. Group/member lists accept
 membership=active|former|all (default active). Invitation lists accept optional
 isActive (omitted means all); expiry and usage limits are separate fields.
+
+Member list/details responses include nullable `displayName` (first and last name,
+or login if names are unavailable). GroupMemberService uses the existing
+`IUserDisplayNameLookup` only after checking the caller's active membership;
+list names are read in one batch for the returned page. Historical/inactive
+accounts can still have labels. There is no public lookup by arbitrary user ID.
+The frontend shows names in member rows, payment choices and administrator
+transfer, and derives the role from the group's administrator ID.
+
+GET `/api/groups` accepts `sortBy=name|joinedAt` (default `name`) and
+`descending=false|true` (default `false`). `joinedAt` means the current user's
+stored membership join date, including for former memberships. Sorting runs
+before pagination; group ID ascending breaks ties in either direction.
+Unknown or empty `sortBy` returns 400. For example:
+`GET /api/groups?membership=all&sortBy=joinedAt&descending=true&pageNumber=1&pageSize=20`.
+Archived groups remain excluded. No schema migration is required.
 
 Create group: name, currencyCode (three uppercase ASCII letters), optional icon.
 Update group: name, optional description and icon instruction; omitted icon preserves it. Currency cannot

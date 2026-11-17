@@ -141,7 +141,7 @@ public sealed class ExpenseRequestService(IExpenseCalculationService calculation
 		return null;
 	}
 
-	private static bool TryGetTotal(decimal price, decimal quantity, decimal discount, out decimal total)
+	internal static bool TryGetTotal(decimal price, decimal quantity, decimal discount, out decimal total)
 	{
 		total = 0;
 		if (price < 0 && discount != 0) return false;

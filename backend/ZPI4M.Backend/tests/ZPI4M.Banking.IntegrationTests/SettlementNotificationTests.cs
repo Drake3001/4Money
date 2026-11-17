@@ -44,7 +44,7 @@ public sealed class SettlementNotificationTests : PostgresFixture
 		var groups = new GroupRepository(db);
 		var members = new GroupMemberRepository(db);
 		var notify = new NotificationService(new NotificationRepository(inbox), new NotificationRecipientRepository(inbox), inbox, new UserLookupService(users));
-		var service = new GroupSettlementService(db, groups, members, new GroupSettlementRepository(db), new GroupMemberAggregateService(groups, members, tx), tx, TimeProvider.System, null!, notify);
+		var service = new GroupSettlementService(db, groups, members, new GroupSettlementRepository(db), new GroupMemberAggregateService(groups, members, tx), tx, TimeProvider.System, null!, notify, new UserDisplayNameLookup(users));
 		await test(db, inbox, tx, service);
 	}
 
@@ -69,11 +69,11 @@ public sealed class SettlementNotificationTests : PostgresFixture
 			(await db.GroupMembers.SingleAsync(m => m.FkUserId == Bartek && m.FkGroupId == Group)).IsMember = false;
 		await db.SaveChangesAsync();
 		Assert.Equal(201, (await service.CreateAsync(Anna, Group, Request(administrator ? Celina : Anna))).Status);
-		var notification = await inbox.Notifications.Include(n => n.NotificationRecipients).SingleAsync(n => n.Type == NotificationType.SettlementReceived);
+		var notification = await inbox.Notifications.Include(n => n.NotificationRecipients).SingleAsync(n => n.Type == NotificationType.SettlementReceived && n.NotificationRecipients.Any(r => r.FkUserId == Bartek));
 		Assert.Equal(Group, notification.FkGroupId);
 		Assert.Null(notification.FkExpenseId);
-		Assert.Equal("Otrzymane rozliczenie", notification.Title);
-		Assert.Equal("Zarejestrowano zwrot pieniędzy dla Ciebie.", notification.Text);
+		Assert.Equal("Zapisano rozliczenie", notification.Title);
+		Assert.Equal($"Zapisano rozliczenie od {(administrator ? "Celina" : "Anna")} Testowa dla Ciebie na kwotę 5,00 zł w grupie „Dom”.", notification.Text);
 		var recipient = Assert.Single(notification.NotificationRecipients);
 		Assert.Equal(Bartek, recipient.FkUserId);
 		Assert.Null(recipient.ReadAt);

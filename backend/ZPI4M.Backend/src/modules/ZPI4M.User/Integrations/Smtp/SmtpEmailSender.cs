@@ -27,12 +27,23 @@ public sealed class SmtpEmailSender : IEmailSender
 			message.From.Add(new MailboxAddress(options.SenderName, options.SenderEmail));
 			message.To.Add(MailboxAddress.Parse(recipientEmail));
 			message.Subject = subject;
-			message.Body = new BodyBuilder
+			var textWithLinks = System.Text.RegularExpressions.Regex.Replace(body,
+				"<a\\b[^>]*href=\"([^\"]*)\"[^>]*>(.*?)</a>", "$2: $1",
+				System.Text.RegularExpressions.RegexOptions.Singleline);
+			var builder = new BodyBuilder
 			{
 				HtmlBody = body,
 				TextBody = System.Net.WebUtility.HtmlDecode(
-					System.Text.RegularExpressions.Regex.Replace(body, "<[^>]+>", "\n"))
-			}.ToMessageBody();
+					System.Text.RegularExpressions.Regex.Replace(textWithLinks, "<[^>]+>", "\n"))
+			};
+			using var logoStream = typeof(UserEmailMessages).Assembly.GetManifestResourceStream("ZPI4M.User.EmailLogo.png")
+				?? throw new InvalidOperationException("Email logo resource is missing.");
+			if (body.Contains($"cid:{UserEmailMessages.LogoContentId}", StringComparison.Ordinal))
+			{
+				var logo = builder.LinkedResources.Add("4money-logo.png", logoStream, new ContentType("image", "png"));
+				logo.ContentId = UserEmailMessages.LogoContentId;
+			}
+			message.Body = builder.ToMessageBody();
 
 			var security = options.SecurityMode switch
 			{

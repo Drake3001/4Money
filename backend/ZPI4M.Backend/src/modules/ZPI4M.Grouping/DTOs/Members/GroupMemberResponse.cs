@@ -8,4 +8,5 @@ public sealed record GroupMemberResponse(
 	decimal TotalPaid,
 	decimal TotalShare,
 	decimal TotalSettlementsSent,
-	decimal TotalSettlementsReceived);
+	decimal TotalSettlementsReceived,
+	string? DisplayName = null);

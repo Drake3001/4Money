@@ -97,7 +97,7 @@ services:
     environment:
       ASPNETCORE_HTTP_PORTS: "8080"
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
-      UserEmailLinks__FrontendBaseUrl: ${USER_EMAIL_FRONTEND_URL:-http://localhost:5173}
+      FRONTEND_URL: ${FRONTEND_URL:?Set FRONTEND_URL in containers/local/.env}
       DB_LOCAL_CONNECTION_STRING: 'Host=postgres-db;Port=5432;Database=${POSTGRES_DB:-zpi4m_db};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}'
       USERAUTHENTICATION__SIGNINGKEY: ${USERAUTHENTICATION__SIGNINGKEY:?Set USERAUTHENTICATION__SIGNINGKEY in containers/local/.env}
       RECEIPTOCRPROOF__SIGNINGKEY: ${RECEIPTOCRPROOF__SIGNINGKEY:?Set RECEIPTOCRPROOF__SIGNINGKEY in containers/local/.env}

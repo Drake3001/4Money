@@ -1,11 +1,13 @@
 import { createContext, useContext } from 'react'
 import type { Res } from './api/client'
 import type { ProfileInput, RegisterInput, UserProfile } from './mocks/users'
+import type { GoogleRegistrationInput, GoogleRegistrationResponse } from './api/types'
 
 export type UserRes<T = void> = Res<T>
 
 export type UserApi = {
   profile: UserProfile
+  profileImageUrl: string | null
   /** False until GET /api/users/profile has answered for the current session. */
   profileReady: boolean
   isSignedIn: boolean
@@ -13,6 +15,8 @@ export type UserApi = {
   pendingEmail: string | null
   deactivationRequested: boolean
   login: (login: string, password: string) => Promise<UserRes>
+  googleLogin: (idToken: string) => Promise<UserRes>
+  googleRegister: (input: GoogleRegistrationInput) => Promise<UserRes<GoogleRegistrationResponse>>
   logout: () => Promise<void>
   register: (i: RegisterInput) => Promise<UserRes>
   confirmEmail: (token: string) => Promise<UserRes>

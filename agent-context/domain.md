@@ -74,15 +74,17 @@ w SQL init i snapshocie EF.
   Nie jest zapisem wykonanego przelewu; płatności realizuje Grouping.
   Relacja do Expense jest mapowana w konfiguracji modułu, bez nawigacji.
   FK Expense do Group/Receipt/BankTransaction oraz ExpenseShare do User są
-  wymuszane przez bazowy SQL, bez mapowania tych relacji w EF.
+  wymuszane przez bazowy SQL, bez mapowania tych relacji w EF. AppDbContext
+  mapuje osobno FK płatnika Expense do User oraz Notification do Expense.
 - `GroupMember` łączy użytkownika i grupę kluczem złożonym; użytkownik może
   należeć do wielu grup.
 - `BankAccount` należy do użytkownika, a `BankTransaction` do rachunku.
   Identyfikatory dostawcy występują w modelu bankowym, ale nie są automatycznie
   publicznym kontraktem API.
-  Aktualny opis bazy wskazuje opcjonalne credentials_id oraz UNIQUE
-  (fk_user_id, financial_institution_id, number); obecna konfiguracja Banking
-  uwzględnia oba elementy. Nie zakładaj ich wdrożenia bez odpowiedniej migracji.
+  Historyczny opis bazy wskazywał UNIQUE (fk_user_id, financial_institution_id,
+  number). Bieżąca konfiguracja zachowuje opcjonalne credentials_id, ale
+  tożsamość importu wyznacza unikalna para (TinkUserId, TinkAccountId).
+  Numer, IBAN i instytucja są opcjonalne. Nie zakładaj wdrożenia bez migracji.
 - `CategoryGroupLimit` łączy kategorię i grupę. Modele przewidują opcjonalne
   limity tygodniowe, miesięczne i roczne.
 
@@ -170,6 +172,13 @@ opisuje [status](implementation-status.md).
 
 ## Kontrakt ręcznego Expense
 
+Przegląd 2026-11-15: frontend pozwala edytować udziały procentem, suwakiem
+lub pomocniczą kwotą, blokować wybrane udziały i rozdzielać resztę po zmianie
+uczestników. `shareDistribution.ts` bilansuje setne procenta do 100%; kwota
+w UI jest przeliczana na procent. Blokady i tryb edycji nie są utrwalane w API.
+Rozdział groszy przez backend pozostaje odrębnym obliczeniem na zapisanych
+procentach; formularz nie zmienia domenowego modelu ExpenseShare.
+
 DTO są w `Expense/DTOs/Expenses`, interfejs w `Services/Expenses/IExpenseService`.
 DTO Expense zawierają wyłącznie dane. Normalizacja, walidacja, parsowanie liczb
 i sprawdzanie sum są w `Services/Expenses/ExpenseRequestService`.
@@ -191,6 +200,17 @@ z części UTC istniejącego timestampu. Brak Amount oznacza sumę produktów;
 podane Amount jest celem z dopełnieniem „Nieznane”. Wynik musi być dodatni.
 Rabat produktu nie może przekroczyć jego wartości; udziały są unikalne i sumują
 się do 100%. Odpowiedź zawiera wszystkie pozycje i udziały z kwotami.
+
+Przegląd UI 2026-11-17: frontend zawęża kategorię „Zniżka” do ujemnej ceny,
+ilości 1 i rabatu 0; wybranie kategorii ustawia ilość i rabat. To ograniczenie
+formularza, nie dodatkowa reguła kategorii w API. Ogólny backendowy model nadal
+dopuszcza ujemne ceny niezależnie od kategorii i wymaga dla nich rabatu 0.
+Rabat jest kwotą całej pozycji: cena × ilość + rabat; nie jest procentem.
+Powiązanie bankowe Expense istnieje także wtedy, gdy edytujący nie ma dostępu
+do prywatnych szczegółów transakcji. UI identyfikuje jej właściciela przez
+płatnika; nie należy nazywać go autorem wydatku. Szczegóły zachowania formularza
+i granice weryfikacji opisuje [status](implementation-status.md).
+
 Ochronę przed duplikatami przy ponawianiu zapisu odłożono do kolejnego etapu;
 obecny zapis jej nie gwarantuje.
 Systemowa kategoria „Nieznane” ma stałe ID i nie jest dostępna dla ręcznych pozycji.
@@ -484,8 +504,10 @@ Przegląd opisu bazy, diagramu logicznego i mapowań EF z 2026-10-21:
   maksymalnie 1:1. Opis bazy, konfiguracja EF i migracja unikalności są zgodne
   w tym zakresie; sam SQL init nie wymusza tych kardynalności.
 - Część FK między modułami istnieje w SQL inicjalizacyjnym, ale nie ma ich
-  w konfiguracjach EF i snapshocie. Od 2026-10-28 relacje
-  Expense → Group/Receipt/BankTransaction są jawnie mapowane w AppDbContext.
+  w konfiguracjach EF i snapshocie. Przegląd kodu 2026-11-15 potwierdza,
+  że Expense → Group/Receipt/BankTransaction i ExpenseShare → User nadal
+  nie mają jawnego mapowania EF; wcześniejszy opis ich obecności w AppDbContext
+  był niezgodny z kodem. AppDbContext mapuje płatnika i Notification → Expense.
   Samo pole `Fk...Id` nie definiuje relacji EF. Przy zmianach schematu porównuj
   model z bazowym SQL i migracjami.
 - `BankAccount.IsClosed` mają DEFAULT false w opisie
@@ -601,4 +623,8 @@ wierzyciel (kolejki priorytetowe, remisy po UserId), O(n log n), decimal.
 Nie gwarantuje minimum; DTO jawnie zwraca optimalityGuaranteed=false.
 Sugestie są odczytem i nie stanowią zlecenia płatności ani zapisów rozliczeń.
 Bez migracji, Banking, odczytów Expense i odbudowy agregatów.
-Kontrakt frontendowy: agent-context/grouping-frontedn.md.
+Aktualne kontrakty HTTP: [README Grouping](../backend/ZPI4M.Backend/src/modules/ZPI4M.Grouping/README.md).
+Przegląd 2026-11-15: lista grup obsługuje `sortBy=name|joinedAt`; `joinedAt`
+dotyczy członkostwa bieżącego użytkownika. Odpowiedzi członków mają opcjonalne
+`displayName` z lookupu User, również dla byłych członków. Jest to etykieta
+odpowiedzi, bez nowego pola encji ani migracji.

@@ -1,3 +1,4 @@
+using ImageMagick;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -9,20 +10,26 @@ namespace ZPI4M.User.UnitTests;
 public sealed class UserIconTests
 {
 	[Theory]
-	[InlineData("image/png", "89504E470D0A1A0A")]
-	[InlineData("image/jpeg", "FFD8FF00")]
-	[InlineData("image/webp", "524946460000000057454250")]
-	public async Task UploadValidatesSignatureAndStoresBytesUnderUniqueUserKey(string mime, string hex)
+	[InlineData("image/png", MagickFormat.Png)]
+	[InlineData("image/jpeg", MagickFormat.Jpeg)]
+	[InlineData("image/webp", MagickFormat.WebP)]
+	[InlineData("image/heic", MagickFormat.Heic)]
+	[InlineData("image/heif", MagickFormat.Heic)]
+	public async Task UploadDecodesResizesAndStoresWebPUnderUniqueUserKey(string mime, MagickFormat format)
 	{
 		var storage = new Storage();
 		var service = Create(storage);
 		var userId = Guid.NewGuid();
-		var bytes = Convert.FromHexString(hex);
+		var bytes = ImageBytes(format);
 		using var content = new MemoryStream(bytes);
 		var key = await service.UploadAsync(userId, content, mime);
 		Assert.StartsWith($"users/{userId}/icons/", key);
-		Assert.Equal(bytes, storage.Bytes);
-		Assert.Equal(mime, storage.ContentType);
+		using var saved = new MagickImage(storage.Bytes!);
+		Assert.Equal(MagickFormat.WebP, saved.Format);
+		Assert.Equal(512u, saved.Width);
+		Assert.Equal(256u, saved.Height);
+		Assert.Empty(saved.ProfileNames);
+		Assert.Equal("image/webp", storage.ContentType);
 		content.Position = 0;
 		Assert.NotEqual(key, await service.UploadAsync(userId, content, mime));
 	}
@@ -32,6 +39,9 @@ public sealed class UserIconTests
 	[InlineData("image/svg+xml", "3C7376673E", 415)]
 	[InlineData("image/png", "", 400)]
 	[InlineData("image/webp", "52494646", 415)]
+	[InlineData("image/png", "89504E470D0A1A0A", 415)]
+	[InlineData("image/jpeg", "FFD8FF00", 415)]
+	[InlineData("image/heic", "00000018667479706865696300000000686569636D696631", 415)]
 	public async Task InvalidContentNeverReachesStorage(string mime, string hex, int status)
 	{
 		var storage = new Storage();
@@ -47,7 +57,7 @@ public sealed class UserIconTests
 	public async Task UploadEnforcesExactFiveMiBLimit(int length, bool accepted)
 	{
 		var bytes = new byte[length];
-		Convert.FromHexString("89504E470D0A1A0A").CopyTo(bytes, 0);
+		ImageBytes(MagickFormat.Png).CopyTo(bytes, 0);
 		var storage = new Storage();
 		using var content = new MemoryStream(bytes);
 		if (accepted)
@@ -76,7 +86,7 @@ public sealed class UserIconTests
 	public async Task FailedUploadCleansItsUnassignedKeyAndCleanupFailureDoesNotHideOriginalError()
 	{
 		var storage = new Storage { FailUpload = true, FailDelete = true };
-		using var content = new MemoryStream(Convert.FromHexString("89504E470D0A1A0A"));
+		using var content = new MemoryStream(ImageBytes(MagickFormat.Png));
 		var error = await Assert.ThrowsAsync<HttpRequestException>(() => Create(storage).UploadAsync(Guid.NewGuid(), content, "image/png"));
 		Assert.Equal("upload failed", error.Message);
 		Assert.Equal(storage.UploadKey, Assert.Single(storage.Deleted));
@@ -91,6 +101,56 @@ public sealed class UserIconTests
 		cancellation.Cancel();
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Create(storage).UploadAsync(Guid.NewGuid(), content, "image/png", cancellation.Token));
 		Assert.Null(storage.Bytes);
+	}
+
+	[Fact]
+	public async Task SmallImageIsNotUpscaledAndTransparencyIsPreserved()
+	{
+		var storage = new Storage();
+		using var image = new MagickImage(MagickColors.Transparent, 64, 32);
+		using var content = new MemoryStream(image.ToByteArray(MagickFormat.Png));
+		await Create(storage).UploadAsync(Guid.NewGuid(), content, "image/png");
+		using var saved = new MagickImage(storage.Bytes!);
+		Assert.Equal(64u, saved.Width);
+		Assert.Equal(32u, saved.Height);
+		Assert.True(saved.HasAlpha);
+	}
+
+	[Fact]
+	public async Task ExifOrientationIsAppliedAndMetadataIsRemoved()
+	{
+		var storage = new Storage();
+		using var image = new MagickImage(MagickColors.Red, 640, 1280);
+		var exif = new ExifProfile();
+		exif.SetValue(ExifTag.Orientation, (ushort)6);
+		exif.SetValue(ExifTag.Artist, "Synthetic test metadata");
+		image.SetProfile(exif);
+		image.Orientation = Orientation.RightTop;
+		using var content = new MemoryStream(image.ToByteArray(MagickFormat.Jpeg));
+		await Create(storage).UploadAsync(Guid.NewGuid(), content, "image/jpeg");
+		using var saved = new MagickImage(storage.Bytes!);
+		Assert.Equal(512u, saved.Width);
+		Assert.Equal(256u, saved.Height);
+		Assert.Empty(saved.ProfileNames);
+	}
+
+	[Fact]
+	public async Task ExcessiveDimensionsAreRejectedBeforeStorage()
+	{
+		var storage = new Storage();
+		using var image = new MagickImage(MagickColors.Red, 16385, 1);
+		using var content = new MemoryStream(image.ToByteArray(MagickFormat.Png));
+		var error = await Assert.ThrowsAsync<UserIconException>(() => Create(storage).UploadAsync(Guid.NewGuid(), content, "image/png"));
+		Assert.Equal(415, error.Status);
+		Assert.Null(storage.Bytes);
+	}
+
+	private static byte[] ImageBytes(MagickFormat format)
+	{
+		if (format == MagickFormat.Heic)
+			return File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "profile-synthetic.heic"));
+		using var image = new MagickImage(MagickColors.Red, 1280, 640);
+		return image.ToByteArray(format);
 	}
 
 	private static UserIconService Create(Storage storage, string? prefix = null) => new(storage,

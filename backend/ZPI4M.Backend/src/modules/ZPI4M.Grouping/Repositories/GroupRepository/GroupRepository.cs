@@ -35,7 +35,12 @@ public class GroupRepository : IGroupRepository
 		var rows = _context.GroupMembers.AsNoTracking().Where(m => m.FkUserId == userId && !m.FkGroup.IsArchived);
 		if (query.IsMember.HasValue) rows = rows.Where(m => m.IsMember == query.IsMember.Value);
 		var count = await rows.CountAsync(ct);
-		var ordered = query.Descending ? rows.OrderByDescending(m => m.FkGroup.Name) : rows.OrderBy(m => m.FkGroup.Name);
+		var ordered = query.SortBy switch
+		{
+			GroupMembershipSortBy.Name => query.Descending ? rows.OrderByDescending(m => m.FkGroup.Name) : rows.OrderBy(m => m.FkGroup.Name),
+			GroupMembershipSortBy.JoinedAt => query.Descending ? rows.OrderByDescending(m => m.JoinedAt) : rows.OrderBy(m => m.JoinedAt),
+			_ => throw new ArgumentOutOfRangeException(nameof(query), "Unknown membership sort field.")
+		};
 		var items = await ordered.ThenBy(m => m.FkGroupId).Skip(offset).Take(query.PageSize).Select(m => new GroupMembershipEntry(m.FkGroup, m.IsMember)).ToArrayAsync(ct);
 		return new(items, count, query.PageNumber, query.PageSize);
 	}

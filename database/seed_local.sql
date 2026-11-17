@@ -130,10 +130,10 @@ VALUES
 INSERT INTO notifications.notification
     (_id, fk_group_id, type, title, text, created_at, fk_expense_id)
 VALUES
-    ('90000000-0000-0000-0000-000000000001', NULL, 1, 'Nowy wydatek', 'Dodano wydatek: Zakupy do domu.', CURRENT_TIMESTAMP - INTERVAL '2 days', '70000000-0000-0000-0000-000000000001'),
-    ('90000000-0000-0000-0000-000000000002', NULL, 1, 'Nowy wydatek', 'Dodano wydatek: Bilety na wyjazd.', CURRENT_TIMESTAMP - INTERVAL '1 day', '70000000-0000-0000-0000-000000000003'),
-    ('90000000-0000-0000-0000-000000000003', NULL, 0, 'Informacja', 'Przykladowe powiadomienie ogolne.', CURRENT_TIMESTAMP, NULL),
-    ('90000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', 4, 'Nowy czlonek grupy', 'Bartek dolaczyl do grupy Dom.', CURRENT_TIMESTAMP - INTERVAL '3 days', NULL);
+    ('90000000-0000-0000-0000-000000000001', NULL, 1, 'Nowy wydatek', 'Anna Testowa dodał(a) wydatek w grupie Dom.', CURRENT_TIMESTAMP - INTERVAL '2 days', '70000000-0000-0000-0000-000000000001'),
+    ('90000000-0000-0000-0000-000000000002', NULL, 1, 'Nowy wydatek', 'Bartek Testowy dodał(a) wydatek w grupie Wyjazd.', CURRENT_TIMESTAMP - INTERVAL '1 day', '70000000-0000-0000-0000-000000000003'),
+    ('90000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001', 5, 'Zapisano rozliczenie', 'Zapisano rozliczenie od Bartek Testowy dla Ciebie na kwotę 100,00 zł w grupie „Dom”.', CURRENT_TIMESTAMP, NULL),
+    ('90000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', 4, 'Nowy członek grupy', 'Bartek Testowy dołączył(a) do grupy Dom.', CURRENT_TIMESTAMP - INTERVAL '3 days', NULL);
 
 INSERT INTO notifications.notification_recipient (fk_notification_id, fk_user_id, read_at) VALUES
     ('90000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', CURRENT_TIMESTAMP - INTERVAL '1 day'),

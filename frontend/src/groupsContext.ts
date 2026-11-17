@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react'
 import type { Res } from './api/client'
 import type { InvitationPreview, GroupSettlementSuggestionsResponse as SettlementSuggestionsResponse } from './api/types'
-import type { Group, GroupData, IconPreset, Invitation, Member, MembershipFilter, MembershipStatus, Settlement, SettlementInput } from './mocks/groups'
+import type { Group, GroupData, GroupSortBy, IconPreset, Invitation, Member, MembershipFilter, MembershipStatus, Settlement, SettlementInput } from './mocks/groups'
 
 export type { Res }
 export type GroupInput = { name: string; description: string; icon: string | null; iconFile: File | null; removeIcon: boolean }
@@ -11,7 +11,7 @@ export type GroupListItem = { group: Group; myStatus: MembershipStatus }
 export type GroupsApi = {
   iconPresets: IconPreset[]
   rev: number
-  fetchList: (filter: MembershipFilter) => Promise<GroupListItem[]>
+  fetchList: (filter: MembershipFilter, descending?: boolean, sortBy?: GroupSortBy) => Promise<GroupListItem[]>
   fetchGroup: (id: string) => Promise<GroupData>
   fetchActiveMembers: (id: string) => Promise<string[]>
   fetchIconUrl: (id: string) => Promise<string | null>

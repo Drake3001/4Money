@@ -7,6 +7,9 @@ public sealed record EmailMessage(string Subject, string Body);
 
 public sealed class UserEmailMessages(IOptions<UserEmailLinkOptions> options)
 {
+	internal const string LogoContentId = "4money-logo";
+	private static readonly TimeZoneInfo PolishTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Warsaw");
+
 	public EmailMessage EmailConfirmation(string token, DateTime expiresAt) => Create(
 		"Potwierdź adres e-mail", "confirm-email", token, expiresAt,
 		"Witaj w 4Money! Potwierdź swój adres e-mail, aby móc się zalogować.",
@@ -30,25 +33,30 @@ public sealed class UserEmailMessages(IOptions<UserEmailLinkOptions> options)
 	public EmailMessage PasswordSetup(string token, DateTime expiresAt) => Create(
 		"Ustaw pierwsze hasło", "reset", token, expiresAt,
 		"Otrzymaliśmy prośbę o ustawienie pierwszego hasła dla Twojego konta Google w 4Money.",
-		"Przycisk otworzy formularz pierwszego hasła do 4Money; hasło w Google pozostaje bez zmian. Po zapisaniu hasła obecne sesje zostaną unieważnione. Możesz wtedy logować się hasłem lub przez Google. Jeśli nie proszono o ustawienie hasła, zignoruj tę wiadomość.");
+		"Przycisk otworzy formularz pierwszego hasła. Twoje prywatne hasło do konta Google pozostanie bez zmian. Po zapisaniu hasła obecne sesje 4Money zostaną unieważnione. Możesz wtedy logować się hasłem lub przez Google. Jeśli nie proszono o ustawienie hasła, zignoruj tę wiadomość.");
 
 	private EmailMessage Create(string title, string action, string token, DateTime expiresAt, string intro, string details)
 	{
 		var url = $"{options.Value.FrontendBaseUrl.TrimEnd('/')}/?action={action}#token={Uri.EscapeDataString(token)}";
 		var safeUrl = WebUtility.HtmlEncode(url);
+		var utcExpiry = expiresAt.Kind == DateTimeKind.Unspecified
+			? DateTime.SpecifyKind(expiresAt, DateTimeKind.Utc)
+			: expiresAt.ToUniversalTime();
+		var polishExpiry = TimeZoneInfo.ConvertTimeFromUtc(utcExpiry, PolishTimeZone);
 		var html = $"""
 			<!doctype html>
 			<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
-			<body style="margin:0;background:#f3f6f5;font-family:Arial,sans-serif;color:#20372f;padding:32px 16px">
+			<body style="margin:0;background:#f5f8fa;font-family:Arial,sans-serif;color:#07183a;padding:32px 16px">
 			<table role="presentation" style="width:100%;max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px"><tr><td style="padding:32px">
-			<p style="margin:0 0 24px;font-size:26px;font-weight:bold;color:#147d64">4Money</p>
+			<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px"><tr>
+			<td style="vertical-align:middle;padding-right:12px"><img src="cid:{LogoContentId}" alt="" width="48" height="48" style="display:block;border:0;width:48px;height:48px"></td>
+			<td style="vertical-align:middle;font-size:26px;font-weight:bold;color:#07183a">4Money</td>
+			</tr></table>
 			<h1 style="font-size:24px;line-height:1.3">{WebUtility.HtmlEncode(title)}</h1>
 			<p style="line-height:1.6">{WebUtility.HtmlEncode(intro)}</p>
 			<p style="line-height:1.6">{WebUtility.HtmlEncode(details)}</p>
-			<p style="margin:28px 0"><a href="{safeUrl}" style="display:inline-block;padding:14px 22px;border-radius:10px;background:#147d64;color:#ffffff;text-decoration:none;font-weight:bold">{WebUtility.HtmlEncode(title)}</a></p>
-			<p style="font-size:13px;color:#63756d">Link jest jednorazowy i ważny do {expiresAt:yyyy-MM-dd HH:mm:ss} UTC.</p>
-			<p style="font-size:13px;color:#63756d">Jeśli przycisk nie działa, skopiuj cały adres do przeglądarki:</p>
-			<p style="font-size:12px;word-break:break-all"><a href="{safeUrl}">{safeUrl}</a></p>
+			<p style="margin:28px 0"><a href="{safeUrl}" style="display:inline-block;padding:14px 22px;border-radius:10px;background:#07183a;color:#22d9a2;text-decoration:none;font-weight:bold">{WebUtility.HtmlEncode(title)}</a></p>
+			<p style="margin:0;font-size:13px;line-height:1.6;color:#52607d">Link jest jednorazowy i ważny do {polishExpiry:yyyy-MM-dd HH:mm:ss}.</p>
 			</td></tr></table></body></html>
 			""";
 		return new EmailMessage($"4Money - {title}", html);

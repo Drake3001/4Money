@@ -29,7 +29,7 @@ public sealed class GroupingTransactionTests : PostgresFixture
 	public Task Group_and_invitation_share_final_outcome(bool succeed) => Run(async (db, inbox, c) =>
 	{
 		var groups = new ZPI4M.Grouping.Services.Groups.GroupService(db, null!, null!, c, new ZPI4M.Grouping.Repositories.GroupRepository.GroupRepository(db), new ZPI4M.Grouping.Repositories.GroupMemberRepository.GroupMemberRepository(db));
-		var invitations = new ZPI4M.Grouping.Services.Invitations.GroupInvitationService(db, new ZPI4M.Grouping.Repositories.GroupInvitationRepository.GroupInvitationRepository(db), null!, null!, null!, TimeProvider.System, c, new ZPI4M.Grouping.Repositories.GroupRepository.GroupRepository(db), new ZPI4M.Grouping.Repositories.GroupMemberRepository.GroupMemberRepository(db));
+		var invitations = new ZPI4M.Grouping.Services.Invitations.GroupInvitationService(db, new ZPI4M.Grouping.Repositories.GroupInvitationRepository.GroupInvitationRepository(db), null!, null!, null!, TimeProvider.System, c, new ZPI4M.Grouping.Repositories.GroupRepository.GroupRepository(db), new ZPI4M.Grouping.Repositories.GroupMemberRepository.GroupMemberRepository(db), null!);
 		var user = Guid.Parse("10000000-0000-0000-0000-000000000001");
 		Guid groupId = default;
 		await c.ExecuteAsync(async ct =>

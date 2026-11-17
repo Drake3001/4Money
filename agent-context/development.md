@@ -5,8 +5,9 @@ Polecenia poniżej są zweryfikowane względem konfiguracji repozytorium; nie
 oznacza to potwierdzenia ich wykonania w każdej sesji. Bieżące ograniczenia
 opisuje [status](implementation-status.md).
 
-Rejestracje hosta, łańcuch migracji, konfigurację i polecenia ponownie sprawdzono
-statycznie 2026-10-29; bez uruchamiania aplikacji, testów ani migracji.
+Rejestracje hosta, aktualny łańcuch migracji, konfigurację Compose i skrypty
+frontendu ponownie sprawdzono statycznie 2026-11-15. Zakres wykonanych kontroli
+tej rewizji opisuje [status](implementation-status.md); nie uruchamiano migracji.
 Solucja zawiera po trzy projekty testowe User, Banking i Notifications
 oraz dwa Receipt, dwa Expense, Grouping i Shared — łącznie piętnaście. Starsze wyniki uruchomień opisuje status; nie traktuj
 ich jako nowej weryfikacji obecnej rewizji po rebase.
@@ -27,6 +28,11 @@ i ERD opisuje [instrukcja narzędzi](../tools/README.md#architecture-diagrams-pr
 Generowanie nie wymaga uruchomionej bazy ani builda backendu.
 
 ## Lokalna baza i API
+
+Host wymaga `FRONTEND_URL`, np. `http://localhost:5173`, również przy
+uruchomieniu bez Dockera. Wartość zasila linki wiadomości User i jest walidowana
+przez ValidateOnStart; brak poprawnego URL blokuje start niezależnie od SMTP.
+Adres musi być absolutnym HTTP/HTTPS bez danych logowania, query i fragmentu.
 
 Docker uruchamia pięć usług przez jeden `containers/local/docker-compose.yml`
 i jeden `containers/local/.env`: frontend Vite, PostgreSQL, backend, SeaweedFS i OCR. Sam
@@ -149,6 +155,34 @@ przechowujemy skrót SHA-256. E-mail HTML zawiera przycisk i termin ważności.
 Token jest we fragmencie linku (`#token=...`), a frontend wywołuje odpowiedni POST.
 Po potwierdzeniu adresu pokazuje logowanie z komunikatem sukcesu.
 Stan kodu opisuje [status](implementation-status.md).
+
+## Frontend — uruchomienie i kontrole
+
+Przegląd 2026-11-15: React 19, TypeScript, Vite 8 i Tailwind CSS 4.
+Bez Dockera używaj Node.js 22.12+ z linii 22, zgodnie z README frontendu.
+Z katalogu `frontend/`:
+
+```bash
+npm ci
+npm run dev
+npm run build
+npm test
+```
+
+W PowerShell można użyć `npm.cmd`. Build wykonuje typecheck obu projektów
+TypeScript i zapisuje `dist/`. `npm test` uruchamia testy Node z Vite,
+syntetycznym HTTP, renderowaniem serwerowym i kontrolą logiki formularzy;
+nie uruchamia przeglądarki ani rzeczywistych usług. Osobny pakiet konwersji
+HEIC ładuje się na żądanie i powoduje ostrzeżenie rozmiaru podczas builda.
+Workflow backendu nie wykonuje testów ani builda frontendu.
+
+Domyślnie przeglądarka wysyła `/api` do proxy dev/preview: `API_PROXY_TARGET`
+wskazuje `http://localhost:5283`, w Compose `http://backend:8080`.
+`VITE_API_BASE_URL` nadpisuje adres w przeglądarce i przy innym origin wymaga
+CORS, którego host obecnie nie rejestruje. Nie umieszczaj sekretów w `VITE_*`.
+Produkcja wymaga osobnego serwowania `dist/` i routingu `/api`; lokalny obraz
+Compose uruchamia Vite. Mobile/Capacitor nie ma jeszcze własnego projektu.
+Szczegóły: [frontend](../frontend/README.md), [Compose](../containers/local/README.md).
 
 ## Rejestracja i potwierdzenie adresu
 
@@ -309,7 +343,12 @@ Odczyt i edycję profilu, zmianę e-maila, reset hasła i dezaktywację opisano 
 
 Backend przyjmuje ID token Google Identity Services, a następnie wydaje własne
 JWT i refresh tokeny. Nie przyjmuje access tokenu Google ani kodu OAuth.
-Frontend z przyciskiem Google i formularzem danych nie jest jeszcze podłączony.
+Od 2026-11-12 ekran logowania frontendu używa Google Identity Services:
+pobiera challenge z API, renderuje oficjalny przycisk i wysyła ID token do login.
+Kod google_registration_required otwiera uzupełnienie profilu i wywołuje register.
+ID token Google pozostaje w pamięci komponentu. Nie dodano osobnej zmiennej
+VITE dla ClientId; wartość zwraca endpoint challenge. Wymagana jest konfiguracja
+Google po stronie API i dozwolony JavaScript origin, opisane poniżej.
 Google nie zastępuje lokalnej obsługi sesji, haseł i poczty.
 
 Integracja jest domyślnie wyłączona. W `containers/local/.env` dla Compose lub
@@ -491,8 +530,22 @@ login/name/surname/birthDate pozostają wymagane, phone jest opcjonalne.
 Nie ustawiaj ręcznie Content-Type multipart bez boundary — klient HTTP generuje
 ten nagłówek. Całe żądanie ma limit 6 MiB, sam plik 5 MiB. Pusty plik daje 400,
 przekroczenie limitu 413, niezgodny MIME/sygnatura albo nieobsługiwany typ 415.
-Dozwolone MIME: image/png, image/jpeg, image/webp; walidacja sprawdza początek
-pliku jak w Grouping, nie dekoduje całego obrazu. Błędne dane/preset dają 400,
+Dozwolone MIME: image/png, image/jpeg, image/webp, image/heic i image/heif.
+Od 2026-11-12 User i Grouping korzystają ze wspólnego
+`ZPI4M.Shared.Images.IconImageProcessor`, który sprawdza sygnaturę i dekoduje obraz
+przez Magick.NET-Q8-AnyCPU 15.1.0 (zależność projektu Shared). Dekoder jest wybierany z zamkniętej listy, a odczyt ograniczony do pierwszej
+klatki. Przed pełnym odczytem sprawdzane są wymiary: do 16384 px na bok i do
+64 mln pikseli. Uszkodzony obraz lub przekroczenie wymiarów daje 415, bez uploadu.
+Serwer stosuje orientację EXIF, konwersję do sRGB, zmniejszenie do maksymalnie
+512 × 512 px z zachowaniem proporcji (bez powiększania), usuwa metadane i zapisuje
+WebP z jakością 85. Dotyczy to nowych własnych zdjęć, bez zmiany presetów i już
+zapisanych plików. Klucze storage nie zmieniają formatu; Content-Type to image/webp.
+Frontend przyjmuje oryginał do 25 MiB i lokalnie przygotowuje obraz do 512 × 512 px;
+HEIC/HEIF dekoduje przez ładowane na żądanie heic-to/csp 1.6.7. Wspólny pomocnik
+`frontend/src/shared/iconImage.ts` obsługuje profil i grupę. Do API trafia już
+zmniejszony WebP (lub PNG, jeśli przeglądarka nie ma enkodera WebP), do 5 MiB.
+Limit wejścia API pozostaje 5 MiB także dla bezpośredniego uploadu HEIC/HEIF.
+Błędne dane/preset dają 400,
 zajęty login 409, awaria storage 503. Obie reprezentacje PUT zwracają profil 200.
 
 Własne pliki mają klucze `users/{userId}/icons/{guid}` generowane przez serwer.
@@ -737,9 +790,11 @@ bez wysyłki. Nie ma reaktywacji ani fizycznego usuwania konta.
 
 ## Konfiguracja SMTP
 
-Linki ustawia `UserEmailLinks:FrontendBaseUrl` w appsettings.json (domyślnie
-`http://localhost:5173`), nadpisywane przez `UserEmailLinks__FrontendBaseUrl`.
-W Compose odpowiada temu `USER_EMAIL_FRONTEND_URL` w containers/local/.env.
+Przegląd 2026-11-15: linki ustawia wymagany `FRONTEND_URL` w środowisku procesu
+lub lokalnym `.env` API; Compose przekazuje tę samą zmienną z containers/local/.env.
+Program.cs przypisuje ją do `UserEmailLinkOptions.FrontendBaseUrl` po bindowaniu
+sekcji, więc `UserEmailLinks__FrontendBaseUrl` nie zastępuje `FRONTEND_URL`.
+Szablony podają `http://localhost:5173`; host nie ma wartości zastępczej.
 Podaj adres frontendu dostępny z przeglądarki odbiorcy, np. adres Tailscale,
 bez query i fragmentu. Host waliduje HTTP/HTTPS przy starcie.
 Link ma postać `/?action=confirm-email#token=...`; pozostałe akcje to
@@ -755,8 +810,10 @@ linku, zamiast klikać przycisk: otwarcie strony może zużyć jednorazowy token
 `IEmailSender` z modułu User ma implementację `SmtpEmailSender` opartą na MailKit.
 Interfejs, implementacja i `EmailDeliveryException` są razem w `Integrations/Smtp`.
 Enum `SmtpSecurityMode` jest zdefiniowany w pliku `SmtpOptions.cs`.
-Wysyła wiadomości HTML z tekstowym wariantem alternatywnym; każda wysyłka
-tworzy osobne połączenie SMTP.
+Wysyła wiadomości HTML z tekstowym wariantem alternatywnym zachowującym URL
+przycisku; każda wysyłka tworzy osobne połączenie SMTP. Logo jest zasobem
+osadzonym w assembly i załącznikiem MIME inline z CID. Termin ważności linku
+jest prezentowany w strefie Europe/Warsaw, z uwzględnieniem czasu letniego.
 Wszystkie przepływy konta korzystają bezpośrednio z tego samego IEmailSender.
 Tematy i treści są w Integrations/Smtp/UserEmailMessages.cs: EmailConfirmation,
 EmailChange, PasswordReset, PasswordSetup i AccountDeactivation zwracają EmailMessage (Subject, Body), którego
@@ -768,9 +825,9 @@ resend-confirmation, zmiana e-maila i dezaktywacja zachowują 503, a forgot-pass
 Projekt User przypina zależność `System.Security.Cryptography.Pkcs` do 10.0.13,
 aby użyć poprawionej wersji zależności pobieranej przez MailKit/MimeKit
 ([advisory Microsoft](https://github.com/advisories/GHSA-846f-f764-76mx)).
-`appsettings.json` zawiera niesekretne ustawienia SMTP: przykładowy host i adres
-nadawcy oraz domyślne port, tryb TLS, kontrolę odwołania certyfikatu, nazwę
-nadawcy i timeout. Host i adres nadawcy trzeba dopasować do wybranego serwera.
+`appsettings.json` zawiera niesekretne ustawienia SMTP: adres nadawcy oraz
+domyślne port, tryb TLS, kontrolę odwołania certyfikatu, nazwę nadawcy i timeout.
+Host jest podawany przez `SMTP__HOST`; adres nadawcy trzeba dopasować do serwera.
 Sekcja EmailConfirmation pozostaje bez konfiguracji w JSON.
 Konfiguracja jest walidowana przy pierwszej
 wysyłce, więc samo uruchomienie API nie wymaga skonfigurowanej skrzynki.
@@ -790,8 +847,9 @@ SMTP__TIMEOUTSECONDS=30
 ```
 
 To placeholdery; wartości muszą odpowiadać konfiguracji wybranego dostawcy.
-Aktualny ZPI4M.Api/.env.example zawiera tylko poświadczenia, w tym login
-i hasło SMTP. Powyższe zmienne mogą opcjonalnie nadpisywać wartości JSON.
+Aktualny ZPI4M.Api/.env.example zawiera poświadczenia, host SMTP,
+`FRONTEND_URL`, opcjonalne ustawienia Google i prefiksy storage.
+Powyższe zmienne mogą opcjonalnie nadpisywać wartości JSON.
 Nie przenoś sekretów z lokalnego .env
 do szablonu. Konfiguracja ASP.NET Core dopasowuje klucze bez rozróżniania
 wielkości liter; podwójny podkreślnik oddziela sekcję od nazwy ustawienia.
@@ -924,7 +982,7 @@ Niepoprawne parametry i offset większy niż int.MaxValue zwracają 400
 ValidationProblemDetails. Brak poprawnej sesji zwraca 401.
 
 Odpowiedź to PagedResult<NotificationResponse> z metadanymi paginacji.
-Wpis zawiera id, title, text, type (liczba 0–4), createdAt, groupId, expenseId,
+Wpis zawiera id, title, text, type (liczba 0–5, w tym SettlementReceived = 5), createdAt, groupId, expenseId,
 readAt oraz isRead wyliczone z readAt. Wyniki są zawsze od najnowszych,
 z ID jako drugim kluczem sortowania. Pusty inbox zwraca 200 i pustą listę.
 Pobieranie nie oznacza powiadomień jako odczytane i nie zwraca danych innych
@@ -953,6 +1011,12 @@ ze wspólnym środowiskiem 4Money.Local i tokenem z loginu User. Zmienne
 notificationPageNumber, notificationPageSize i notificationId opisuje postman/README.md.
 
 ## Modele i migracje
+
+Stan 2026-11-17: najnowsza migracja w repozytorium to
+`20261116211631_NormalizeExpenseCategoriesAndAddDeposit`, po
+`20261109191600_UserImprovements`. Normalizuje nazwy kategorii i dodaje „Kaucję”.
+Historyczne zastosowania do lokalnych baz opisuje [status](implementation-status.md);
+obecna aktualizacja dokumentacji nie obejmuje uruchamiania migracji.
 
 Zmiany wykonuj w modelach i konfiguracjach EF, uwzględniając kontekst modułu
 oraz wspólny `AppDbContext`. Z katalogu głównego repozytorium:
@@ -1315,3 +1379,28 @@ a zapisane mapowanie będzie użyte ponownie. Nie wykonuj ponownej rejestracji.
 Osobny endpoint `/api/banking/tink-user` usunięto. W kolekcji Banking po loginie
 10 następuje bezpośrednio rozpoczęcie połączenia 11.
 [Pełny kontrakt](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md#tink-user-initialization-on-connection-start--2026-11-07).
+
+## Diagnostyka błędów Banking — 2026-11-17
+
+Sam komunikat „Usługa jest chwilowo niedostępna” w UI nie wskazuje źródła
+problemu: to ogólny opis HTTP 503. Może pojawić się bez kliknięcia „Połącz bank”,
+ponieważ `store.tsx` automatycznie pobiera konta, połączenia i zgody po zalogowaniu.
+BankingPage scala identyczne alerty, także po nieudanym rozpoczęciu połączenia.
+Nie oznacza to ponowienia żądania ani rozwiązania błędu po stronie usługi.
+
+Wyniki refreshu mają niezależne `failureCode`, mapowane przez frontend na polski
+tekst. `BANKING_TINK_UNAVAILABLE` w BankRefreshProcessor jest szerokim kodem
+zastępczym dla TinkApiException: m.in. sieć, timeout, limit żądań, błędy dostawcy
+lub lokalny `continuous_access_unverified`. TinkDataGateway zgłasza ten ostatni,
+gdy `ContinuousAccessVerified` jest false, przed pobraniem tokenu/danych Tink.
+HTTP 401/403 daje `BANKING_TINK_ACCESS_DENIED`, a `invalid_response` daje
+`BANKING_TINK_INVALID_DATA`. Nie wnioskuj o awarii Tink wyłącznie z UNAVAILABLE.
+
+Przy diagnostyce ustal, które żądanie zwróciło błąd, jego status oraz bezpieczne
+informacje o etapie i kodzie źródłowym TinkApiException, jeśli są dostępne.
+Sprawdź rzeczywistą konfigurację procesu/kontenera, nie tylko szablon Compose.
+Nie ustawiaj ContinuousAccessVerified na true jako sposobu obejścia błędu bez
+potwierdzenia wymagań dostawcy; sama flaga nie nadaje uprawnień Tink.
+Nie zapisuj tokenów, danych logowania ani rzeczywistych danych finansowych
+w dokumentacji lub wynikach diagnostyki. W tej sesji nie ustalono przyczyny
+konkretnego zgłoszonego błędu ani nie sprawdzano stanu usług zewnętrznych.

@@ -7,4 +7,7 @@ public sealed class GroupListRequest : PagedQuery
 {
 	[RegularExpression("^(active|former|all)$")]
 	public string Membership { get; set; } = "active";
+
+	[Required, RegularExpression("^(name|joinedAt)$")]
+	public string SortBy { get; set; } = "name";
 }

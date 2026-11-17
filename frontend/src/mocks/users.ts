@@ -4,11 +4,12 @@ import { ME_ID } from './groups'
 export type UserProfile = {
   id: string; login: string; name: string; surname: string; email: string; phone: string | null
   birthDate: string; icon: string | null; isEmailConfirmed: boolean; createdAt: string; lastLoginTime: string | null
+  iconStorageKey: string | null; hasPassword: boolean; isGoogleLinked: boolean
 }
 
 export const INITIAL_PROFILE: UserProfile = {
   id: ME_ID, login: 'mnowak', name: 'Michał', surname: 'Nowak', email: 'michal.nowak@example.com', phone: '+48 600 100 200',
-  birthDate: '1992-04-17', icon: 'user', isEmailConfirmed: true, createdAt: '2026-09-01T12:00:00Z', lastLoginTime: '2026-10-16T07:30:00Z',
+  birthDate: '1992-04-17', icon: null, iconStorageKey: null, hasPassword: true, isGoogleLinked: false, isEmailConfirmed: true, createdAt: '2026-09-01T12:00:00Z', lastLoginTime: '2026-10-16T07:30:00Z',
 }
 
 // Logins that already exist (used to demonstrate 409 conflicts).
@@ -29,10 +30,10 @@ export const validatePassword = (pw: string): string | null =>
 
 export function validateLogin(login: string): string | null {
   const l = login.trim()
-  return !l ? 'Podaj login.' : l.length < 3 || l.length > 100 ? 'Login musi mieć od 3 do 100 znaków.' : null
+  return !l ? 'Podaj login.' : l.includes('@') ? 'Login nie może zawierać znaku @.' : l.length < 3 || l.length > 100 ? 'Login musi mieć od 3 do 100 znaków.' : null
 }
 export const validateName = (v: string, what: string) => (!v.trim() ? `Podaj ${what}.` : v.trim().length > 100 ? `${what[0].toUpperCase()}${what.slice(1)} może mieć maksymalnie 100 znaków.` : null)
-export const validateBirth = (d: string) => (!d ? 'Podaj datę urodzenia.' : isFutureDate(d) ? 'Data urodzenia nie może być z przyszłości.' : null)
+export const validateBirth = (d: string) => (!d ? 'Podaj datę urodzenia.' : isFutureDate(d) ? 'Wprowadź poprawną datę.' : null)
 export const validateEmail = (e: string) => (!e.trim() ? 'Podaj adres e-mail.' : e.trim().length > 254 || !isEmail(e.trim()) ? 'Podaj poprawny adres e-mail (maks. 254 znaki).' : null)
 
 export type RegisterInput = { login: string; name: string; surname: string; email: string; password: string; birthDate: string }
@@ -43,7 +44,7 @@ export function validateRegister(i: RegisterInput): Problems {
   set('email', validateEmail(i.email)); set('password', validatePassword(i.password)); set('birthDate', validateBirth(i.birthDate))
   return p
 }
-export type ProfileInput = { login: string; name: string; surname: string; phone: string; birthDate: string; icon: string | null }
+export type ProfileInput = { login: string; name: string; surname: string; phone: string; birthDate: string; icon?: string | null; iconFile?: File | null; removeIcon?: boolean }
 export function validateProfile(i: ProfileInput): Problems {
   const p: Problems = {}
   const set = (k: string, m: string | null) => { if (m) p[k] = m }
@@ -67,4 +68,3 @@ export const USER_REASON: Record<string, string> = {
   password: 'Aktualne hasło jest nieprawidłowe.',
   token: 'Link jest nieprawidłowy lub wygasł.',
 }
-export const PROFILE_ICONS = ['user', 'smile', 'heart', 'star', 'rocket', 'coffee']

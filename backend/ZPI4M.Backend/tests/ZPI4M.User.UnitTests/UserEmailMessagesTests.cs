@@ -32,7 +32,7 @@ public sealed class UserEmailMessagesTests
 		Assert.Contains($"href=\"{WebUtility.HtmlEncode(url)}\"", message.Body);
 		Assert.DoesNotContain(token, message.Body);
 		Assert.Contains("<html lang=\"pl\">", message.Body);
-		Assert.Contains("2026-11-05 12:00:00 UTC", message.Body);
+		Assert.Contains("2026-11-05 13:00:00.", message.Body);
 		Assert.StartsWith("4Money - ", message.Subject);
 	}
 

@@ -6,7 +6,7 @@ import { useRemote } from '../../api/hooks'
 import { ME_ID, invitationState, userLabel, type GroupData, type InvitationState, type Member, type MembershipFilter } from '../../mocks/groups'
 import { money } from '../../mocks/bank'
 import { Badge, Btn, Card, Field, H, KeyValue, Modal, PageTitle, Segmented, Table, Td, inputCls } from '../../ui'
-import { ErrorBox, GroupIcon, dateOnly } from './GroupUi'
+import { ErrorBox, GroupIcon, GroupMembershipBadge, GroupRoleBadge, dateOnly } from './GroupUi'
 import SettlementsTab from './Settlements'
 
 const when = (iso: string) => new Date(iso).toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' })
@@ -22,8 +22,9 @@ function InfoTab({ g, isAdmin, active, onDialog }: { g: GroupData; isAdmin: bool
           ['Nazwa', g.name],
           ['Opis', g.description ?? 'Brak opisu'],
           ['Waluta', <Badge key="c">{g.currencyCode}</Badge>],
-          ['Twoja rola', isAdmin ? <Badge key="r" tone="info">Administrator</Badge> : 'Członek'],
-          ['Twoje członkostwo', active ? 'Aktywne' : 'Byłe'],
+          ['Twoja rola', <GroupRoleBadge key="r" isAdmin={isAdmin} />],
+          ['Twoje członkostwo', <GroupMembershipBadge key="m" active={active} />],
+          ['Członkowie', g.members.filter((m) => m.status === 'active').length],
         ]} />
       </Card>
       {isAdmin && (
@@ -31,17 +32,16 @@ function InfoTab({ g, isAdmin, active, onDialog }: { g: GroupData; isAdmin: bool
           <H>Zarządzanie grupą</H>
           <div className="flex flex-wrap gap-2">
             <Btn variant="ghost" onClick={() => navigate({ name: 'group-edit', id: g.id })}><Pencil size={16} />Edytuj grupę</Btn>
-            <Btn variant="ghost" onClick={() => onDialog('transfer')}>Przekaż administratora</Btn>
+            <Btn variant="ghost" onClick={() => onDialog('transfer')}>Przekaż rolę administratora</Btn>
             <Btn variant="danger" onClick={() => onDialog('archive')}>Archiwizuj grupę</Btn>
           </div>
-          <p className="mt-3 text-xs text-ink2">Waluty grupy nie można zmienić po jej utworzeniu.</p>
         </Card>
       )}
       {active && (
         <Card>
-          <H>Członkostwo</H>
+          <H>Twoje członkostwo</H>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="max-w-md text-sm text-ink2">{isAdmin ? 'Jako administrator nie możesz od razu opuścić grupy – najpierw przekaż administratora innemu aktywnemu członkowi.' : 'Po opuszczeniu grupy staniesz się jej byłym członkiem.'}</p>
+            <p className="max-w-md text-sm text-ink2">{isAdmin ? 'Nie możesz opuścić grupy będąc jej administratorem. Najpierw przekaż rolę administratora innemu aktywnemu członkowi grupy.' : 'Jesteś aktywnym członkiem grupy. Po opuszczeniu grupy staniesz się byłym członkiem grupy.'}</p>
             <Btn variant="danger" onClick={() => onDialog('leave')}><LogOut size={16} />Opuść grupę</Btn>
           </div>
         </Card>
@@ -61,9 +61,9 @@ function MembersTab({ g, isAdmin, onDialog }: { g: GroupData; isAdmin: boolean; 
           <Table head={['Członek', 'Rola', 'Status', 'Dołączył(a)', '']}>
             {rows.map((m) => (
               <tr key={m.userId}>
-                <Td><p className="num font-semibold">{userLabel(m.userId)}</p></Td>
-                <Td>{m.userId === g.adminUserId ? <Badge tone="info">Administrator</Badge> : 'Członek'}</Td>
-                <Td><Badge tone={m.status === 'active' ? 'ok' : 'neutral'}>{m.status === 'active' ? 'Aktywny' : 'Były'}</Badge></Td>
+                <Td><p className="font-semibold">{userLabel(m.userId, m.displayName)}</p></Td>
+                <Td><GroupRoleBadge isAdmin={m.userId === g.adminUserId} /></Td>
+                <Td><GroupMembershipBadge active={m.status === 'active'}>{m.status === 'active' ? 'Aktywny' : 'Były'}</GroupMembershipBadge></Td>
                 <Td className="text-ink2">{dateOnly(m.joinedAt)}</Td>
                 <Td className="text-right">
                   <div className="flex justify-end gap-2">
@@ -76,14 +76,13 @@ function MembersTab({ g, isAdmin, onDialog }: { g: GroupData; isAdmin: boolean; 
           </Table>
         )}
       </Card>
-      <p className="text-xs text-ink2">Członkowie są identyfikowani przez ID użytkownika.</p>
     </div>
   )
 }
 
 const STATE_LABEL: Record<InvitationState, { label: string; tone: 'ok' | 'neutral' | 'warn' }> = {
-  usable: { label: 'Można użyć', tone: 'ok' }, revoked: { label: 'Odwołane', tone: 'neutral' },
-  expired: { label: 'Wygasło', tone: 'warn' }, exhausted: { label: 'Wykorzystane', tone: 'warn' },
+  usable: { label: 'Aktywne', tone: 'ok' }, revoked: { label: 'Odwołane', tone: 'neutral' },
+  expired: { label: 'Wygasłe', tone: 'warn' }, exhausted: { label: 'Wykorzystane', tone: 'warn' },
 }
 
 function InvitationsTab({ g }: { g: GroupData }) {
@@ -103,8 +102,10 @@ function InvitationsTab({ g }: { g: GroupData }) {
     if (!r.ok) return setErr(r.code)
     setCreated({ token: r.data.token })
   }
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(link); showToast('Skopiowano link zaproszenia') } catch { showToast('Nie udało się skopiować – zaznacz link ręcznie') }
+  const copy = async (kind: 'link' | 'code') => {
+    if (!created) return
+    const label = kind === 'link' ? 'link' : 'kod'
+    try { await navigator.clipboard.writeText(kind === 'link' ? link : created.token); showToast(`Skopiowano ${label} zaproszenia`) } catch { showToast(`Nie udało się skopiować - zaznacz ${label} ręcznie`) }
   }
   const revoke = async (id: string) => {
     const r = await groups.revokeInvitation(g.id, id)
@@ -120,7 +121,7 @@ function InvitationsTab({ g }: { g: GroupData }) {
           <Field label="Maksymalna liczba użyć"><input type="number" min={1} step={1} value={maxUses} onChange={(e) => setMaxUses(e.target.value)} className={inputCls} /></Field>
           <Field label="Data ważności"><input type="datetime-local" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} className={inputCls} /></Field>
           <div className="sm:col-span-2 space-y-3">
-            <p className="text-xs text-ink2">Minimum 1 użycie; data ważności musi być w przyszłości. Zaproszenia nie są wysyłane e-mailem – link przekazujesz samodzielnie.</p>
+            <p className="text-xs text-ink2">Minimum 1 użycie. Zaproszenia nie są wysyłane na adres e-mail - link lub kod przekazujesz samodzielnie.</p>
             <ErrorBox code={err} />
             <Btn type="submit">Utwórz zaproszenie</Btn>
           </div>
@@ -130,13 +131,14 @@ function InvitationsTab({ g }: { g: GroupData }) {
       {created && (
         <Card className="!border-warn-bar/60 !bg-warn-soft/40">
           <H>Zaproszenie utworzone</H>
-          <p className="mb-3 text-sm font-semibold text-warn">Token jest widoczny tylko teraz. Po zamknięciu tego okna nie zobaczysz go ponownie.</p>
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink2">Token</p>
+          <p className="mb-3 text-sm font-semibold text-warn">Kod jest widoczny tylko teraz. Po zamknięciu tego okna nie zobaczysz go ponownie.</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink2">Kod</p>
           <p className="num mb-3 break-all rounded-lg bg-white px-3 py-2 text-sm">{created.token}</p>
           <p className="text-xs font-semibold uppercase tracking-wide text-ink2">Link zaproszenia</p>
           <p className="mb-4 break-all rounded-lg bg-white px-3 py-2 text-sm">{link}</p>
           <div className="flex flex-wrap gap-2">
-            <Btn onClick={copy}><Copy size={16} />Kopiuj link zaproszenia</Btn>
+            <Btn onClick={() => copy('link')}><Copy size={16} />Kopiuj link zaproszenia</Btn>
+            <Btn onClick={() => copy('code')}><Copy size={16} />Kopiuj kod</Btn>
             <Btn variant="ghost" onClick={() => setCreated(null)}>Zamknij</Btn>
           </div>
         </Card>
@@ -145,14 +147,13 @@ function InvitationsTab({ g }: { g: GroupData }) {
       <Card className="!p-2">
         <div className="px-3 pt-3"><H>Historia zaproszeń</H></div>
         {g.invitations.length === 0 ? <p className="p-8 text-center text-ink2">Brak zaproszeń.</p> : (
-          <Table head={['Użycia', 'Ważne do', 'Status', 'Dostępność', '']}>
+          <Table head={['Użycia', 'Ważne do', 'Status', '']}>
             {g.invitations.map((i) => {
               const st = invitationState(i)
               return (
                 <tr key={i.id}>
                   <Td className="num">{i.useCount} / {i.maxUses}</Td>
                   <Td className="text-ink2">{when(i.expiresAt)}</Td>
-                  <Td><Badge tone={i.isActive ? 'ok' : 'neutral'}>{i.isActive ? 'Aktywne' : 'Odwołane'}</Badge></Td>
                   <Td><Badge tone={STATE_LABEL[st].tone}>{STATE_LABEL[st].label}</Badge></Td>
                   <Td className="text-right">{i.isActive && <Btn variant="danger" className="!min-h-8 !px-3 !py-1" onClick={() => revoke(i.id)}>Odwołaj zaproszenie</Btn>}</Td>
                 </tr>
@@ -161,16 +162,18 @@ function InvitationsTab({ g }: { g: GroupData }) {
           </Table>
         )}
       </Card>
-      <p className="text-xs text-ink2">Zaproszenie jest aktywne dla nowego członka tylko wtedy, gdy nie zostało odwołane, nie wygasło i nie wyczerpano limitu użyć. Tokenów nie można ponownie wyświetlić.</p>
+      <p className="text-xs text-ink2">Zaproszenie jest aktywne dla nowego członka wtedy, gdy nie zostało odwołane, nie wygasło i nie wyczerpano limitu użyć. Kodów nie można ponownie wyświetlić.</p>
     </div>
   )
 }
 
-function MemberModal({ m, onClose }: { m: Member; onClose: () => void }) {
+function MemberModal({ m, isAdmin, onClose }: { m: Member; isAdmin: boolean; onClose: () => void }) {
   return (
     <Modal title="Szczegóły członka" onClose={onClose}>
       <KeyValue rows={[
-        ['Identyfikator użytkownika', <span key="u" className="num break-all">{m.userId}</span>], ['Status', m.status === 'active' ? 'Aktywny' : 'Były'], ['Dołączył(a)', when(m.joinedAt)],
+        ['Imię i nazwisko', userLabel(m.userId, m.displayName)],
+        ['Rola', <GroupRoleBadge key="r" isAdmin={isAdmin} />],
+        ['Status', <GroupMembershipBadge key="s" active={m.status === 'active'}>{m.status === 'active' ? 'Aktywny' : 'Były'}</GroupMembershipBadge>], ['Dołączył(a)', when(m.joinedAt)],
         ['Suma wpłat', money(m.totalPaid)], ['Suma udziałów', money(m.totalShare)],
       ]} />
       <div className="mt-5 flex justify-end"><Btn variant="ghost" onClick={onClose}>Zamknij</Btn></div>
@@ -233,8 +236,8 @@ export default function GroupDetail({ id, tab = 'info' }: { id: string; tab?: st
             <p className="mt-0.5 text-ink2">{g.description ?? 'Brak opisu'}</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               <Badge>{g.currencyCode}</Badge>
-              <Badge tone={active ? 'ok' : 'neutral'}>{active ? 'Aktywny członek' : 'Były członek'}</Badge>
-              {isAdmin && <Badge tone="info">Administrator</Badge>}
+              <GroupMembershipBadge active={!!active}>{active ? 'Aktywny członek' : 'Były członek'}</GroupMembershipBadge>
+              <GroupRoleBadge isAdmin={isAdmin} />
             </div>
           </div>
         </div>
@@ -249,9 +252,9 @@ export default function GroupDetail({ id, tab = 'info' }: { id: string; tab?: st
 
       {dialogType === 'archive' && (
         <Modal title="Archiwizować grupę?" onClose={close}>
-          <p className="mb-4 text-sm text-ink2">Zarchiwizowana grupa znika z normalnych widoków grup. To nie jest trwałe usunięcie, ale w tej wersji nie ma możliwości przywrócenia grupy.</p>
+          <p className="mb-4 text-sm text-ink2">Zarchiwizowana grupa nie będzie widoczna na liście grup. Jej wydatki nie zostaną usunięte i nadal będą uwzględniane w podsumowaniach.</p>
           <ErrorBox code={err} />
-          <div className="mt-5 flex justify-end gap-2">
+          <div className="mt-3 flex justify-end gap-2">
             <Btn variant="ghost" onClick={close}>Anuluj</Btn>
             <Btn variant="danger" onClick={async () => { const r = await groups.archive(g.id); r.ok ? done('Grupa została zarchiwizowana', true) : setErr(r.code) }}>Archiwizuj grupę</Btn>
           </div>
@@ -259,20 +262,20 @@ export default function GroupDetail({ id, tab = 'info' }: { id: string; tab?: st
       )}
 
       {dialogType === 'leave' && (
-        <Modal title={isAdmin ? 'Nie możesz jeszcze opuścić grupy' : 'Opuścić grupę?'} onClose={close}>
+        <Modal title={isAdmin ? 'Nie możesz opuścić grupy' : 'Opuścić grupę?'} onClose={close}>
           {isAdmin ? (
             <>
-              <p className="mb-4 text-sm text-ink2">Jesteś administratorem tej grupy. Zanim ją opuścisz, przekaż administratora innemu aktywnemu członkowi.</p>
+              <p className="mb-4 text-sm text-ink2">Najpierw przekaż rolę administratora innemu aktywnemu członkowi grupy.</p>
               <div className="flex justify-end gap-2">
-                <Btn variant="ghost" onClick={close}>Zamknij</Btn>
-                <Btn onClick={() => setDialog('transfer')}>Przekaż administratora</Btn>
+                <Btn variant="ghost" onClick={close}>Anuluj</Btn>
+                <Btn onClick={() => setDialog('transfer')}>Przekaż rolę administratora</Btn>
               </div>
             </>
           ) : (
             <>
-              <p className="mb-4 text-sm text-ink2">Staniesz się byłym członkiem grupy i stracisz dostęp do jej bieżących widoków aktywnych grup. Wrócisz do niej tylko z ważnym zaproszeniem.</p>
+              <p className="mb-4 text-sm text-ink2">Po opuszczeniu grupy staniesz się byłym członkiem grupy. Stracisz dostęp do aktywności w grupie do momentu ponownego dołączenia z ważnym zaproszeniem.</p>
               <ErrorBox code={err} />
-              <div className="mt-5 flex justify-end gap-2">
+              <div className="mt-3 flex justify-end gap-2">
                 <Btn variant="ghost" onClick={close}>Anuluj</Btn>
                 <Btn variant="danger" onClick={async () => { const r = await groups.leave(g.id); r.ok ? done('Opuściłeś grupę', true) : setErr(r.code) }}>Opuść grupę</Btn>
               </div>
@@ -282,12 +285,12 @@ export default function GroupDetail({ id, tab = 'info' }: { id: string; tab?: st
       )}
 
       {dialogType === 'transfer' && (
-        <Modal title="Przekaż administratora" onClose={close}>
+        <Modal title="Przekaż rolę administratora" onClose={close}>
           {candidates.length === 0 ? (
-            <p className="mb-4 text-sm text-ink2">W grupie nie ma innego aktywnego członka, któremu można przekazać administratora.</p>
+            <p className="mb-4 text-sm text-ink2">W grupie nie ma innego aktywnego członka, któremu można przekazać rolę administratora.</p>
           ) : (
             <>
-              <p className="mb-4 text-sm text-ink2">Wybierz aktywnego członka. Po przekazaniu zostaniesz zwykłym członkiem grupy. Nie można wybrać siebie ani byłego członka.</p>
+              <p className="mb-4 text-sm text-ink2">Wybierz aktywnego członka. Po przekazaniu zostaniesz zwykłym członkiem grupy. Nie możesz wybrać siebie ani byłego członka grupy.</p>
               <Field label="Nowy administrator">
                 <select value={target} onChange={(e) => setTarget(e.target.value)} className={inputCls}>
                   <option value="">Wybierz członka…</option>
@@ -297,25 +300,25 @@ export default function GroupDetail({ id, tab = 'info' }: { id: string; tab?: st
             </>
           )}
           <div className="mt-3"><ErrorBox code={err} /></div>
-          <div className="mt-5 flex justify-end gap-2">
+          <div className="mt-3 flex justify-end gap-2">
             <Btn variant="ghost" onClick={close}>Anuluj</Btn>
-            <Btn disabled={!target} onClick={async () => { const r = await groups.transferAdmin(g.id, target); r.ok ? done(`${userLabel(target)} jest teraz administratorem`) : setErr(r.code) }}>Przekaż administratora</Btn>
+            <Btn disabled={!target} onClick={async () => { const r = await groups.transferAdmin(g.id, target); r.ok ? done(`${userLabel(target)} jest teraz administratorem`) : setErr(r.code) }}>Przekaż</Btn>
           </div>
         </Modal>
       )}
 
       {removeId && (
         <Modal title="Usunąć z grupy?" onClose={close}>
-          <p className="mb-4 text-sm text-ink2">{userLabel(removeId)} zostanie usunięty(a) z grupy i stanie się byłym członkiem. To nie jest blokada – osoba może dołączyć ponownie z ważnym zaproszeniem.</p>
+          <p className="mb-4 text-sm text-ink2">{userLabel(removeId)} zostanie usunięty(a) z grupy i stanie się byłym członkiem. To nie jest blokada - osoba może dołączyć ponownie z ważnym zaproszeniem.</p>
           <ErrorBox code={err} />
-          <div className="mt-5 flex justify-end gap-2">
+          <div className="mt-3 flex justify-end gap-2">
             <Btn variant="ghost" onClick={close}>Anuluj</Btn>
             <Btn variant="danger" onClick={async () => { const r = await groups.removeMember(g.id, removeId); r.ok ? done('Usunięto z grupy') : setErr(r.code) }}>Usuń z grupy</Btn>
           </div>
         </Modal>
       )}
 
-      {memberId && g.members.find((m) => m.userId === memberId) && <MemberModal m={g.members.find((m) => m.userId === memberId)!} onClose={close} />}
+      {memberId && g.members.find((m) => m.userId === memberId) && <MemberModal m={g.members.find((m) => m.userId === memberId)!} isAdmin={memberId === g.adminUserId} onClose={close} />}
     </div>
   )
 }

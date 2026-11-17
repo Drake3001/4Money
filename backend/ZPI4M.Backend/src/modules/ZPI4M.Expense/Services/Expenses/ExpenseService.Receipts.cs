@@ -121,20 +121,44 @@ public sealed partial class ExpenseService
 		var knownCategories = (await categories.GetAllAsync(cancellationToken))
 			.Where(category => category.Id != ExpenseSystemCategories.UnknownId)
 			.ToLookup(category => category.Name, StringComparer.OrdinalIgnoreCase);
+		Guid? FindCategoryId(string? name)
+		{
+			var matches = name is null ? [] : knownCategories[name].Take(2).ToArray();
+			return matches.Length == 1 ? matches[0].Id : null;
+		}
+
+		var depositCategoryId = FindCategoryId("kaucja");
+
 		var draftItems = ReadArray(data, "items").Select(item =>
 		{
 			var categoryName = ReadText(item, "category");
-			var matches = categoryName is null ? [] : knownCategories[categoryName].Take(2).ToArray();
+			var categoryId = FindCategoryId(categoryName);
+			var name = ReadText(item, "name_corrected") ?? ReadText(item, "name");
+			var price = ReadDecimalText(item, "unit_price", 2);
+			var quantity = ReadDecimalText(item, "quantity", 3, value => value > 0m);
+			var discount = ReadDecimalText(item, "discount", 2, value => value <= 0m);
+			if (string.Equals(categoryName, "zniżka", StringComparison.OrdinalIgnoreCase) &&
+				price is null && quantity is null &&
+				(!ExpenseRequestService.TryParseDecimal(discount, 2, out var productDiscount) || productDiscount == 0m) &&
+				ReadDecimalText(item, "total", 2, value => value < 0m) is { } discountTotal)
+			{
+				price = discountTotal;
+				quantity = "1";
+				discount = "0.00";
+			}
+
 			return new ReceiptDraftItem(
-				CategoryId: matches.Length == 1 ? matches[0].Id : null,
-				Name: ReadText(item, "name_corrected") ?? ReadText(item, "name"),
-				UnitPrice: ReadDecimalText(item, "unit_price", 2),
-				Quantity: ReadDecimalText(item, "quantity", 3, value => value > 0m),
-				Discount: ReadDecimalText(item, "discount", 2, value => value <= 0m),
+				CategoryId: categoryId,
+				Name: name,
+				UnitPrice: price,
+				Quantity: quantity,
+				Discount: discount,
 				Unit: ReadText(item, "unit"),
 				NeedsReview: ReadProperty(item, "needs_review").ValueKind == JsonValueKind.True,
 				ReviewReason: ReadText(item, "review_reason"));
-		}).ToArray();
+		}).Concat(ReadArray(data, "deposits").Select(item => MapReceiptAdjustment(item, depositCategoryId, isReturn: false)))
+			.Concat(ReadArray(data, "deposit_returns").Select(item => MapReceiptAdjustment(item, depositCategoryId, isReturn: true)))
+			.ToArray();
 
 		var store = ReadText(data, "store");
 		DateOnly? transactionTime = DateOnly.TryParseExact(ReadText(data, "date"), "yyyy-MM-dd",
@@ -160,8 +184,35 @@ public sealed partial class ExpenseService
 			})
 			.OfType<ReceiptWarning>()
 			.ToArray();
-		var needsReview = ReadProperty(raw, "needs_review").ValueKind == JsonValueKind.True;
+		var needsReview = ReadProperty(raw, "needs_review").ValueKind == JsonValueKind.True || draftItems.Any(item => item.NeedsReview);
 		return new ReceiptAnalysisResponse(proposal, warnings, needsReview, raw.Clone());
+	}
+
+	private static ReceiptDraftItem MapReceiptAdjustment(JsonElement item, Guid? categoryId, bool isReturn)
+	{
+		bool HasExpectedSign(decimal value) => isReturn ? value < 0m : value > 0m;
+
+		var name = ReadText(item, "name") ?? (isReturn ? "Zwrot kaucji" : "Kaucja lub opłata");
+		var reportedTotalText = ReadDecimalText(item, "total", 2);
+		var hasReportedTotal = ExpenseRequestService.TryParseDecimal(reportedTotalText, 2, out var reportedTotal);
+		var total = hasReportedTotal && HasExpectedSign(reportedTotal) ? reportedTotalText : null;
+		var price = ReadDecimalText(item, "unit_price", 2, HasExpectedSign);
+		var quantity = ReadDecimalText(item, "quantity", 3, value => value > 0m);
+
+		if (ExpenseRequestService.TryParseDecimal(price, 2, out var unitPrice) &&
+			ExpenseRequestService.TryParseDecimal(quantity, 3, out var count))
+		{
+			if (ExpenseRequestService.TryGetTotal(unitPrice, count, 0m, out var computed) &&
+				HasExpectedSign(computed) && (!hasReportedTotal || computed == reportedTotal))
+				return new(categoryId, name, price, quantity, "0.00", null,
+					categoryId is null, categoryId is null ? "missing_category" : null);
+
+			return new(categoryId, name, total, total is null ? null : "1", "0.00", null, true, "amount_mismatch");
+		}
+
+		return new(categoryId, name, total, total is null ? null : "1", "0.00", null,
+			total is null || categoryId is null,
+			total is null ? "missing_amount" : categoryId is null ? "missing_category" : null);
 	}
 
 	private static JsonElement ReadProperty(JsonElement element, string name)

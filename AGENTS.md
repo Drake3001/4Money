@@ -14,7 +14,7 @@ analiza poszczególnych produktów, a także podział kosztów między użytkown
 
 | Rodzaj zadania | Dokumenty do przeczytania |
 | --- | --- |
-| Wymagania, MVP, UI web/mobile | [Produkt](agent-context/product.md), [domena](agent-context/domain.md) |
+| Wymagania, MVP, UI web/mobile | [Produkt](agent-context/product.md), [domena](agent-context/domain.md), [status](agent-context/implementation-status.md); dla web także [frontend](frontend/README.md) i [uruchomienie](agent-context/development.md#frontend--uruchomienie-i-kontrole) |
 | Backend i kontrakty API | [Domena](agent-context/domain.md), [architektura](agent-context/architecture.md), [praca w repo](agent-context/development.md), właściwy obszar [statusu](agent-context/implementation-status.md) |
 | Banking i import transakcji | Dokumenty backendowe powyżej oraz [kontrakt Banking](backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/README.md) |
 | Notifications i inbox | Dokumenty backendowe powyżej oraz [kolekcje Postman](postman/README.md) i [testy backendu](backend/ZPI4M.Backend/tests/README.md) |
@@ -80,103 +80,96 @@ analiza poszczególnych produktów, a także podział kosztów między użytkown
 - Zachowuj konwencje z `backend/.editorconfig` i istniejących hooków.
   Konwencje gałęzi i commitów ClickUp opisuje [instrukcja narzędzi](tools/README.md#clickup-branch-and-commit-conventions).
 
-## Orientacja w implementacji — 2026-11-10
+## Orientacja w implementacji — 2026-11-17
 
-Przegląd statyczny kodu i konfiguracji; nie oznacza nowego przebiegu testów ani
-potwierdzenia działania usług zewnętrznych.
+Podstawa: przegląd rewizji `fe2e8c0`, aktualizacje do `c6e5b96` i lokalne zmiany
+frontendu z 2026-11-16/17. Nie jest to nowa regresja całego systemu. Szczegóły i datowane wyniki
+weryfikacji są w [statusie implementacji](agent-context/implementation-status.md).
+Obecność integracji nie potwierdza działania rzeczywistych usług zewnętrznych.
 
-- Notifications ma wewnętrzne `NotifyAsync`, autoryzowane pobieranie inboxa,
-  odczyt pojedynczy i zbiorczy. Operacje odbiorców należą do osobnego
-  `NotificationRecipientRepository`. Grouping wysyła ExpenseAdded dla Expense,
-  GroupMemberJoined i SettlementReceived. Limits pozostaje niepodłączony.
-- NotifyAsync zwraca Guid?: tworzy odbiorców tylko dla aktywnych kont zwróconych
-  przez IUserLookupService jednym zapytaniem po ID. Nieaktywne i nieistniejące
-  konta są pomijane; pusta lista lub brak aktywnych odbiorców daje null bez zapisu.
-- ExpenseDbContext, GroupingDbContext, NotificationsDbContext i ReceiptDbContext współdzielą scoped
-  NpgsqlConnection. To przygotowanie do integracji, nie automatyczna transakcja:
-  koordynator musi dołączyć konteksty i wykonać końcowy commit. Operacje wykonuj
-  kolejno. Pozostałe konteksty mają osobne połączenia.
-  Przy implementacji zapisu Expense/Grouping z powiadomieniem zastosuj
-  [checklistę transakcji](agent-context/architecture.md#do-wykonania-przy-implementacji-expense-i-grouping)
-  i dodaj testy rollbacku całej operacji; wywołany moduł nie zatwierdza transakcji koordynatora.
-- Pary interfejs/implementacja User znajdują się w Services/Lookup oraz
-  Services/BankingProfile, a Notifications w Services/Notifications.
-- Notifications importuje User, nie Expense. FK do Expense konfiguruje wspólny
-  `AppDbContext`; samo powiązanie tabel nie wymaga zależności projektów modułów.
-- Banking ma integrację Tink, odczyty i worker importu, a User obsługuje tożsamość,
-  sesje oraz operacje konta. Aktualne ograniczenia są w statusie; nie cofaj ich
-  opisu do samych modeli na podstawie starszych fragmentów sprzed rebase.
-- User obsługuje login lub e-mail, Google Identity Services, pierwsze hasło konta
-  Google oraz zdjęcie profilu (preset albo własny upload). Google jest domyślnie
-  wyłączone; nie łączy kont po e-mailu i blokuje zmianę adresu powiązanego konta.
-  Migracja `20261109191600_UserImprovements` scala częściową unikalność aktywnego
-  e-maila, trigger zwykłej grupy startowej „Wydatki osobiste” w PLN, GoogleSubject
-  i IconStorageKey. Nie odtwarza grup istniejącym kontom. Kontrakty i ograniczenia:
-  [development](agent-context/development.md#rejestracja-i-logowanie-google).
-- Expense ma repozytoria Category, Expense, ExpenseItem i ExpenseShare,
-  Grouping repozytoria Group/GroupMember,
-  a Limits repozytorium CategoryGroupLimit.
-  ExpenseService tworzy i odczytuje wydatki z automatycznym
-  „Nieznane”; wydatek, pozycje i udziały zapisuje jednym SaveChangesAsync
-  we wspólnej transakcji koordynatora z aktualizacją TotalPaid/TotalShare Grouping.
-  DI/API i rzeczywiste metadane/członkostwa są podłączone; usunięto UseGroupingMock.
-  Od 2026-11-07 historia, edycja i usuwanie również działają; zapisy odwracają
-  poprzedni wkład w agregaty i kontrolują wersję. Zapytania i operacje na zbiorach
-  są w repozytoriach. ExpenseAdded powiadamia pozostałych aktualnych członków grupy
-  z aktywnymi kontami przy tworzeniu wydatku, w tej samej transakcji co wydatek
-  i salda. Edycja i usuwanie nie powiadamiają.
-- Expense udostępnia IExpenseReadService dla Reports: listę, sumy, kategorie
-  i okresy dzień/miesiąc/rok. Daty raportów są obustronnie włączne; historia HTTP
-  zachowuje koniec wyłączny. Szczegóły: notes/EXPENSE_REPORTS.md. Nie oznacza to
-  implementacji modułu Reports ani jego endpointów.
-- Receipt ma serwis OCR → upload S3 → zapis paragonu oraz odczyt, podpisany URL
-  i usuwanie. Expense wystawia analizę pliku bez zapisu, zapis paragonu wraz
-  z formularzem wydatku i odczyt po ID Expense; wynik OCR jest podpisany.
-  Nie ma osobnego kontrolera Receipt/Storage.
-  Kolekcja Storage w Postmanie testuje bezpośrednio S3. Nie zakładaj atomowości
-  zapisu bazy i pliku; szczegóły kompensacji opisuje status implementacji.
-- Worker OCR ma własne API FastAPI. Domyślny `vision_ocr` łączy RapidOCR z modelem
-  `google/gemini-3.1-flash-lite` przez OpenRouter; wynik zawiera także propozycje
-  nazw i kategorii produktów. Kategoryzacja jest zaimplementowana w Pythonie,
-  ale nie zapisuje automatycznie Category/ExpenseItem w .NET.
-- OCR i S3 mają walidację konfiguracji przy starcie API. Do startu hosta
-  wymagane są poprawne opcje storage, w tym lokalne poświadczenia, oprócz JWT.
-  `STORAGE_PUBLIC_ENDPOINT` służy podpisanym URL-om dostępnym dla klienta;
-  w Compose jest oddzielony od wewnętrznego `STORAGE_ENDPOINT`.
-- Solucja ma piętnaście projektów xUnit: po trzy User, Banking i Notifications,
-  dwa Receipt oraz dwa Expense (UnitTests i IntegrationTests), Grouping i Shared.
-  Starsze wyniki testów dotyczą konkretnych rewizji, nie dowodzą poprawności po rebase.
-- Wszystkie testy .NET z PostgreSQL używają TEST_POSTGRES_CONNECTION_STRING;
-  pipeline ustawia ją raz. Brak konfiguracji lokalnie pomija testy bazy, a w CI
-  jest błędem. Receipt.IntegrationTests ma osobny, ręczny test S3 uruchamiany przez
-  STORAGE_INTEGRATION_TESTS=1; PostgreSQL w CI go nie włącza. Testy workera Python
-  nie są uruchamiane przez obecny workflow backendu. Wyniki opisuje status implementacji.
-- Aktualna migracja inboxa to `20261027172612_AddNotificationsAfterRebase`,
-  po `20261026215244_AddBanking`. Nie przywracaj usuniętej migracji
-  `20261026233657_AddNotificationRecipient` obok jej zamiennika.
-- Po migracji inboxa jest `20261028184348_RenameReceiptS3LinkToStorageKeyAndMakeUnique`:
-  Receipt używa wymaganego, unikalnego `StorageKey` zamiast `S3Link`.
-  Seed wymaga tej migracji i zapisuje odpowiedź OCR w formacie
-  `receipt` / `warnings` / `needs_review`. Klucz storage jest syntetyczny;
-  seed nie uploaduje obrazu. Szczegóły Receipt i ograniczenia opisuje status.
-- Po `20261102215301_AddGroupingModel` jest `20261103165622_CompleteExpenseModel`.
-  Usunięto tymczasową migrację Expense i scalono migracje tej gałęzi; udziały
-  Expense są procentowe, modele Grouping pozostają z master. Up/Down wymagają
-  pustych wydatków/pozycji/udziałów. Tworzenie Expense aktualizuje agregaty od
-  2026-11-03, bez nowej migracji.
-- Nowa baza wymaga kolejności: SQL init → migracje EF → seed. Seed czyści dane,
-  nie naprawia schematu ani historii EF. Rebase nie cofa już zastosowanych zmian bazy;
-  odtworzenie lokalnego wolumenu wymaga zgody na usunięcie danych w danym zadaniu.
-- Docker używa wyłącznie `containers/local/.env` dla wszystkich pięciu usług;
-  szablon i instrukcja są w `containers/local/`. Pliki `.env` API i workera służą
-  uruchomieniu bez Dockera. Compose ustawia adresy zależności po nazwach usług;
-  nie podawaj localhost jako adresu zależności wewnątrz kontenera.
-  Domyślny profil lokalnego API to HTTP na 5283;
-  Postman `baseUrl` musi odpowiadać rzeczywiście uruchomionemu profilowi.
-- Szablon ZPI4M.Api/.env.example zawiera poświadczenia (baza, JWT, storage,
-  Tink i SMTP), klucz dowodu OCR oraz opcjonalną konfigurację Google i prefiksów
-  storage. Domyślne wartości są w appsettings.json; zmienne środowiskowe je
-  nadpisują. Sekrety uzupełniaj wyłącznie lokalnie.
+- Frontend React 19/TypeScript/Vite 8/Tailwind 4 ma klienta API i widoki konta,
+  grup, zaproszeń, rozliczeń, Expense/OCR, Banking i inboxa. `src/mocks/` zawiera
+  typy i pomocniki, nie symuluje HTTP. Mobile/Capacitor nie ma jeszcze projektu.
+  Pulpit bankowy nie oznacza implementacji Reports ani Limits.
+- Klient HTTP zapisuje sesję w localStorage, współdzieli odświeżenie po 401
+  i obsługuje wspólny dialog 501. Google Identity Services pobiera clientId/nonce
+  z API; ID token pozostaje w pamięci. Domyślne proxy `/api` nie wymaga CORS;
+  jawne VITE_API_BASE_URL przy innym origin wymaga konfiguracji CORS backendu.
+- Expense obsługuje historię, szczegóły, tworzenie, preview, edycję i usuwanie
+  z kontrolą Version oraz datą YYYY-MM-DD. Formularz UI rozdziela udziały także
+  kwotą/suwakiem i blokadami; API utrwala wyłącznie procenty. Kategorie pochodzą
+  z API, systemowe „Nieznane” nie jest wybierane dla ręcznej pozycji.
+  Frontend wymaga dla „Zniżki” ujemnej ceny, ilości 1 i rabatu 0; wybranie tej
+  kategorii ustawia ilość i rabat. Są to reguły UI, nie nowy kontrakt backendu.
+  Powiązanie bankowe rozpoznaje po ID, niezależnie od dostępu do szczegółów:
+  użytkownik inny niż płatnik widzi właściciela, bez przycisków zmiany/odłączenia transakcji;
+  płatnik i kwota są zablokowane, a zapis zachowuje ID oraz kwotę wydatku.
+- Expense, Grouping, Notifications, Receipt i scoped BankingDbContext
+  współdzielą NpgsqlConnection. Transakcję rozpoczyna i zatwierdza koordynator
+  Grouping; konteksty dołączaj jawnie i wykonuj operacje kolejno. Fabryka
+  Banking dla prób/połączeń, User i Limits używają osobnych połączeń.
+  Zastosuj [checklistę transakcji](agent-context/architecture.md#do-wykonania-przy-implementacji-expense-i-grouping)
+  i testy rollbacku przy rozszerzaniu zapisów między modułami.
+- Zapisy Expense atomowo utrzymują udziały, TotalPaid/TotalShare i rejestr
+  BankTransactionAssignment; utworzenie dodaje ExpenseAdded dla pozostałych
+  aktualnych członków. Edycja/usunięcie nie powiadamiają. GroupSettlement nadal
+  odrzuca nowe bankTransactionId; odbudowa agregatów pozostaje do wykonania.
+- Grouping ma API grup, ikon, członkostw, zaproszeń, rozliczeń i sugestii.
+  Lista grup sortuje po name/joinedAt, członkowie mają opcjonalne displayName
+  z lookupu User. Archiwizacja i opuszczenie zachowują historię.
+- Notifications ma NotifyAsync i autoryzowany inbox z paginacją, filtrem oraz
+  odczytem pojedynczym/zbiorczym; klient webowy jest podłączony. NotifyAsync
+  przez IUserLookupService filtruje aktywne konta i zwraca Guid? (null bez
+  zapisu przy braku odbiorców). Grouping generuje ExpenseAdded,
+  GroupMemberJoined i SettlementReceived. Limits nie generuje alertów.
+  FK Notification → Expense mapuje AppDbContext; Notifications nie importuje Expense.
+- Banking ma Tink, odczyty lokalne i trwały worker refreshu. UI otwiera Tink
+  w nowej karcie i odpytuje status w pierwotnej. Callback z Accept: text/html
+  zwraca samodzielną stronę wyniku; klient JSON zachowuje DTO/ProblemDetails.
+  Brak odłączania banku i odnawiania zgód. Sprawdzaj rzeczywistą konfigurację
+  ContinuousAccessVerified: appsettings i szablon Compose mają true, fallback
+  Compose false; to ustawienie nie dowodzi uprawnień ani weryfikacji Tink.
+  Refresh pokazuje polskie opisy błędów; identyczne alerty żądań w Banking
+  są scalane. `BANKING_TINK_UNAVAILABLE` obejmuje także błędy lokalnej
+  konfiguracji, np. continuous_access_unverified; sam kod nie dowodzi awarii Tink.
+- User ma login lub e-mail, sesje, Google, pierwsze hasło konta Google,
+  profil, zdjęcie, zmianę e-maila, reset i dezaktywację. Nie łączy kont po e-mailu
+  i blokuje zmianę adresu konta Google. Zmiana hasła w UI używa resetu przez
+  e-mail; brak endpointu zmiany przez podanie obecnego hasła.
+- Wymagany FRONTEND_URL zasila linki e-mail i jest walidowany przy starcie API.
+  Szablony API/Compose podają publiczny adres frontendu. Wiadomości mają logo
+  MIME CID i datę Europe/Warsaw. Szczegóły SMTP/commitu i wyjątek rejestracji
+  Google opisuje [architektura](agent-context/architecture.md).
+- User/Grouping współdzielą Shared.Images.IconImageProcessor (Magick.NET):
+  PNG/JPEG/WebP/HEIC/HEIF, walidacja, orientacja, usunięcie metadanych i WebP
+  do 512 × 512. Frontend przygotowuje obrazy lokalnie (źródło do 25 MiB),
+  API nadal przyjmuje do 5 MiB. Storage i sprzątanie pozostają w modułach.
+- Receipt nie ma osobnego kontrolera. Expense analizuje plik bez zapisu,
+  zapisuje paragon z formularzem i opcjonalnym podpisanym ocrProof oraz odczytuje
+  go po ID wydatku. Nie zakładaj atomowości PostgreSQL i S3; kompensacja jest
+  best effort. OCR FastAPI domyślnie używa RapidOCR i Gemini przez OpenRouter;
+  propozycje kategorii mapuje Expense, użytkownik poprawia formularz.
+- Reports nie ma usług/API; Expense udostępnia IExpenseReadService dla raportów.
+  Daty tego kontraktu są obustronnie włączne; koniec historii HTTP jest wyłączny.
+  Limits ma modele i repozytorium CategoryGroupLimit, bez usług/API limitów.
+- Solucja ma piętnaście projektów xUnit. Testy PostgreSQL wymagają wspólnej
+  TEST_POSTGRES_CONNECTION_STRING; brak lokalnie oznacza pominięcie, w CI błąd.
+  Ręczny test S3 wymaga STORAGE_INTEGRATION_TESTS=1. Workflow backendu nie
+  uruchamia testów frontendu ani workera Python. Ostatnie zmiany frontendu:
+  kontrola TypeScript zaliczona, bez uruchamiania testów, builda Vite i usług
+  zewnętrznych. Historyczne wyniki w statusie nie potwierdzają tych zmian.
+- Nowa baza: SQL init → migracje EF → seed. Ostatnia migracja to
+  `20261116211631_NormalizeExpenseCategoriesAndAddDeposit`: normalizacja nazw
+  kategorii i dodanie „Kaucji”. Poprzednia `20261109191600_UserImprovements` dodaje aktywny e-mail, GoogleSubject,
+  IconStorageKey i trigger grupy „Wydatki osobiste” w PLN. Nie uzupełnia grup
+  istniejącym kontom. Łańcuch i ostrzeżenia po rebase opisuje development.md;
+  nie przywracaj zastąpionych migracji. Seed czyści dane i nie uploaduje plików.
+  Odtworzenie wolumenu wymaga zgody na usunięcie danych w danym zadaniu.
+- Pięć usług Docker korzysta wyłącznie z containers/local/.env. Compose ustawia
+  wewnętrzne adresy zależności; STORAGE_PUBLIC_ENDPOINT służy podpisanym URL-om
+  dla klienta. API wymaga także konfiguracji JWT, storage i dowodu OCR. Pliki
+  .env API/workera dotyczą uruchomienia bez Dockera. Domyślny profil API HTTP
+  używa portu 5283; dopasuj Postman do faktycznie uruchomionego profilu.
 
 ## Utrzymanie kontekstu
 

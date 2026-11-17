@@ -222,6 +222,70 @@ public sealed class ExpenseWorkflowTests : PostgresFixture
 		Assert.Equal(HttpStatusCode.NotFound, outsider.StatusCode);
 	}
 
+	[PostgresFact]
+	public async Task OcrDiscountsAndDepositAdjustmentsReconcileWhenSaved()
+	{
+		await SeedAsync();
+		var storage = new ReceiptTestDependencies
+		{
+			AnalysisJson = """
+				{
+				  "receipt": {
+				    "amount_due": "17.50",
+				    "items": [
+				      {"name":"Product","category":"żywność i napoje","unit_price":"10.00","quantity":"2","discount":"-0.50","total":"19.50"},
+				      {"name":"Receipt-wide discount","category":"zniżka","total":"-3.20"},
+				      {"name":"Opłata za plastik","category":"rachunki i opłaty","unit_price":"0.60","quantity":"1","total":"0.60"}
+				    ],
+				    "deposits": [
+				      {"name":"Opłata kaucyjna","unit_price":"0.50","quantity":"2","total":"1.00"},
+				      {"name":"Opakowanie","total":"0.40"}
+				    ],
+				    "deposit_returns": [{"name":"Zwrot butelek","total":"-0.80"}]
+				  },
+				  "warnings": [],
+				  "needs_review": false
+				}
+				"""
+		};
+		await using var host = await StartAsync(receiptDependencies: storage);
+		using var response = await AnalyzeReceiptAsync(host.Client);
+		Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+		var analysis = await response.Content.ReadFromJsonAsync<JsonElement>();
+		var proposal = analysis.GetProperty("proposal");
+		var items = proposal.GetProperty("items").EnumerateArray().ToArray();
+		Assert.Equal(6, items.Length);
+		Assert.Equal("-0.50", items[0].GetProperty("discount").GetString());
+		Assert.Equal("-3.20", items[1].GetProperty("unitPrice").GetString());
+		Assert.Equal("1", items[1].GetProperty("quantity").GetString());
+		Assert.Equal(ExpenseDefaultCategories.BillsAndFees.Id, items[2].GetProperty("categoryId").GetGuid());
+		Assert.Equal("2", items[3].GetProperty("quantity").GetString());
+		Assert.Equal(ExpenseDefaultCategories.Deposit.Id, items[3].GetProperty("categoryId").GetGuid());
+		Assert.Equal(ExpenseDefaultCategories.Deposit.Id, items[4].GetProperty("categoryId").GetGuid());
+		Assert.False(items[4].GetProperty("needsReview").GetBoolean());
+		Assert.False(analysis.GetProperty("needsReview").GetBoolean());
+		Assert.Equal("-0.80", items[5].GetProperty("unitPrice").GetString());
+		Assert.Equal(ExpenseDefaultCategories.Deposit.Id, items[5].GetProperty("categoryId").GetGuid());
+
+		var body = Body(amount: proposal.GetProperty("amount").GetString());
+		body["items"] = new JsonArray(items.Select(item => (JsonNode)new JsonObject
+		{
+			["name"] = item.GetProperty("name").GetString(),
+			["categoryId"] = item.GetProperty("categoryId").GetString(),
+			["unitPrice"] = item.GetProperty("unitPrice").GetString(),
+			["quantity"] = item.GetProperty("quantity").GetString(),
+			["discount"] = item.GetProperty("discount").GetString() ?? "0.00"
+		}).ToArray());
+		using var save = await SaveWithReceiptAsync(host.Client, HttpMethod.Post, "/api/expenses", body,
+			analysis.GetProperty("ocrProof").GetString());
+		Assert.Equal(HttpStatusCode.Created, save.StatusCode);
+		var expense = await save.Content.ReadFromJsonAsync<JsonElement>();
+		Assert.Equal("17.50", expense.GetProperty("amount").GetString());
+		var savedItems = expense.GetProperty("items").EnumerateArray().ToArray();
+		Assert.Equal(6, savedItems.Length);
+		Assert.All(savedItems, item => Assert.False(item.GetProperty("isSystemGenerated").GetBoolean()));
+	}
+
 	[PostgresTheory]
 	[InlineData("modified")]
 	[InlineData("other-file")]

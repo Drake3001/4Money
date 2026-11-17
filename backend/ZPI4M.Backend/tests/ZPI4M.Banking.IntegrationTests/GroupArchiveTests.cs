@@ -14,6 +14,58 @@ namespace ZPI4M.Banking.IntegrationTests;
 
 public sealed class GroupArchiveTests : PostgresFixture
 {
+	[PostgresFact]
+	public async Task Membership_sorting_uses_actor_join_date_and_stable_pagination()
+	{
+		await using var model = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(ConnectionString).Options);
+		await model.Database.MigrateAsync();
+		await SeedScript.ExecuteAsync(ConnectionString, File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Baseline", "seed_local.sql")));
+		await using var db = new GroupingDbContext(new DbContextOptionsBuilder<GroupingDbContext>().UseNpgsql(ConnectionString).Options);
+		await db.GroupMembers.Where(m => m.FkUserId == Anna).ExecuteUpdateAsync(s => s.SetProperty(m => m.IsMember, false));
+		var ids = Enumerable.Range(1, 6).Select(i => Guid.Parse($"d0000000-0000-0000-0000-{i:000000000000}")).ToArray();
+		var joined = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+		for (var i = 0; i < ids.Length; i++)
+		{
+			var group = new ZPI4M.Grouping.Models.Group
+			{
+				Id = ids[i],
+				Name = new[] { "Zulu", "Alpha", "Beta", "Former", "Archived", "Outsider" }[i],
+				CurrencyCode = "PLN",
+				AdminUserId = Anna,
+				IsArchived = i == 4
+			};
+			group.GroupMembers.Add(new ZPI4M.Grouping.Models.GroupMember
+			{
+				FkGroupId = ids[i],
+				FkUserId = i == 5 ? Bartek : Anna,
+				IsMember = i != 3,
+				JoinedAt = i == 0 ? joined.AddDays(2) : joined
+			});
+			db.Groups.Add(group);
+		}
+		await db.SaveChangesAsync();
+		var repository = new ZPI4M.Grouping.Repositories.GroupRepository.GroupRepository(db);
+		var query = new ZPI4M.Grouping.Repositories.GroupRepository.GroupMembershipQuery
+		{
+			IsMember = true,
+			PageSize = 2,
+			SortBy = ZPI4M.Grouping.Repositories.GroupRepository.GroupMembershipSortBy.JoinedAt
+		};
+		var first = await repository.GetMembershipPageAsync(Anna, query);
+		Assert.Equal(3, first.TotalCount);
+		Assert.Equal(new[] { ids[1], ids[2] }, first.Items.Select(x => x.Group.Id));
+		query.PageNumber = 2;
+		Assert.Equal(ids[0], Assert.Single((await repository.GetMembershipPageAsync(Anna, query)).Items).Group.Id);
+		query.PageNumber = 1;
+		query.Descending = true;
+		Assert.Equal(new[] { ids[0], ids[1] }, (await repository.GetMembershipPageAsync(Anna, query)).Items.Select(x => x.Group.Id));
+		query.SortBy = ZPI4M.Grouping.Repositories.GroupRepository.GroupMembershipSortBy.Name;
+		query.Descending = false;
+		Assert.Equal(new[] { ids[1], ids[2] }, (await repository.GetMembershipPageAsync(Anna, query)).Items.Select(x => x.Group.Id));
+		query.Descending = true;
+		Assert.Equal(new[] { ids[0], ids[2] }, (await repository.GetMembershipPageAsync(Anna, query)).Items.Select(x => x.Group.Id));
+	}
+
 	private static readonly Guid Anna = Guid.Parse("10000000-0000-0000-0000-000000000001");
 	private static readonly Guid Bartek = Guid.Parse("10000000-0000-0000-0000-000000000002");
 	private static readonly Guid Group = Guid.Parse("20000000-0000-0000-0000-000000000001");

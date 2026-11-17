@@ -1,5 +1,248 @@
 # Stan implementacji i kwestie otwarte
 
+## Bieżący przegląd — 2026-11-17
+
+Podstawa: statyczny przegląd kodu i konfiguracji rewizji `fe2e8c0`, aktualizacje
+do `c6e5b96` oraz lokalne zmiany frontendu z 2026-11-16/17. Aktualizacja dotyczy
+Expense/OCR, kategorii, migracji i prezentacji Banking; pozostałe obszary
+zachowują zakres wcześniejszego przeglądu. Tabela „Potwierdzony stan” opisuje bieżący
+zakres. Datowane wpisy dalej zachowują historię konkretnych wdrożeń i testów;
+ich wyniki nie są nową regresją całego backendu.
+
+- **Web:** podłączone do API konto i Google Identity Services, grupy,
+  zaproszenia, rozliczenia, wydatki z OCR, inbox i Banking. `src/mocks/`
+  dostarcza typy i pomocniki; nie symuluje danych HTTP. Pulpit prezentuje
+  bankowość i powiadomienia, bez raportowania Expense lub limitów.
+- **Expense UI:** historia ma wyszukiwanie, sortowanie i filtry; kategorie
+  pochodzą z API. Końcowa data filtra w UI jest zamieniana na następny dzień
+  dla wyłącznego końca HTTP. Tworzenie prowadzi przez źródło ręczne, bankowe
+  albo paragon. Formularz pozwala korygować produkty/kategorie OCR i bilansować
+  udziały procentem, kwotą lub suwakiem z blokowaniem wybranych uczestników.
+  API nadal zapisuje procenty. Podgląd HEIC korzysta z lokalnej konwersji.
+  „Zniżka” ma walidację UI ujemnej ceny, ilości 1 i rabatu 0, a wybór kategorii
+  ustawia ilość i rabat. Transakcja innego płatnika pozostaje widoczna jako
+  powiązanie bez ujawniania jej szczegółów i bez możliwości jej zmiany w UI.
+- **Banking UI:** zakładki Konta, Transakcje, Połączenia i Odświeżanie.
+  Konta są filtrowane po nazwie i stanie oraz sortowane w przeglądarce;
+  transakcje mają serwerową paginację, filtry i sortowanie datą/kwotą.
+  Szczegóły transakcji otwierają wspólny modal; zachowano też osobny widok.
+  Zgody pokazują stan dostawcy i możliwość przedłużenia, bez operacji odnowienia.
+  Tink otwiera się w nowej karcie; główna odpytuje próbę co 3 s, refresh co 2,5 s.
+  Callback dla Accept: text/html zwraca stronę sukcesu/niepowodzenia bez
+  przekierowania; JSON zachowuje dotychczasowy kontrakt i statusy błędów.
+  Błędy refreshu są opisane po polsku, także dla poszczególnych kont.
+  Identyczne alerty żądań są scalane; wspólny alert nie ma przycisku ponowienia.
+- **Inbox:** filtry odczytu, paginacja, odczyt pojedynczy/zbiorczy, licznik
+  i podgląd dzwonka. Typy 1/4/5 prowadzą do wydatku, grupy lub rozliczeń grupy.
+  Grouping tworzy polskie treści z nazwami pobieranymi przez lookup User;
+  alerty Limits pozostają niepodłączone.
+- **Konfiguracja i e-mail:** wymagany `FRONTEND_URL` zasila linki User
+  i jest walidowany przy starcie API. Zastąpił starszy opis konfiguracji przez
+  USER_EMAIL_FRONTEND_URL. Wiadomości mają logo MIME CID, tekstową alternatywę
+  zachowującą URL przycisku i datę ważności w Europe/Warsaw.
+- **Persystencja:** wspólne scoped połączenie Expense, Grouping, Notifications,
+  Receipt i Banking; koordynator dołącza konteksty jawnie. Fabryka Banking
+  dla prób/połączeń ma osobne połączenia. Expense utrzymuje rejestr przypisań
+  bankowych atomowo ze swoim zapisem; GroupSettlement nadal odrzuca nowe
+  bankTransactionId. Ostatnia migracja to
+  `20261116211631_NormalizeExpenseCategoriesAndAddDeposit`.
+- **Pozostałe braki:** aplikacja mobilna/Capacitor, usługi i API Limits/Reports,
+  alerty limitów, odbudowa agregatów, bankowe źródła rozliczeń, odłączanie banku
+  i odnawianie zgód oraz produkcyjny obraz/hosting frontendu. Automatyczne
+  dopasowanie paragonów i push pozostają rozszerzeniami poza MVP.
+
+**Weryfikacja zmian frontendu z 2026-11-16/17:** `npm.cmd run typecheck`
+zaliczone; po ostatnim usunięciu dwóch przycisków sprawdzono `git diff --check`.
+Nie uruchamiano testów, builda Vite, przeglądarki ani usług zewnętrznych.
+Aktualizacja dokumentacji z 2026-11-17 opiera się na przeglądzie kodu i diffów;
+nie obejmuje nowych testów, migracji ani operacji na bazie i kontenerach.
+
+**Historyczna weryfikacja z 2026-11-15:** `npm.cmd test`: **42 zaliczone, 0 błędów, 0 pominiętych**,
+oraz `npm.cmd run build`: kontrola TypeScript i Vite zakończona powodzeniem.
+Build ostrzega o pakiecie HEIC (~3,2 MB przed gzip), ładowanym na żądanie.
+Testy korzystają z Node, SSR i syntetycznego HTTP; nie sprawdzają interakcji
+przeglądarki. Nie uruchamiano nowych testów .NET/Python, bazy, migracji, seeda,
+kontenerów ani rzeczywistych Google, SMTP, Tink, OCR i S3. Workflow backendu
+nie wykonuje testów frontendu ani workera Python.
+
+Źródła: [App](../frontend/src/App.tsx), [klient HTTP](../frontend/src/api/client.ts),
+[Banking UI](../frontend/src/views/Banking.tsx),
+[callback](../backend/ZPI4M.Backend/src/modules/ZPI4M.Banking/ApiControllers/TinkCallbackController.cs),
+[konfiguracja hosta](../backend/ZPI4M.Backend/src/ZPI4M.Api/Program.cs),
+[Compose](../containers/local/docker-compose.yml),
+[workflow](../.github/workflows/backend.yml).
+
+## Historia zmian i wcześniejszej weryfikacji
+
+**Rabat i „Zniżka” w UI — przegląd 2026-11-17:** rabat dotyczy całej pozycji,
+jest kwotowy i niedodatni; puste pole oznacza 0. Nieliczbowy lub dodatni rabat
+daje „Rabat musi być liczbą mniejszą lub równą zero.” Na kategorii „Zniżka”
+(ID `30000000-0000-0000-0000-000000000020`) frontend wymaga ujemnej ceny także
+po zaokrągleniu do groszy, ilości 1 i rabatu 0. Wybór tej kategorii w tworzeniu
+lub edycji nadpisuje ilość na 1 i rabat na 0; nie zmienia ceny. Pola pozostają
+edytowalne, a błędy są pokazywane na bieżąco i blokują podgląd. Dwa stałe hinty
+nad produktami nadal wyjaśniają rabat i sposób wpisania samodzielnej zniżki.
+Backend nadal waliduje pozycje niezależnie od kategorii; nie dodano mu reguły
+„Zniżka” → ilość 1 i ujemna cena. Testy nie były uruchamiane ani aktualizowane;
+istniejące asercje starego komunikatu dodatniego rabatu wymagają dostosowania.
+
+**Transakcja innego płatnika w Expense — przegląd 2026-11-17:** formularz
+rozpoznaje powiązanie przez `bankTransactionId`, a nie sukces pobrania szczegółów.
+Gdy płatnik jest innym użytkownikiem, edycja i szczegóły pokazują, że transakcja
+jest dołączona, oraz wskazują właściciela. Frontend nie pobiera wtedy jej
+prywatnych szczegółów. W edycji nie ma przycisków zmiany/odłączenia transakcji,
+płatnik i kwota są zablokowane. Hint płatnika brzmi „Płatnik jest właścicielem
+dołączonej transakcji bankowej.” Formularz zachowuje kwotę z Expense jako
+zastępczą wartość, ID trafia do preview/zapisu, a OCR nie nadpisuje kwoty
+powiązanego wydatku. Właściciela wyznacza płatnik, nie autor: Expense nie ma
+osobnego pola autora. Właściciel nadal może zmienić lub odłączyć transakcję.
+Brak nowych testów HTTP ani potwierdzenia zapisu end-to-end jako drugi użytkownik.
+
+**Komunikaty Banking — przegląd 2026-11-17:** `refreshErrorText` mapuje kody
+refreshu i wyników kont na polskie opisy; nieznany kod ma ogólny komunikat,
+brak kodu daje „Brak”. Sekcja jest opisana jako „Błąd”, bez surowego kodu.
+`store.tsx` po zalogowaniu automatycznie pobiera connections, consents i accounts
+w `Promise.all`; niepowodzenie ustawia wspólny `bankingError`. Osobny błąd
+rozpoczynania połączenia mógł wcześniej powielić ten alert. BankingPage scala
+identyczne komunikaty, a zagnieżdżone listy i odświeżanie pomijają już pokazany
+alert. Usunięto podkreślony przycisk „Spróbuj ponownie” ze wspólnego alertu.
+`BANKING_TINK_UNAVAILABLE` jest kodem zbiorczym z BankRefreshProcessor:
+obejmuje problemy sieci, timeout, inne błędy dostawcy, ale też lokalne
+`continuous_access_unverified` z TinkDataGateway. HTTP 401/403 jest mapowane
+na ACCESS_DENIED, a `invalid_response` na INVALID_DATA. Sam kod UNAVAILABLE
+nie dowodzi awarii Tink; przyczyna konkretnego zdarzenia pozostaje nieustalona.
+Nie weryfikowano rzeczywistego Tink ani konfiguracji uruchomionych usług.
+
+**Wspólna wysokość logowania i rejestracji — 2026-11-13:** SplitAuthLayout
+rezerwuje jednakową minimalną wysokość części formularzowej dla obu ekranów,
+zależną od szerokości okna. Układ obok siebie zaczyna się od 768px i zajmuje pełną
+szerokość okna. Oba formularze stosują jednakową skalę zależną od wysokości okna,
+aktualizowaną po resize, minimalnie 80%. Wspólne minimum strony to 35.5rem
+(568px przy domyślnej wielkości tekstu); niższe okna przewijają całą stronę.
+Skalowanie używa CSS zoom, bez transformacji pozostawiającej pustą przestrzeń.
+Build TypeScript/Vite
+zaliczony; pozostaje ostrzeżenie wielkości pakietu HEIC. Kontrola wizualna nie
+została wykonana: narzędzie nie uzyskało zgody na dostęp do Chrome.
+
+**Przewijanie powiadomień — 2026-11-13:** widok inboxa zajmuje dostępną wysokość
+obszaru strony. Siatka CSS przydziela liście pozostałe miejsce po nagłówku,
+filtrach, paginacji i opisie, bez stałej wysokości w pikselach. Lista ma własny
+scroll i wraca na początek przy zmianie filtra lub strony. TypeScript/Vite build
+zaliczony; bez kontroli wizualnej w przeglądarce i bez testów backendu.
+
+**Testy frontendu — weryfikacja 2026-11-13:** wspólna atrapa `window` w testach
+smoke udostępnia `matchMedia` używane przez responsywne menu. Każdy scenariusz
+renderowania ustawia również własne `localStorage`, bez zależności od poprzedniego
+testu. `npm.cmd test`: 17 zaliczonych, 0 błędów, 0 pominiętych. To testy Node/Vite
+i renderowania serwerowego; nie potwierdzają wyglądu ani interakcji w przeglądarce.
+
+**Ekran logowania i klient Google — weryfikacja 2026-11-12:** osobny widok Login
+ma responsywny podział około 60/40: granatowy panel marki z logo i sloganem
+„Przejmij kontrolę nad swoimi wydatkami” oraz jasny formularz z opcją Google,
+podglądem hasła i odnośnikami do rejestracji/resetu. Rejestracja korzysta z tego
+samego panelu marki, formularza w dwóch kolumnach na większych ekranach oraz
+przycisku rejestracji Google. Odzyskiwanie hasła otwiera modal nad logowaniem,
+również przy wejściu przez trasę forgot.
+Formularz rezerwuje miejsce na błędy pól, API i komunikaty Google od pierwszego
+renderowania, więc ich pojawienie nie przesuwa pól ani nie zmienia skali.
+Aktualne wspólne wysokości i odstępy opisuje wpis z 2026-11-13 powyżej.
+Pozostałe strony Auth zachowują
+dotychczasowy układ. GoogleSignIn pobiera challenge/ClientId/nonce z istniejącego
+API, ładuje oficjalny GIS SDK i wysyła credential do Google login. Rejestracja
+wymagana przez API otwiera formularz loginu, imienia, nazwiska i daty urodzenia;
+korzysta z Google register i obsługuje wymóg potwierdzenia e-maila. ID token nie
+jest zapisywany w storage klienta ani wyświetlany. Błędy konfiguracji/skryptu
+nie blokują logowania hasłem. Wymagane są włączone opcje Google i dozwolony origin.
+Build TypeScript/Vite zaliczony (istniejące ostrzeżenie rozmiaru pakietu HEIC).
+Nie uruchamiano testów frontendu ani rzeczywistego OAuth, rejestracji, SMTP czy
+nowej kontroli wizualnej w przeglądarce. Integracja pozostaje do sprawdzenia
+z rzeczywistą konfiguracją Google; sam podłączony klient nie potwierdza jej działania.
+
+**Szczegóły grupy i nazwy członków — weryfikacja 2026-11-12:** frontend ma wspólne
+oznaczenia roli (administrator niebieski, członek jaśniejszy) oraz członkostwa
+(aktywne zielone, byłe czerwone) w informacjach, liście i szczegółach członka oraz
+liście grup. Ujednolicono teksty opuszczania grupy, przekazania roli, archiwizacji,
+rozliczeń i zaproszeń („kod” w UI, „Aktywne” zamiast „Można użyć”). Pusta lista
+propozycji rozliczeń nie jest już pokazywana jako rozliczona w trakcie wczytywania.
+`GroupMemberResponse` listy i szczegółów zawiera opcjonalne `displayName`.
+GroupMemberService pobiera nazwy przez istniejący IUserDisplayNameLookup po
+autoryzacji, jednym zapytaniem na stronę, także dla byłych członków. Frontend
+korzysta z tych nazw zamiast ID; szczegóły członka pokazują również rolę.
+Migracja nie jest potrzebna. Grouping.Tests: 46/46, w tym kontrola braku lookupu
+przy odmowie dostępu oraz grupowe pobranie nazw. Kontrola typów TypeScript
+zaliczona. Nie uruchamiano testów frontendu ani PostgreSQL.
+API oraz projekty Banking.IntegrationTests i Expense.IntegrationTests kompilują
+się w Release bez błędów i ostrzeżeń; konstrukcje serwisu w fixture'ach uwzględniają
+lookup nazw. Te kompilacje nie oznaczają wykonania testów integracyjnych.
+
+**Wspólne przetwarzanie ikon User/Grouping — weryfikacja 2026-11-12:** obsługa
+PNG/JPEG/WebP/HEIC/HEIF, limitu 5 MiB, wymiarów, orientacji EXIF, skalowania do
+512 × 512, usuwania metadanych i kodowania WebP została wydzielona do
+`Shared.Images.IconImageProcessor`. Magick.NET 15.1.0 jest zależnością Shared.
+UserIconService i GroupIconService mapują błędy na własny kontrakt i zachowują
+własne prefiksy kluczy oraz obsługę storage. Nieudany upload grupy sprząta
+wygenerowany klucz, tak jak User. Presety i istniejące obiekty są bez zmian.
+Frontend korzysta ze wspólnego `src/shared/iconImage.ts` zamiast `profileImage.ts`;
+obie kontrolki przyjmują oryginał do 25 MiB, konwertują HEIC lokalnie i wysyłają
+zmniejszony obraz. Formularz grupy blokuje zapis podczas przygotowywania pliku.
+User.UnitTests 72/72 i Grouping.Tests 41/41 zaliczone bez pominięć, w tym
+rzeczywiste dekodowanie syntetycznego HEIC dla obu modułów i błąd uploadu grupy.
+Kontrola typów TypeScript zaliczona. Nie uruchamiano testów frontendu, PostgreSQL,
+przeglądarki ani rzeczywistego S3.
+
+**Sortowanie listy grup — weryfikacja 2026-11-12:** `GET /api/groups` przyjmuje
+`sortBy=name|joinedAt` (domyślnie `name`) i dotychczasowe `descending`.
+Data to `JoinedAt` członkostwa zalogowanego użytkownika; sortowanie jest wykonywane
+przed paginacją, z rosnącym ID grupy jako rozstrzygnięciem remisów. Nie zmieniono
+filtrów członkostwa ani wykluczania archiwum. Frontend udostępnia nazwę A–Z/Z–A
+oraz datę dołączenia rosnąco/malejąco. Nie jest potrzebna migracja.
+33 testy Grouping zaliczone; kontrola typów TypeScript zaliczona. Testów frontendu
+nie uruchamiano. Dodano test PostgreSQL kolejności, remisów, filtrowania i stron;
+nie wykonano go, ponieważ uruchomienie jednorazowej bazy nie zostało zatwierdzone.
+
+**Normalizacja zdjęć profilu i HEIC — weryfikacja 2026-11-12:** frontend przyjmuje
+PNG/JPEG/WebP/HEIC/HEIF do 25 MiB i przygotowuje plik do maksymalnie 512 × 512 px
+z zachowaniem proporcji i bez powiększania. Konwersja HEIC działa lokalnie przez
+ładowane na żądanie heic-to/csp 1.6.7; zapis jest blokowany podczas przygotowania.
+Backend nadal przyjmuje plik do 5 MiB (multipart 6 MiB), także HEIC/HEIF. Magick.NET
+15.1.0 dekoduje wyłącznie dozwolony format i pierwszą klatkę, kontroluje wymiary
+(16384 px na bok, 64 mln pikseli), stosuje orientację EXIF, zmniejsza do 512 × 512,
+usuwa metadane i zapisuje WebP. Uszkodzone obrazy zwracają 415 przed uploadem.
+Presety i istniejące zdjęcia pozostają bez przetwarzania wstecznego.
+User.UnitTests: 72/72, User.Tests (HTTP): 101/101, bez pominięć. Testy sprawdzają
+rzeczywiste dekodowanie PNG/JPEG/WebP/HEIC (syntetyczna próbka HEIC), skalowanie,
+orientację, usunięcie metadanych, przezroczystość, limity i błędy przed storage.
+Build TypeScript/Vite zaliczony; osobny pakiet HEIC ma ostrzeżenie o rozmiarze
+3,2 MB przed kompresją i ładuje się dopiero przy wyborze HEIC. Zgodnie z życzeniem
+użytkownika nie uruchamiano testów frontendu. Bez testu w przeglądarce, rzeczywistego
+S3 ani nowego przebiegu testów PostgreSQL; ich projekt kompiluje się w Release
+bez błędów i ostrzeżeń. Zaktualizowano ich fixture PNG, bo sam
+nagłówek pliku nie przechodzi już pełnego dekodowania. Kontrakt:
+[development](development.md#zdjęcia-profilu-i-prefiksy-storage).
+
+**Pozycjonowanie okien frontendowych — przegląd kodu 2026-11-12:** wspólny
+`Modal` renderuje warstwę przez portal do `document.body`, poza przewijaną
+i animowaną zawartością widoków. Okna są centrowane względem widocznego ekranu
+na wszystkich szerokościach; wysokość ogranicza `100dvh` z marginesem, a długa
+treść przewija się wewnątrz okna. Na prośbę użytkownika nie uruchamiano testów
+frontendu; nie wykonywano nowej weryfikacji w przeglądarce.
+
+**Frontend konta i identyfikacja karty — weryfikacja 2026-11-12:** tytuł karty
+to `4Money`, a favicon korzysta z istniejącego logo aplikacji. Profil i menu
+boczne pokazują zdjęcie pobierane przez podpisany URL lub inicjały przy braku
+zdjęcia/błędzie obrazu. URL jest odświeżany przed wygaśnięciem. Osobny dialog
+pozwala wgrać PNG/JPG/WebP do 5 MiB, wybrać preset z API lub wrócić do inicjałów
+(`removeIcon`). Pusta lista presetów pokazuje zapowiedź ich dostępności;
+usunięto lokalne, niezgodne z kontraktem identyfikatory ikon Lucide.
+Edycja pozostałych danych profilu zachowuje zdjęcie.
+Sekcja hasła wysyła żądanie `forgot-password` dla adresu konta i prowadzi
+do istniejącego ustawiania/resetu hasła przez e-mail; konto bez hasła ma opis
+„Ustaw hasło”. Nie dodano zmiany hasła przez podanie aktualnego hasła.
+Build TypeScript/Vite i 17 testów Node zaliczone, bez pominięć. Nowe testy
+obejmują kontrakty JSON/multipart ikon, odczyt presetów/URL oraz renderowanie
+inicjałów i ustawień profilu. Brak weryfikacji interakcji i wyglądu w przeglądarce
+(narzędzie nie otrzymało dostępu do Chrome), rzeczywistego SMTP i storage.
+
 **Frontend paragonów i OCR — weryfikacja 2026-11-11:** usunięto wywołania
 nieistniejących endpointów osobnego uploadu, odczytu, analizy po ID i usuwania
 paragonu. Wybrany plik i podgląd pozostają lokalne; analiza wysyła multipart
@@ -14,6 +257,37 @@ Build TypeScript/Vite i 12 testów Node zaliczone, bez pominięć. Testy obejmuj
 format żądań, mapowanie odpowiedzi i lokalny cykl pliku z ponowieniem zapisu.
 Nie wykonywano rzeczywistego OCR, uploadu do storage ani testu interakcji
 w przeglądarce; konfiguracja działających usług zewnętrznych pozostaje wymagana.
+
+**Typ pliku paragonu — 2026-11-16:** analiza i zapis uzupełniają MIME na podstawie
+obsługiwanego rozszerzenia, gdy typ przeglądarki jest pusty lub wynosi
+`application/octet-stream`. Test multipart obejmuje wszystkie rozszerzenia
+i sprawdza zachowanie bajtów. Dekoder w lokalnym workerze przyjął syntetyczne
+JPEG, PNG, WebP, HEIC/HEIF, TIFF, BMP i PDF.
+
+**Import kwot z OCR — 2026-11-16:** Expense używa ujemnego `total` samodzielnej
+zniżki, gdy OCR nie zwrócił ceny i ilości. Wpisy z `deposits` i `deposit_returns`
+trafiają do propozycji jako osobne pozycje z kategorią „Inne”. Gdy odczytana suma
+wiersza kaucji różni się od ceny razy ilość, propozycja stosuje odczytaną sumę
+i oznacza wiersz do sprawdzenia. `amount_due` pozostaje kwotą całego wydatku.
+Wynik OCR przy dodawaniu i edycji pokazuje rabat, sumę wiersza i oznaczenia do
+sprawdzenia. Reguły rozpoznawania podsumowań rabatów i duplikatów pozostają po
+stronie workera. Zaliczone: 3 wybrane testy integracyjne Expense na tymczasowym
+PostgreSQL, 48 testów frontendu i build TypeScript/Vite. Test integracyjny używa
+syntetycznej odpowiedzi workera.
+
+**Katalog kategorii — 2026-11-16:** migracja
+`20261116211631_NormalizeExpenseCategoriesAndAddDeposit` zmienia pierwszą literę
+19 nazw i dodaje kategorię „Kaucja” z ikoną Lucide `recycle`. Aktualizuje dane
+katalogu po istniejących ID. Frontend rozpoznaje tę ikonę w etykietach kategorii.
+W lokalnej bazie `zpi4m_frontend_demo` zastosowano migrację. W `zpi4m_db` ze
+starszą historią EF dodano tylko wiersz „Kaucja” poza migracjami, ponieważ
+dotychczasowe nazwy tej bazy zaczynały się już wielką literą.
+
+**Kategorie korekt OCR i ikony — 2026-11-16:** Expense przypisuje wpisy
+z `deposits` i `deposit_returns` do „Kaucji”. Pozycje z `items`, w tym opłaty,
+zachowują kategorię zwróconą przez worker w polu `category`.
+Frontend obsługuje nazwy Lucide z całego katalogu. Zwykłe kategorie korzystają
+ze wspólnego stylu miętowego, systemowe „Nieznane” ma styl neutralny.
 
 **Reset i pierwsze hasło User — weryfikacja 2026-11-11:** `PasswordSetup`
 korzysta ze wspólnego szablonu HTML i linku `?action=reset#token=...`.
@@ -34,7 +308,8 @@ Google wymagającej potwierdzenia adresu, która wysyła SMTP po commicie.
 obsługują potwierdzenie rejestracji, zmianę e-maila, reset hasła i dezaktywację.
 Frontend pobiera token z fragmentu URL: potwierdzenia wykonuje automatycznie,
 reset wymaga nowego hasła. Usunięto testowe linki. Formularze przypominają o spamie.
-Adres frontendu ustawia UserEmailLinks:FrontendBaseUrl; w Compose USER_EMAIL_FRONTEND_URL.
+W tym wdrożeniu adres ustawiał UserEmailLinks:FrontendBaseUrl; obecnie host
+wymaga FRONTEND_URL (patrz bieżący przegląd i development.md).
 Zwykła rejestracja i wystawianie nowych tokenów są zatwierdzane po przyjęciu
 przez SMTP; awaria wycofuje zapis i zachowuje poprzednie tokeny. Wyjątkiem jest
 rejestracja Google wymagająca potwierdzenia adresu: SMTP działa po commicie,
@@ -279,8 +554,9 @@ składnią; nowe cztery skrypty zdjęć wykonane na danych syntetycznych.
 Zaktualizowano kolekcję, środowisko i instrukcje.
 
 Nie wykonano rzeczywistego uploadu do S3 ani prac na bazie aplikacji.
-Frontend zdjęć nie jest częścią tej zmiany; nie ma dekodowania/reskalowania
-obrazu ani workera usuwającego osierocone pliki. Cofnięcie migracji usuwa
+Powyższa weryfikacja z 2026-11-10 nie obejmowała frontendu i dekodowania/reskalowania;
+ich późniejszą implementację opisuje wpis z 2026-11-12 na początku dokumentu.
+Nie ma workera usuwającego osierocone pliki. Cofnięcie migracji usuwa
 powiązania do własnych zdjęć, ale pozostawia pliki S3.
 
 ## Rejestracja i logowanie Google — weryfikacja 2026-11-10
@@ -329,8 +605,9 @@ testów i git diff --check zaliczone. Kolekcja User ma 17 żądań: JSON i skła
 34 skryptów zweryfikowane; nowe skrypty Google wykonano na danych syntetycznych.
 
 Nie wykonano rzeczywistego logowania w Google Identity Services ani wysyłki
-SMTP. Frontend (przycisk Google, uzupełnienie profilu, hint ustawienia hasła)
-nie jest podłączony. Przy odrębnym originie potrzebne będzie CORS z credentials
+SMTP. W powyższej weryfikacji z 2026-11-10 frontend nie był podłączony;
+klienta Google i uzupełnienie profilu dodano 2026-11-12 (opis na początku dokumentu).
+Przy odrębnym originie potrzebne będzie CORS z credentials
 lub wspólne proxy. Cookie wymaga wspólnego site; HTTPS za reverse proxy wymaga
 poprawnej konfiguracji zaufanych forwarded headers. Magazyn challenge działa
 w pamięci jednej instancji; restart unieważnia próby, skalowanie wymaga sticky
@@ -437,8 +714,9 @@ drzewem providerów oraz przekazywanie POST, query, Authorization i odpowiedzi
 401 przez serwer Vite do syntetycznego serwera HTTP. Nie potwierdzają działania
 backendu z bazą ani integracji zewnętrznych. Docker Desktop jest wyłączony,
 host przeglądarki niedostępny; bez nowego testu kontenerów i wizualnego UI.
-Nie uruchamiano migracji ani seeda. Historia/edycja/usuwanie Expense i operacje
-Receipt/OCR nadal zwracają 501; frontend pokazuje wspólny dialog niedostępności.
+Nie uruchamiano migracji ani seeda. Ówczesne historia/edycja/usuwanie Expense
+i operacje Receipt/OCR zwracały 501. Obecnie są zaimplementowane i podłączone
+do frontendu; wspólny dialog 501 pozostaje obsługą niedostępnych usług.
 
 Wcześniejsza weryfikacja szablonu Vite (przed powyższymi zmianami): Compose config --quiet, build obrazu, start wyłącznie frontendu,
 lint i build aplikacji wewnątrz kontenera oraz restart z istniejącym wolumenem
@@ -470,8 +748,8 @@ w drzewie narzędzi ESLint (zależności developerskie); bez high/critical.
   odbiorców daje null bez dodania encji i SaveChangesAsync; Guid.Empty nadal
   jest błędem walidacji. Nie powstaje puste powiadomienie bez odbiorców.
 - Expense, Grouping i Notifications współdzielą scoped połączenie w Program.cs.
-  Nie ma jeszcze koordynatora biznesowego ani testów wspólnej transakcji:
-  samo współdzielenie połączenia nie zapewnia atomowości między modułami.
+  Samo współdzielenie połączenia nie zapewnia atomowości między modułami;
+  obecnie transakcję zapewnia koordynator Grouping opisany wyżej.
 - ICurrentUser i HttpCurrentUser są w Shared/CurrentUser. Kontrolery Banking,
   User i Notifications korzystają z tego kontraktu, a nie z własnego odczytu sub.
   Stare typy IBankingCurrentUser i HttpBankingCurrentUser usunięto. Niepoprawne ID
@@ -506,10 +784,10 @@ uploadem. Po błędzie zapisu bazy przesłany plik pozostaje w storage, poniewa�
 niepewne potwierdzenie nie dowodzi rollbacku. Usuwanie najpierw zapisuje usunięcie
 rekordu, potem podejmuje próbę usunięcia pliku z limitem 10 sekund; błąd sprzątania
 jest logowany. Brak wspólnej transakcji bazy i S3 oraz automatycznego sprzątania
-osieroconych obiektów. Serwis nie sprawdza właściciela paragonu; przed udostępnieniem
-przez endpointy Expense trzeba określić i egzekwować uprawnienia.
+osieroconych obiektów. ReceiptService nie sprawdza właściciela paragonu;
+autoryzację zapewnia obecnie Expense przy udostępnianiu przez swoje endpointy.
 Receipt zgodnie z decyzją z 2026-11-02 pozostaje modułem bez własnych endpointów;
-Expense będzie korzystać z jego serwisu. Jeden wydatek może mieć najwyżej jeden
+Expense korzysta z jego serwisu. Jeden wydatek może mieć najwyżej jeden
 paragon. Nadpisywanie, dopisywanie i ręczna edycja danych wydatku należą do Expense.
 
 Worker `workers/extraction_worker` ma FastAPI: `/health`, `/docs`,
@@ -528,15 +806,16 @@ Wynik zawiera propozycje nazw i kategorii pozycji, rabaty i kaucje, ostrzeżenia
 oraz flagi ręcznej kontroli. Taksonomia v2 obejmuje 19 kategorii, w tym `zniżka`.
 Są testy oraz narzędzia ewaluacji i fixture'y w `experiments/`; historyczne analizy
 w `notes/ocr/` nie potwierdzają celów jakościowych dla aktualnego domyślnego modelu.
-Brak mapowania tych propozycji na encje Category/ExpenseItem i przepływu korekt
-użytkownika. Obsługa HTTP paragonów jest planowana przez Expense; kolekcja Postman
-Storage wywołuje bezpośrednio SeaweedFS S3.
+Sam worker nie zapisuje Category/ExpenseItem. Obecnie Expense mapuje kategorie
+do propozycji formularza, a frontend obsługuje korektę i zapis. Analiza i odczyt
+HTTP są dostępne przez Expense; kolekcja Postman Storage nadal wywołuje
+bezpośrednio SeaweedFS S3.
 
 Opcje OCR i S3 mają `ValidateOnStart`. `STORAGE_PUBLIC_ENDPOINT` pozwala podpisywać
 URL dla klienta innym adresem niż wewnętrzny endpoint S3. Receipt.IntegrationTests
 zawiera ręczny test upload → podpisany GET → odmowa anonimowego GET → delete,
 włączany przez `STORAGE_INTEGRATION_TESTS=1`. Obecny CI nie uruchamia SeaweedFS,
-workera ani testów pytest. PostgreSQL CI obejmuje User, Banking i Notifications.
+workera ani testów pytest. PostgreSQL CI obejmuje User, Banking, Notifications i Expense.
 Przegląd z 2026-10-29 obejmował kontrolę statyczną. Weryfikacja zmian kontraktu
 z **2026-11-02**: 155 testów jednostkowych Receipt zaliczone. Po uruchomieniu
 Docker Desktop i SeaweedFS z lokalnego Compose ponowiono Receipt.IntegrationTests
@@ -564,17 +843,17 @@ z lokalnego cache. Kontrole stylu i formatowania zmienionych plików oraz
 | Baza | Modele i konfiguracje Banking, Expense, Grouping, Limits, Notifications, Receipt i User; wspólny AppDbContext i migracje | Obecność migracji nie potwierdza ich zastosowania na każdej bazie |
 | Expense | Historia, szczegóły, tworzenie, preview tworzenia i edycji, PUT oraz DELETE. Zmiany wydatków i sald Grouping zapisują się atomowo. | Paragon można dodać, wymienić lub usunąć przy zapisie formularza. ExpenseAdded działa przy tworzeniu. Ochrona ponowień, spójny odczyt historii i trwałe sprzątanie plików pozostają osobnymi etapami. |
 | Repozytoria | Banking; Group/GroupMember; User/UserToken; Category/Expense/ExpenseItem/ExpenseShare; CategoryGroupLimit; Receipt; Notification/NotificationRecipient | BankingConnectionRepository sam zapisuje próby i połączenia; podstawowe repozytoria pozostawiają SaveChangesAsync serwisowi; warunkowe UPDATE/DELETE wykonują się od razu; brak kompletnego API wszystkich encji |
-| User | Rejestracja, potwierdzenie i ponowna wysyłka e-maila; login z JWT i hashowanym refresh tokenem, rotacja refresh, logout; jedna sesja na konto i weryfikacja jej aktualności przy uwierzytelnieniu; limity IP; GET/PUT api/users/profile; zmiana e-maila z aktualnym hasłem i potwierdzeniem tokenem; forgot-password/reset-password z unieważnieniem sesji; dezaktywacja po potwierdzeniu e-mailem z usunięciem wszystkich tokenów; login nieaktywnego konta po poprawnym haśle zwraca 403; wspólny IEmailSender/SmtpEmailSender i UserEmailMessages | Strony potwierdzeń i resetu dostępne od 2026-11-04 (opis powyżej). Brak zmiany hasła po podaniu aktualnego hasła; konfiguracja JWT wymaga klucza w środowisku; istnieją projekty testów jednostkowych, HTTP i PostgreSQL; brak potwierdzenia dostarczenia wiadomości do rzeczywistej skrzynki |
+| User | Rejestracja i potwierdzenie e-maila, login lub e-mail, JWT i rotacja refresh, Google i pierwsze hasło, profil/ikony, zmiana e-maila, reset i dezaktywacja; klient webowy podłączony | Jedna sesja na konto; brak łączenia kont po e-mailu, zmiany adresu konta Google i zmiany hasła przez aktualne hasło. FRONTEND_URL wymagany przy starcie. Rzeczywiste Google/SMTP wymagają osobnej weryfikacji |
 | Banking | Próby/połączenia, adapter Tink, callback, odczyt zgód oraz refresh on demand przez trwały worker PostgreSQL, import kont i BOOKED per rachunek; IBankingReadService oraz HTTP GET list/szczegółów rachunków i transakcji | Nowy import wymaga osobnego potwierdzenia Sandbox i zastosowania migracji AddBanking do właściwej bazy; brak odłączania banku i odnawiania zgód |
 | Receipt / OCR | Analiza pliku bez zapisu, upload przy zapisie Expense, odczyt rekordu i podpisanego URL oraz usuwanie; StorageKey z unikalnym indeksem; dwa projekty testowe | Własne endpointy Receipt są celowo wykluczone; brak potwierdzenia pełnego przepływu z rzeczywistym OCR/storage w bieżącej weryfikacji; seed zawiera syntetyczny klucz bez pliku |
 | Kategoryzacja | Klasyfikacja i propozycje nazw produktów w workerze Python; Expense mapuje nazwy kategorii na ID w propozycji formularza, którą użytkownik może poprawić | Worker nie zapisuje encji .NET; niejednoznaczna lub nieznana nazwa wymaga wyboru kategorii; historyczne eksperymenty nie potwierdzają jakości aktualnego pipeline |
 | Grouping | Usługi i API grup, członkostw, zaproszeń, rozliczeń i sugestii, agregaty Expense i powiadomienie ExpenseAdded; szczegóły w README modułu | Odbudowa agregatów pozostaje do wykonania |
 | Limits | Model i repozytorium CategoryGroupLimit oraz pola limitów grupy | Brak serwisów i API budżetów oraz przepływu alertów |
-| Notifications | Modele, AddNotificationsAfterRebase i snapshot; osobne repozytoria treści i odbiorców; NotifyAsync, GetByUserAsync, MarkAsReadAsync, MarkAllAsReadAsync; DTO; GET /api/notifications, PUT /api/notifications/{id}/read i PUT /api/notifications/read-all; Postman; trzy projekty testów | ID użytkownika dostarcza wspólny ICurrentUser; lista ma paginację i filtr isRead, stałe sortowanie od najnowszych; odczyt zachowuje pierwszą datę. NotifyAsync pomija nieaktywne konta, zwraca null bez odbiorców. Grouping wysyła ExpenseAdded, GroupMemberJoined i SettlementReceived. Brak podłączenia Limits i klientów. Push poza zakresem. Testy jednostkowe, HTTP i PostgreSQL przeszły w bieżącej weryfikacji |
+| Notifications | NotifyAsync z filtrowaniem aktywnych kont; inbox HTTP z paginacją i filtrem, odczyt pojedynczy/zbiorczy; klient webowy, licznik i dzwonek; Grouping generuje ExpenseAdded, GroupMemberJoined i SettlementReceived | Null bez odbiorców nie blokuje zapisu biznesowego. Limits nie generuje alertów; brak aplikacji mobilnej, push poza zakresem. Datowane testy poniżej dotyczą konkretnych rewizji |
 | Reports | Projekt modułu; Expense udostępnia IExpenseReadService z listą, agregatami kategorii i okresów | Brak implementacji raportów i endpointów w samym Reports; kontrakt Expense nie oznacza ukończenia tego modułu |
-| Web / mobile | Założenia w dokumentacji | Brak projektów aplikacji klienckich w repozytorium |
+| Web / mobile | React 19 + TypeScript + Vite 8 + Tailwind 4; widoki konta, grup, rozliczeń, wydatków/OCR, Banking i inboxa korzystają z API; proxy i kontener developerski | Brak projektu mobile/Capacitor, raportów/limitów UI i produkcyjnego obrazu frontendu. Testy Node/SSR i build nie potwierdzają interakcji w przeglądarce ani usług zewnętrznych |
 | Narzędzia | Hooki, testy hooków, workflow backendu z PostgreSQL i wykrywaniem UnitTests/Tests/IntegrationTests; piętnaście projektów w solucji | CI ustawia wspólną zmienną TEST_POSTGRES_CONNECTION_STRING dla testów bazy User, Banking, Notifications i Expense. Runner wybiera tylko śledzone projekty; „not configured” nie oznacza wykonania testów |
-| Infrastruktura | Wspólny Compose PostgreSQL, backendu, SeaweedFS i OCR z jednym containers/local/.env; Terraform Proxmox z workflow | Po przeniesieniu do containers/local konfiguracja Compose sprawdzona 2026-10-29 dla lokalnego .env i szablonu; containers/deploy zawiera tylko .gitkeep; bez budowania obrazów, uruchamiania usług ani migracji w tej weryfikacji; AWS pozostaje planem |
+| Infrastruktura | Wspólny Compose pięciu usług: frontend, PostgreSQL, backend, SeaweedFS i OCR z jednym containers/local/.env; Terraform Proxmox z workflow | containers/deploy zawiera tylko .gitkeep; bez nowego uruchomienia kontenerów, migracji ani wdrożenia podczas przeglądu; AWS pozostaje planem |
 
 Źródła: [solucja](../backend/ZPI4M.Backend/ZPI4M.Backend.slnx),
 [moduły](../backend/ZPI4M.Backend/src/modules/),
@@ -633,8 +912,10 @@ transakcji. Zastępuje dwie migracje tej gałęzi (`AddBankConnections` i
 `AddBankRefreshes`), po `AddAccountDeactivationTokens`. Nie oznacza zastosowania
 do bazy deweloperskiej. Publiczną dokumentację Tink
 sprawdzono 2026-10-21, ale uprawnienia Client ID, dostępność rynku i rzeczywisty
-przepływ Sandbox pozostają niepotwierdzone. `ContinuousAccessVerified` domyślnie
-blokuje rzeczywiste operacje. Weryfikacja konfiguracji odbywa się przy użyciu,
+przepływ Sandbox pozostają niepotwierdzone. Brak `ContinuousAccessVerified`
+lub false blokuje rzeczywiste operacje. Obecne appsettings.json i szablon
+Compose ustawiają true, fallback Compose ma false. Sprawdzaj efektywną
+konfigurację; true nie dowodzi uprawnień Tink. Walidacja Tink odbywa się przy użyciu,
 więc brak Tink nie blokuje startu hosta i lokalnych odczytów.
 
 Weryfikacja po scaleniu: build bez ostrzeżeń, kontrole stylu i formatowania oraz
@@ -874,6 +1155,12 @@ Nie zmieniano bazy deweloperskiej i nie wykonywano wywołań rzeczywistego Tink.
 
 ## Rozbieżności istotne podczas pracy
 
+Przegląd 2026-11-15 wykrył także niezgodności starszego kontekstu z kodem:
+Expense → Group/Receipt/BankTransaction i ExpenseShare → User nie mają
+jawnych mapowań EF, choć FK istnieją w SQL init. AppDbContext mapuje płatnika
+Expense i Notification → Expense. Obecna unikalność importowanego rachunku
+opiera się na parze TinkUserId/TinkAccountId; numer, IBAN i instytucja są opcjonalne.
+
 | Rozbieżność | Znaczenie dla agenta |
 | --- | --- |
 | CI wybiera tylko śledzone `.UnitTests.csproj`, `.Tests.csproj` i `.IntegrationTests.csproj` | Dodanie projektu do solucji nie zastępuje dodania plików do commita. Konfiguracja CI obejmuje już User, Banking i Notifications |
@@ -886,7 +1173,7 @@ Nie zmieniano bazy deweloperskiej i nie wykonywano wywołań rzeczywistego Tink.
 | Nie wszystkie FK między modułami i domyślne ograniczenia z SQL init są odwzorowane w EF | Przy zmianie schematu porównuj SQL, migracje i snapshot; szczegóły opisuje domain.md |
 | Expense wymaga grupy także dla wydatków osobistych | Nowe konto otrzymuje zwykłą grupę startową „Wydatki osobiste” w PLN; może ją normalnie zmieniać i rozszerzać. Istniejące konta bez backfillu |
 | Historyczny SQL init i diagramy mogą nadal zawierać ExpenseItem.fk_user_id | Migracja CompleteExpenseModel usuwa pole i FK; MVP obejmuje podział całego wydatku. Schemat docelowy opisuje domena |
-| Dokumentacja stosu wymienia Swagger, mobile i Python OCR | Backend .NET udostępnia OpenAPI w Development; worker FastAPI ma UI /docs i zaimplementowany OCR. Aplikacji web/mobile nadal nie ma |
+| Dokumentacja stosu wymienia Swagger, mobile i Python OCR | Backend .NET ma OpenAPI w Development; worker FastAPI ma /docs i OCR. Web React jest już w repo i korzysta z API; brak projektu aplikacji mobilnej |
 | SQL init Receipt nadal używa s3_link; model i seed używają unikalnego storage_key | Migracja 20261028184348_RenameReceiptS3LinkToStorageKeyAndMakeUnique zmienia nazwę kolumny i dodaje indeks; seed wymaga jej zastosowania. Migracja nie konwertuje historycznych URL-i na klucze i wymaga braku duplikatów |
 | AddNotificationsAfterRebase zastępuje starą AddNotificationRecipient; baza sprzed rebase mogła już mieć jej kolumny i tabele | Nie stosuj ponownie tych samych zmian bez sprawdzenia schematu i historii. Seed nie naprawia tego konfliktu; odtworzenie lokalnej bazy usuwa dane i wymaga zgody |
 | Uzgodniono pojedynczy cel: wydatek albo grupa; NotifyAsync i aktualny seed stosują tę regułę, EF nie ma CHECK wyłączności | Walidacja serwisu nie jest ograniczeniem bazy; bezpośredni zapis SQL może nadal podać oba FK |
@@ -1027,7 +1314,8 @@ Wdrożono ręczny CRUD rozliczeń i GroupMemberAggregateService obsługujący
 zmianę wkładu rozliczenia oraz wydatku. Serwis agregatów wymaga aktywnej
 transakcji koordynatora, nie zapisuje/commituje samodzielnie. Uzupełniono
 repozytorium rozliczeń i zbiorczy odczyt członkostw. Banking, integracja
-ExpenseDbContext i odbudowa agregatów pozostają poza zakresem; niepusty
+Ówczesny zakres nie obejmował ExpenseDbContext; obecnie dołącza do koordynatora.
+Odbudowa agregatów nadal nie jest wdrożona; niepusty
 BankTransactionId jest odrzucany.
 Weryfikacja: build bez ostrzeżeń i błędów, Grouping HTTP 19/19, regresja
 backendu zaliczona (testy wymagające osobnej konfiguracji były pomijane).

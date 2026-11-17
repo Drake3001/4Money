@@ -22,7 +22,7 @@ export function GroupsProvider({ children }: { children: ReactNode }) {
     const write = <T,>(fn: () => Promise<T>) => run(fn).then((r) => { if (r.ok) bump(); return r })
     return {
       iconPresets, rev,
-      fetchList: async (filter) => (await groupsApi.list(filter)).map((group) => ({ group, myStatus: group.isMember ? 'active' as const : 'former' as const })),
+      fetchList: async (filter, descending = false, sortBy = 'name') => (await groupsApi.list(filter, descending, sortBy)).map((group) => ({ group, myStatus: group.isMember ? 'active' as const : 'former' as const })),
       fetchGroup: groupsApi.get,
       fetchActiveMembers: groupsApi.activeMembers,
       fetchIconUrl: async (id) => { try { return (await groupsApi.iconUrl(id)).url } catch { return null } },

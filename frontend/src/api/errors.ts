@@ -19,9 +19,9 @@ const BASE: Record<number, string> = {
 }
 
 /** Message for a failed request, or null when nothing should be shown (HTTP 501 is handled by the dialog). */
-export function describeError(code: number, overrides: Record<number, string> = {}): string | null {
+export function describeError(code: number, overrides: Record<number, string> = {}, options: { includeDetails?: boolean } = {}): string | null {
   if (code === 501) return null
   const base = overrides[code] ?? BASE[code] ?? BASE[500]
-  const extra = lastProblem && lastProblem.code === code && (code === 400 || code === 409 || code === 422) ? lastProblem.message : undefined
+  const extra = options.includeDetails !== false && lastProblem && lastProblem.code === code && (code === 400 || code === 409 || code === 422) ? lastProblem.message : undefined
   return extra && !base.includes(extra) ? `${base} (${extra})` : base
 }

@@ -22,11 +22,15 @@ export type ExpenseListItem = {
 export type Page<T> = { items: T[]; pageNumber: number; pageSize: number; totalCount: number; totalPages: number; hasPreviousPage: boolean; hasNextPage: boolean }
 
 export type BankFilter = { accountId: string; dateFrom: string; dateTo: string; minAmount: string; maxAmount: string; description: string }
+export type BankPageFilter = BankFilter & { pageNumber: number; pageSize: number; sortBy: 'date' | 'amount'; descending: boolean }
 
 // Every operation goes to the real Expense API. A failed call resolves to { ok: false, code } (HTTP status; 0 = network failure).
 // HTTP 501 has already opened the shared "Usługa tymczasowo niedostępna" dialog by the time the Res is returned.
 export type ExpensesApi = {
   categories: Category[]
+  categoriesLoading: boolean
+  categoriesError: number | null
+  reloadCategories: () => void
   list: (q: ExpenseQuery) => Promise<Res<Page<ExpenseListItem>>>
   get: (id: string) => Promise<Res<ExpenseDetail>>
   preview: (f: ExpenseForm, expenseId?: string, version?: string) => Promise<Res<Preview>>
@@ -34,6 +38,7 @@ export type ExpensesApi = {
   update: (id: string, f: ExpenseForm, version: string) => Promise<Res<ExpenseDetail>>
   remove: (id: string, version: string) => Promise<Res>
   availableBankTransactions: (f: BankFilter) => Promise<Res<Tx[]>>
+  availableBankTransactionsPage: (f: BankPageFilter) => Promise<Res<Page<Tx>>>
   bankTransaction: (id: string) => Promise<Res<Tx>>
   uploadReceipt: (file: File) => Promise<Res<Receipt>>
   /** Receipts seen in this session (upload / GET / analyze), for synchronous rendering. */

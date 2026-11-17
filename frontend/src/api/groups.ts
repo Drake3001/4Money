@@ -1,19 +1,24 @@
 import { api, allPages, type Page } from './client'
 import { ME_ID } from './identity'
+import { registerName } from './names'
 import type {
   CreateGroupInvitationResponse, FileUrlResult, GroupIconPreset, GroupInvitationResponse, GroupMemberResponse, GroupResponse,
   GroupSettlementRequest, GroupSettlementResponse, GroupSettlementSuggestionsResponse, InvitationPreview,
 } from './types'
-import type { Group, GroupData, Member, MembershipFilter, SettlementInput } from '../mocks/groups'
+import type { Group, GroupData, GroupSortBy, Member, MembershipFilter, SettlementInput } from '../mocks/groups'
 
 export const toGroup = (g: GroupResponse): Group => ({
   id: g.id, name: g.name, description: g.description, currencyCode: g.currencyCode, adminUserId: g.adminUserId, icon: g.icon,
   hasCustomIcon: !!g.iconStorageKey, isMember: g.isMember, archived: g.isArchived,
 })
-export const toMember = (m: GroupMemberResponse): Member => ({
-  userId: m.userId, status: m.isMember ? 'active' : 'former', joinedAt: m.joinedAt, totalPaid: m.totalPaid, totalShare: m.totalShare,
-  totalSettlementsSent: m.totalSettlementsSent, totalSettlementsReceived: m.totalSettlementsReceived,
-})
+export const toMember = (m: GroupMemberResponse): Member => {
+  if (m.displayName) registerName(m.userId, m.displayName)
+  return {
+    userId: m.userId, status: m.isMember ? 'active' : 'former', joinedAt: m.joinedAt, totalPaid: m.totalPaid, totalShare: m.totalShare,
+    totalSettlementsSent: m.totalSettlementsSent, totalSettlementsReceived: m.totalSettlementsReceived,
+    displayName: m.displayName ?? undefined,
+  }
+}
 
 export type GroupWrite = { name: string; description: string; currencyCode?: string; icon?: string | null; iconFile?: File | null; removeIcon?: boolean }
 
@@ -34,7 +39,7 @@ function groupBody(i: GroupWrite, creating: boolean) {
 
 export const groupsApi = {
   presets: () => api.get<GroupIconPreset[]>('/api/groups/icon-presets'),
-  list: async (membership: MembershipFilter) => (await allPages<GroupResponse>('/api/groups', { membership })).map(toGroup),
+  list: async (membership: MembershipFilter, descending = false, sortBy: GroupSortBy = 'name') => (await allPages<GroupResponse>('/api/groups', { membership, descending, sortBy })).map(toGroup),
   get: async (id: string): Promise<GroupData> => {
     const g = toGroup(await api.get<GroupResponse>(`/api/groups/${id}`))
     const members = (await allPages<GroupMemberResponse>(`/api/groups/${id}/members`, { membership: 'all' })).map(toMember)
@@ -43,6 +48,7 @@ export const groupsApi = {
     return { ...g, members, invitations }
   },
   activeMembers: async (id: string) => (await allPages<GroupMemberResponse>(`/api/groups/${id}/members`, { membership: 'active' })).map((m) => m.userId),
+  memberCount: async (id: string) => (await api.get<Page<GroupMemberResponse>>(`/api/groups/${id}/members`, { membership: 'active', pageNumber: 1, pageSize: 1 })).totalCount,
   iconUrl: (id: string) => api.get<FileUrlResult>(`/api/groups/${id}/icon`),
   create: async (i: GroupWrite) => { const b = groupBody(i, true); return toGroup(b.form ? await api.upload<GroupResponse>('POST', '/api/groups', b.form) : await api.post<GroupResponse>('/api/groups', b.json)) },
   update: async (id: string, i: GroupWrite) => { const b = groupBody(i, false); return toGroup(b.form ? await api.upload<GroupResponse>('PUT', `/api/groups/${id}`, b.form) : await api.put<GroupResponse>(`/api/groups/${id}`, b.json)) },

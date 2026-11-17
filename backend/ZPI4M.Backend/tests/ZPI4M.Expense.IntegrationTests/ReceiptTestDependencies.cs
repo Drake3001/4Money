@@ -17,6 +17,7 @@ internal sealed class ReceiptTestDependencies : IObjectStorage, IReceiptAnalysis
 	public HttpStatusCode? AnalysisStatus { get; init; }
 
 	public bool EmptyAnalysis { get; init; }
+	public string? AnalysisJson { get; init; }
 
 	public Func<Task>? BeforeUploadAsync { get; init; }
 
@@ -56,7 +57,7 @@ internal sealed class ReceiptTestDependencies : IObjectStorage, IReceiptAnalysis
 			ReceiptAnalysisErrorKind valueOrDefault = analysisError.GetValueOrDefault();
 			throw new ReceiptAnalysisException(valueOrDefault, AnalysisStatus);
 		}
-		using JsonDocument jsonDocument = JsonDocument.Parse(EmptyAnalysis ? "{\"receipt\":{},\"warnings\":[],\"needs_review\":true}" : "{\n  \"receipt\": {\n    \"store\": \"Synthetic shop\", \"date\": \"2026-11-02\", \"currency\": \"PLN\", \"amount_due\": \"100.00\",\n    \"items\": [{\"name\":\"Milk\",\"name_corrected\":\"Milk\",\"unit_price\":\"70.00\",\"quantity\":\"1\",\"category\":\"unmapped\",\"needs_review\":true,\"review_reason\":\"ambiguous_category\"}]\n  },\n  \"warnings\": [{\"code\":\"review\",\"message\":\"Check the item\",\"field\":\"items[0]\"}], \"needs_review\": true\n}");
+		using JsonDocument jsonDocument = JsonDocument.Parse(AnalysisJson ?? (EmptyAnalysis ? "{\"receipt\":{},\"warnings\":[],\"needs_review\":true}" : "{\n  \"receipt\": {\n    \"store\": \"Synthetic shop\", \"date\": \"2026-11-02\", \"currency\": \"PLN\", \"amount_due\": \"100.00\",\n    \"items\": [{\"name\":\"Milk\",\"name_corrected\":\"Milk\",\"unit_price\":\"70.00\",\"quantity\":\"1\",\"category\":\"unmapped\",\"needs_review\":true,\"review_reason\":\"ambiguous_category\"}]\n  },\n  \"warnings\": [{\"code\":\"review\",\"message\":\"Check the item\",\"field\":\"items[0]\"}], \"needs_review\": true\n}"));
 		return Task.FromResult(jsonDocument.RootElement.Clone());
 	}
 }

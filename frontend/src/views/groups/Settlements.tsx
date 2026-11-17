@@ -31,7 +31,7 @@ function SettlementForm({ g, isAdmin, editing, seed, onClose }: { g: GroupData; 
   if (!f.toUserId) errs.to = 'Wybierz osobę, która otrzymuje płatność.'
   else if (f.fromUserId === f.toUserId) errs.to = 'Płatnik i odbiorca muszą być różnymi osobami.'
   if (!f.amount.trim() || !Number.isFinite(amount) || amount <= 0) errs.amount = 'Podaj kwotę większą od zera.'
-  if (!f.settledAt || new Date(f.settledAt).getTime() > Date.now()) errs.date = f.settledAt ? 'Data rozliczenia nie może być z przyszłości.' : 'Podaj datę i godzinę rozliczenia.'
+  if (!f.settledAt || new Date(f.settledAt).getTime() > Date.now()) errs.date = f.settledAt ? 'Wprowadź poprawną datę.' : 'Podaj datę i godzinę rozliczenia.'
   const show = (k: string) => (submitted ? errs[k] : undefined)
 
   const submit = async () => {
@@ -47,19 +47,18 @@ function SettlementForm({ g, isAdmin, editing, seed, onClose }: { g: GroupData; 
   const fromChoices = isAdmin ? members : members.filter((u) => u === ME_ID || u === editing?.fromUserId)
   return (
     <Modal title={editing ? 'Edytuj rozliczenie' : 'Dodaj rozliczenie'} onClose={onClose}>
-      <p className="mb-4 text-sm text-ink2">Zapisz płatność, która już została wykonana poza 4Money. Aplikacja nie wykonuje przelewów.</p>
-      <div className="space-y-4">
-        <Field label="Od (płaci)" hint={show('from')}><select value={f.fromUserId} onChange={(e) => set({ fromUserId: e.target.value })} className={inputCls}>{fromChoices.map((u) => <option key={u} value={u}>{userLabel(u)}</option>)}</select></Field>
-        <Field label="Do (otrzymuje)" hint={show('to')}><select value={f.toUserId} onChange={(e) => set({ toUserId: e.target.value })} className={inputCls}><option value="">Wybierz członka…</option>{members.map((u) => <option key={u} value={u}>{userLabel(u)}</option>)}</select></Field>
+      <p className="mb-4 text-sm text-ink2">Zapisz płatność, która została już wykonana poza 4Money. Aplikacja nie wykonuje przelewów.</p>
+      <div className="space-y-1">
+        <Field label="Od (płaci)" hint={show('from')} reserveHint><select value={f.fromUserId} onChange={(e) => set({ fromUserId: e.target.value })} className={inputCls}>{fromChoices.map((u) => <option key={u} value={u}>{userLabel(u)}</option>)}</select></Field>
+        <Field label="Do (otrzymuje)" hint={show('to')} reserveHint><select value={f.toUserId} onChange={(e) => set({ toUserId: e.target.value })} className={inputCls}><option value="">Wybierz członka…</option>{members.map((u) => <option key={u} value={u}>{userLabel(u)}</option>)}</select></Field>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Kwota (PLN)" hint={show('amount')}><input inputMode="decimal" value={f.amount} onChange={(e) => set({ amount: e.target.value })} className={inputCls} placeholder="0,00" /></Field>
+          <Field label="Kwota (PLN)" hint={show('amount')} reserveHint><input inputMode="decimal" value={f.amount} onChange={(e) => set({ amount: e.target.value })} className={inputCls} placeholder="0,00" /></Field>
           <Field label="Metoda płatności"><select value={f.method} onChange={(e) => set({ method: Number(e.target.value) as PaymentMethod })} className={inputCls}>{PAYMENT_METHODS.map((m) => <option key={m.v} value={m.v}>{m.label}</option>)}</select></Field>
         </div>
-        <Field label="Data i godzina rozliczenia" hint={show('date')}><input type="datetime-local" value={f.settledAt} max={toLocalInput(new Date())} onChange={(e) => set({ settledAt: e.target.value })} className={inputCls} /></Field>
-        {submitted && Object.keys(errs).length > 0 && <div role="alert" className="rounded-xl bg-danger-soft p-3 text-sm text-danger">Popraw zaznaczone pola.</div>}
+        <Field label="Data i godzina rozliczenia" hint={show('date')} reserveHint><input type="datetime-local" value={f.settledAt} max={toLocalInput(new Date())} onChange={(e) => set({ settledAt: e.target.value })} className={inputCls} /></Field>
         <ErrorBox code={apiErr} />
       </div>
-      <div className="mt-5 flex justify-end gap-2"><Btn variant="ghost" onClick={onClose}>Anuluj</Btn><Btn onClick={submit}>{editing ? 'Zapisz zmiany' : 'Zapisz rozliczenie'}</Btn></div>
+      <div className="mt-3 flex justify-end gap-2"><Btn variant="ghost" onClick={onClose}>Anuluj</Btn><Btn onClick={submit}>{editing ? 'Zapisz zmiany' : 'Zapisz rozliczenie'}</Btn></div>
     </Modal>
   )
 }
@@ -85,8 +84,8 @@ export default function SettlementsTab({ g, isAdmin }: { g: GroupData; isAdmin: 
     <div className="space-y-6">
       <Card>
         <H>Sugerowane rozliczenia</H>
-        <p className="mb-3 text-sm text-ink2">Propozycje na podstawie bieżących sald w grupie. To tylko informacja – nic nie jest wykonywane automatycznie. Gdy już zapłacisz, zapisz rozliczenie osobno.</p>
-        {sugQ.error !== null ? <ErrorBox code={sugQ.error} /> : !sug || sug.suggestions.length === 0 ? <p className="rounded-xl bg-wash p-4 text-center text-sm text-ink2">Wszystko rozliczone – brak sugerowanych płatności.</p> : (
+        <p className="mb-3 text-sm text-ink2">Propozycje na podstawie bieżących sald w grupie. To tylko informacja - nic nie jest wykonywane automatycznie. Gdy już zapłacisz, zapisz rozliczenie osobno.</p>
+        {sugQ.error !== null ? <ErrorBox code={sugQ.error} /> : !sug ? <p role="status" className="text-sm text-ink2">Wczytywanie propozycji…</p> : sug.suggestions.length === 0 ? <p className="rounded-xl bg-wash p-4 text-center text-sm text-ink2">Wszystko rozliczone - brak sugerowanych płatności.</p> : (
           <ul className="divide-y divide-line">
             {sug.suggestions.map((s, i) => (
               <li key={i} className="flex flex-wrap items-center justify-between gap-3 py-3">
@@ -122,7 +121,7 @@ export default function SettlementsTab({ g, isAdmin }: { g: GroupData; isAdmin: 
             </Table>
           )}
         </Card>
-        <p className="mt-2 text-xs text-ink2">Rozliczenie to płatność wykonana poza 4Money. Aplikacja jedynie ją zapisuje.</p>
+        <p className="mt-2 text-xs text-ink2">Rozliczenie to płatność, która została już wykonana poza 4Money. Aplikacja nie wykonuje przelewów.</p>
       </div>
 
       {form && <SettlementForm g={g} isAdmin={isAdmin} editing={form.editing} seed={form.seed} onClose={() => setForm(null)} />}
@@ -134,7 +133,7 @@ export default function SettlementsTab({ g, isAdmin }: { g: GroupData; isAdmin: 
             ['Kwota', <span key="a" className="num font-semibold">{money(detail.amount)}</span>], ['Waluta', <Badge key="c">{g.currencyCode}</Badge>],
             ['Metoda płatności', paymentLabel(detail.method)], ['Data rozliczenia', when(detail.settledAt)],
           ]} />
-          <div className="mt-5 flex justify-end gap-2">
+          <div className="mt-3 flex justify-end gap-2">
             {can(detail) && <Btn variant="ghost" onClick={() => { setView(null); setForm({ editing: detail }) }}>Edytuj</Btn>}
             <Btn onClick={() => setView(null)}>Zamknij</Btn>
           </div>
@@ -145,7 +144,7 @@ export default function SettlementsTab({ g, isAdmin }: { g: GroupData; isAdmin: 
         <Modal title="Usunąć rozliczenie?" onClose={() => setDel(null)}>
           <p className="mb-4 text-sm text-ink2">Rozliczenie {userLabel(toDelete.fromUserId)} → {userLabel(toDelete.toUserId)} na kwotę {money(toDelete.amount)} zostanie usunięte z historii grupy. Sugerowane rozliczenia zostaną przeliczone.</p>
           <ErrorBox code={err} />
-          <div className="mt-5 flex justify-end gap-2">
+          <div className="mt-3 flex justify-end gap-2">
             <Btn variant="ghost" onClick={() => setDel(null)}>Anuluj</Btn>
             <Btn variant="danger" onClick={async () => { const r = await svc.deleteSettlement(g.id, toDelete.id); if (r.ok) { setDel(null); showToast('Rozliczenie zostało usunięte') } else setErr(r.code) }}>Usuń rozliczenie</Btn>
           </div>

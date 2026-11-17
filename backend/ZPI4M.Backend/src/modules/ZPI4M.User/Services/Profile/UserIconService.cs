@@ -1,6 +1,6 @@
-using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using ZPI4M.Shared.Images;
 using ZPI4M.Shared.Storage;
 
 namespace ZPI4M.User.Services.Profile;
@@ -10,7 +10,6 @@ public sealed class UserIconService(
 	IConfiguration config,
 	ILogger<UserIconService> logger) : IUserIconService
 {
-	private const int MaxFileBytes = 5 * 1024 * 1024;
 	private string PresetPrefix => config["USER_ICON_PRESET_PREFIX"] ?? "icons/presets/users/";
 
 	public async Task<IReadOnlyList<UserIconPreset>> GetPresetsAsync(CancellationToken cancellationToken = default)
@@ -32,36 +31,20 @@ public sealed class UserIconService(
 
 	public async Task<string> UploadAsync(Guid userId, Stream content, string contentType, CancellationToken cancellationToken = default)
 	{
-		ArgumentNullException.ThrowIfNull(content);
-		await using var buffer = new FileStream(
-			Path.Combine(Path.GetTempPath(), $"user-icon-{Guid.NewGuid():N}"),
-			FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 81920,
-			FileOptions.Asynchronous | FileOptions.DeleteOnClose);
-		var bytes = new byte[81920];
-		int read;
-		while ((read = await content.ReadAsync(bytes, cancellationToken)) > 0)
+		byte[] bytes;
+		try
 		{
-			if (buffer.Length + read > MaxFileBytes)
-				throw new UserIconException(413);
-			await buffer.WriteAsync(bytes.AsMemory(0, read), cancellationToken);
+			bytes = await IconImageProcessor.NormalizeAsync(content, contentType, cancellationToken);
 		}
-		if (buffer.Length == 0)
-			throw new UserIconException(400);
-
-		buffer.Position = 0;
-		var header = new byte[12];
-		var count = await buffer.ReadAsync(header, cancellationToken);
-		var png = count >= 8 && header.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 });
-		var jpeg = count >= 3 && header[0] == 255 && header[1] == 216 && header[2] == 255;
-		var webp = count == 12 && Encoding.ASCII.GetString(header, 0, 4) == "RIFF" && Encoding.ASCII.GetString(header, 8, 4) == "WEBP";
-		if (!(contentType == "image/png" && png || contentType == "image/jpeg" && jpeg || contentType == "image/webp" && webp))
-			throw new UserIconException(415);
-
-		buffer.Position = 0;
+		catch (IconImageException exception)
+		{
+			throw new UserIconException(exception.Status);
+		}
+		using var normalized = new MemoryStream(bytes);
 		var key = $"users/{userId}/icons/{Guid.NewGuid():N}";
 		try
 		{
-			await storage.UploadAsync(key, buffer, contentType, cancellationToken);
+			await storage.UploadAsync(key, normalized, IconImageProcessor.ContentType, cancellationToken);
 		}
 		catch
 		{
@@ -89,4 +72,5 @@ public sealed class UserIconService(
 
 	private static bool IsImage(string key) =>
 		Path.GetExtension(key).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".webp";
+
 }

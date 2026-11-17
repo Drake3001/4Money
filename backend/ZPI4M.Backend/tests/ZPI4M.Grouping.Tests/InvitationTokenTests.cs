@@ -17,7 +17,7 @@ public sealed class InvitationTokenTests
 	[Fact]
 	public async Task Malformed_tokens_are_rejected_without_database_access()
 	{
-		var service = new GroupInvitationService(null!, null!, null!, null!, null!, TimeProvider.System, new ValidationOnlyTransactions(), null!, null!);
+		var service = new GroupInvitationService(null!, null!, null!, null!, null!, TimeProvider.System, new ValidationOnlyTransactions(), null!, null!, null!);
 		Assert.Equal(400, (await service.AcceptAsync(Guid.NewGuid(), "bad")).Status);
 		Assert.Equal(400, (await service.PreviewAsync("bad")).Status);
 	}

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using ZPI4M.Banking.Services.Reads;
 using ZPI4M.Grouping.Database;
 using ZPI4M.Grouping.DTOs.Settlements;
@@ -13,9 +14,10 @@ using ZPI4M.Notifications.DTOs;
 using ZPI4M.Notifications.Models;
 using ZPI4M.Notifications.Services.Notifications;
 using ZPI4M.Shared.Pagination;
+using ZPI4M.User.Services.Lookup;
 namespace ZPI4M.Grouping.Services.Settlements;
 
-public sealed class GroupSettlementService(GroupingDbContext db, IGroupRepository groups, IGroupMemberRepository members, IGroupSettlementRepository settlements, IGroupMemberAggregateService aggregates, IGroupingTransactionCoordinator tx, TimeProvider clock, IBankingReadService banking, INotificationService notifications) : IGroupSettlementService
+public sealed class GroupSettlementService(GroupingDbContext db, IGroupRepository groups, IGroupMemberRepository members, IGroupSettlementRepository settlements, IGroupMemberAggregateService aggregates, IGroupingTransactionCoordinator tx, TimeProvider clock, IBankingReadService banking, INotificationService notifications, IUserDisplayNameLookup names) : IGroupSettlementService
 {
 	private async Task<GroupSettlementResponse> MapAsync(GroupSettlement s, Guid actor, CancellationToken ct, Dictionary<Guid, Guid?>? visible = null)
 	{
@@ -71,9 +73,12 @@ public sealed class GroupSettlementService(GroupingDbContext db, IGroupRepositor
 			if (existing is null && value.ToUserId != actor)
 			{
 				await tx.EnlistNotificationsAsync(token);
+				var labels = await names.GetAsync([value.FromUserId], token);
+				var sender = labels.GetValueOrDefault(value.FromUserId, "Użytkownik");
+				var amount = value.Amount.ToString("F2", CultureInfo.GetCultureInfo("pl-PL"));
 				await notifications.NotifyAsync(new CreateNotificationRequest(
-					NotificationType.SettlementReceived, "Otrzymane rozliczenie",
-					"Zarejestrowano zwrot pieniędzy dla Ciebie.", [value.ToUserId], group), token);
+					NotificationType.SettlementReceived, "Zapisano rozliczenie",
+					$"Zapisano rozliczenie od {sender} dla Ciebie na kwotę {amount} zł w grupie „{g.Name}”.", [value.ToUserId], group), token);
 			}
 			return new GroupingResult<GroupSettlementResponse>(id.HasValue ? 200 : 201, await MapAsync(value, actor, token));
 		}, r => r.Status is >= 200 and < 300, ct);

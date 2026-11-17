@@ -7,23 +7,27 @@ using ZPI4M.Grouping.Repositories.GroupRepository;
 using ZPI4M.Grouping.Services.Results;
 using ZPI4M.Grouping.Services.Transactions;
 using ZPI4M.Shared.Pagination;
+using ZPI4M.User.Services.Lookup;
 namespace ZPI4M.Grouping.Services.Members;
 
-public sealed class GroupMemberService(IGroupRepository groups, IGroupMemberRepository members, GroupingDbContext db, IGroupingTransactionCoordinator transactions) : IGroupMemberService
+public sealed class GroupMemberService(IGroupRepository groups, IGroupMemberRepository members, GroupingDbContext db, IGroupingTransactionCoordinator transactions, IUserDisplayNameLookup users) : IGroupMemberService
 {
-	private static GroupMemberResponse Map(GroupMember m) => new(m.FkUserId, m.FkGroupId, m.IsMember, m.JoinedAt, m.TotalPaid, m.TotalShare, m.TotalSettlementsSent, m.TotalSettlementsReceived);
+	private static GroupMemberResponse Map(GroupMember m, string? displayName) => new(m.FkUserId, m.FkGroupId, m.IsMember, m.JoinedAt, m.TotalPaid, m.TotalShare, m.TotalSettlementsSent, m.TotalSettlementsReceived, displayName);
 	public async Task<GroupingResult<PagedResult<GroupMemberResponse>>> ListAsync(Guid actor, Guid group, GroupMemberListRequest query, CancellationToken ct = default)
 	{
 		Validator.ValidateObject(query, new ValidationContext(query), true);
 		if (!await members.IsMemberAsync(group, actor, ct)) return new(404);
 		var page = await members.GetPageAsync(group, new GroupMemberQuery { IsMember = query.Membership switch { "active" => true, "former" => false, _ => null }, PageNumber = query.PageNumber, PageSize = query.PageSize, Descending = query.Descending }, ct);
-		return new(200, new(page.Items.Select(Map).ToArray(), page.TotalCount, page.PageNumber, page.PageSize));
+		var names = await users.GetAsync(page.Items.Select(m => m.FkUserId).ToArray(), ct);
+		return new(200, new(page.Items.Select(m => Map(m, names.GetValueOrDefault(m.FkUserId))).ToArray(), page.TotalCount, page.PageNumber, page.PageSize));
 	}
 	public async Task<GroupingResult<GroupMemberResponse>> GetAsync(Guid actor, Guid group, Guid user, CancellationToken ct = default)
 	{
 		if (!await members.IsMemberAsync(group, actor, ct)) return new(404);
 		var member = await members.GetReadAsync(group, user, ct);
-		return member is null ? new(404) : new(200, Map(member));
+		if (member is null) return new(404);
+		var names = await users.GetAsync(new[] { user }, ct);
+		return new(200, Map(member, names.GetValueOrDefault(user)));
 	}
 	public async Task<GroupingResult<IReadOnlySet<Guid>>> GetActiveMemberIdsAsync(Guid actor, Guid group,
 		IReadOnlyCollection<Guid> userIds, CancellationToken ct = default)

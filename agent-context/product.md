@@ -112,8 +112,10 @@ nie planuj teraz tokenów urządzeń, integracji dostawcy ani kolejki wysyłki.
 Notification. Dołączanie do grupy ma odbywać się kodem lub linkiem; uzgodniony
 typ GroupMemberJoined informuje o dołączeniu, a nie stanowi zaproszenia push.
 Serwis NotifyAsync i API inboxa (lista, odczyt pojedynczy i zbiorczy) są już
-w kodzie. Nie są jeszcze podłączone przepływy generujące powiadomienia
-w Grouping/Limits ani aplikacje klienckie; szczegóły opisuje status implementacji.
+w kodzie. Przegląd implementacji z 2026-11-15 potwierdza generowanie
+ExpenseAdded, GroupMemberJoined i SettlementReceived przez Grouping oraz
+podłączony inbox webowy. Alerty Limits i aplikacja mobilna pozostają
+niezaimplementowane; szczegóły i zakres weryfikacji opisuje status implementacji.
 
 ## Rozszerzenia i wyłączenia
 
@@ -150,7 +152,8 @@ już narzędzia ewaluacji, fixture'y i historyczne analizy eksperymentów
 ([instrukcja](../workers/extraction_worker/experiments/README.md),
 [notatki](../notes/ocr/)). Przegląd statyczny z 2026-10-29 potwierdza implementację
 OCR i propozycji kategorii w workerze Python; nie dowodzi spełnienia powyższych
-progów przez aktualny domyślny model ani realizacji korekt użytkownika w aplikacji.
+progów przez aktualny domyślny model. Frontend pozwala już poprawić propozycję
+OCR przed zapisem Expense; nie jest to pomiar jakości modelu.
 Przy ocenie jakości wskaż konkretny model, pipeline, zbiór i protokół pomiaru.
 
 ## Plan etapów

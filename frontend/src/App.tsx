@@ -10,7 +10,7 @@ import { ExpensesProvider } from './expensesStore'
 import { AUTH_ROUTES, useApp, type Route } from './context'
 import { cx } from './ui'
 import Dashboard from './views/Dashboard'
-import { AccountPage, AttemptPage, BankingPage, ConnectionPage, TransactionPage } from './views/Banking'
+import { AccountPage, AttemptPage, BankingPage, TransactionPage } from './views/Banking'
 import { NotificationsPage } from './views/Notifications'
 import Profile from './views/Profile'
 import GroupsList from './views/groups/GroupsList'
@@ -32,23 +32,27 @@ const NAV: { name: Route['name']; label: string; icon: typeof LayoutGrid }[] = [
 ]
 
 function NavBtn({ n, active, collapsed, onClick }: { n: (typeof NAV)[number]; active: boolean; collapsed: boolean; onClick: () => void }) {
+  const { unread } = useApp()
+  const count = n.name === 'notifications' ? unread : 0
+  const label = count > 0 ? `${n.label}, nieprzeczytane: ${count}` : n.label
   return (
     <button
       onClick={onClick}
-      title={n.label}
-      aria-label={n.label}
+      title={label}
+      aria-label={label}
       aria-current={active ? 'page' : undefined}
-      className={cx('flex w-full items-center rounded-xl py-2.5 text-sm font-semibold transition', collapsed ? 'justify-center px-0' : 'gap-3 px-3', active ? 'bg-mint-soft text-ink [&>svg]:text-personal' : 'text-ink2 hover:bg-wash hover:text-ink')}
+      className={cx('relative flex w-full items-center rounded-xl py-2.5 text-sm font-semibold transition', collapsed ? 'justify-center px-0' : 'gap-3 px-3', active ? 'bg-mint-soft text-ink [&>svg]:text-ink' : 'text-ink2 hover:bg-wash hover:text-ink')}
     >
       <n.icon size={20} />
       {!collapsed && <span>{n.label}</span>}
+      {count > 0 && <span aria-hidden="true" className={cx('num flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-ink px-1 text-xs font-bold text-white', collapsed ? 'absolute -right-1 -top-1' : 'ml-auto')}>{count}</span>}
     </button>
   )
 }
 
 function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const { route, navigate } = useApp()
-  const { profile } = useUser()
+  const { profile, profileImageUrl } = useUser()
   const active = ['account', 'transaction', 'connection', 'attempt'].includes(route.name) ? 'banking' : ['expense', 'expense-new', 'expense-edit'].includes(route.name) ? 'expenses' : ['group', 'group-new', 'group-edit', 'invite'].includes(route.name) ? 'groups' : route.name
   return (
     <aside className={cx('flex shrink-0 flex-col border-r border-line bg-white py-5 transition-[width] duration-200', collapsed ? 'w-[72px] px-3' : 'w-64 px-4')}>
@@ -88,7 +92,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
         title="Konto"
         className={cx('mt-auto flex w-full items-center gap-3 rounded-2xl border-t border-line pt-4 text-left transition hover:bg-wash', collapsed ? 'justify-center' : 'px-2 pb-2', active === 'profile' && 'bg-mint-soft')}
       >
-        <ProfileIcon icon={profile.icon} size={36} />
+        <ProfileIcon name={profile.name} surname={profile.surname} url={profileImageUrl} size={36} />
         {!collapsed && <span className="min-w-0"><span className="block truncate text-sm font-semibold">{profile.name} {profile.surname}</span><span className="block truncate text-xs text-ink2">@{profile.login}</span></span>}
       </button>
     </aside>
@@ -99,7 +103,13 @@ function Shell() {
   const { route, toast } = useApp()
   const { isSignedIn } = useUser()
   const main = useRef<HTMLElement>(null)
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => window.matchMedia('(max-width: 63.999rem)').matches)
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 63.999rem)')
+    const update = () => setCollapsed(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
   useEffect(() => { main.current?.scrollTo({ top: 0 }) }, [route.name, route.id, route.tab])
 
   let view
@@ -116,7 +126,7 @@ function Shell() {
     case 'banking': view = <BankingPage tab={route.tab} />; break
     case 'account': view = <AccountPage id={route.id!} />; break
     case 'transaction': view = <TransactionPage id={route.id!} />; break
-    case 'connection': view = <ConnectionPage id={route.id!} />; break
+    case 'connection': view = <BankingPage tab="connections" />; break
     case 'attempt': view = <AttemptPage id={route.id!} />; break
     case 'notifications': view = <NotificationsPage />; break
     case 'profile': view = <Profile />; break
@@ -134,8 +144,8 @@ function Shell() {
     <div className="flex h-full bg-white">
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <main ref={main} className="soft-scroll min-h-0 flex-1 overflow-y-auto px-6 py-6 lg:px-10">
-          <div key={route.name + (route.id ?? '') + (route.tab ?? '')} className="animate-rise mx-auto max-w-[1180px]">{view}</div>
+        <main ref={main} className="soft-scroll min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6 lg:px-10">
+          <div key={route.name + (route.id ?? '') + (route.tab ?? '')} className={cx('animate-rise mx-auto max-w-[1180px]', route.name === 'notifications' && 'h-full min-h-0')}>{view}</div>
         </main>
       </div>
       {toast && (

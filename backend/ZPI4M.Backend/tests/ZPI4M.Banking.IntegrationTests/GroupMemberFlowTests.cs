@@ -10,6 +10,8 @@ using ZPI4M.Grouping.Repositories.GroupRepository;
 using ZPI4M.Grouping.Services.Members;
 using ZPI4M.Grouping.Services.Transactions;
 using ZPI4M.Notifications.Database;
+using ZPI4M.User.Database;
+using ZPI4M.User.Services.Lookup;
 namespace ZPI4M.Banking.IntegrationTests;
 
 public sealed class GroupMemberFlowTests : PostgresFixture
@@ -29,7 +31,8 @@ public sealed class GroupMemberFlowTests : PostgresFixture
 		await using var db = new GroupingDbContext(new DbContextOptionsBuilder<GroupingDbContext>().UseNpgsql(connection).Options);
 		await using var inbox = new NotificationsDbContext(new DbContextOptionsBuilder<NotificationsDbContext>().UseNpgsql(connection).Options);
 		var coordinator = new GroupingTransactionCoordinator(db, inbox, NullLogger<GroupingTransactionCoordinator>.Instance);
-		var service = new GroupMemberService(new GroupRepository(db), new GroupMemberRepository(db), db, coordinator);
+		await using var userDb = new UserDbContext(new DbContextOptionsBuilder<UserDbContext>().UseNpgsql(ConnectionString).Options);
+		var service = new GroupMemberService(new GroupRepository(db), new GroupMemberRepository(db), db, coordinator, new UserDisplayNameLookup(userDb));
 		var before = (await service.GetAsync(Admin, Group, Member)).Value!;
 		Assert.Equal(204, (removal ? await service.RemoveAsync(Admin, Group, Member) : await service.LeaveAsync(Member, Group)).Status);
 		Assert.Equal(204, (removal ? await service.RemoveAsync(Admin, Group, Member) : await service.LeaveAsync(Member, Group)).Status);
@@ -50,7 +53,8 @@ public sealed class GroupMemberFlowTests : PostgresFixture
 		await using var db = new GroupingDbContext(new DbContextOptionsBuilder<GroupingDbContext>().UseNpgsql(connection).Options);
 		await using var inbox = new NotificationsDbContext(new DbContextOptionsBuilder<NotificationsDbContext>().UseNpgsql(connection).Options);
 		var coordinator = new GroupingTransactionCoordinator(db, inbox, NullLogger<GroupingTransactionCoordinator>.Instance);
-		var service = new GroupMemberService(new GroupRepository(db), new GroupMemberRepository(db), db, coordinator);
+		await using var userDb = new UserDbContext(new DbContextOptionsBuilder<UserDbContext>().UseNpgsql(ConnectionString).Options);
+		var service = new GroupMemberService(new GroupRepository(db), new GroupMemberRepository(db), db, coordinator, new UserDisplayNameLookup(userDb));
 		await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.ExecuteAsync(async ct =>
 		{
 			var group = await db.Groups.SingleAsync(g => g.Id == Group, ct);
@@ -79,7 +83,8 @@ public sealed class GroupMemberFlowTests : PostgresFixture
 		await using var db = new GroupingDbContext(new DbContextOptionsBuilder<GroupingDbContext>().UseNpgsql(connection).Options);
 		await using var inbox = new NotificationsDbContext(new DbContextOptionsBuilder<NotificationsDbContext>().UseNpgsql(connection).Options);
 		var coordinator = new GroupingTransactionCoordinator(db, inbox, NullLogger<GroupingTransactionCoordinator>.Instance);
-		var service = new GroupMemberService(new GroupRepository(db), new GroupMemberRepository(db), db, coordinator);
+		await using var userDb = new UserDbContext(new DbContextOptionsBuilder<UserDbContext>().UseNpgsql(ConnectionString).Options);
+		var service = new GroupMemberService(new GroupRepository(db), new GroupMemberRepository(db), db, coordinator, new UserDisplayNameLookup(userDb));
 
 		var result = scenario switch
 		{
@@ -104,7 +109,8 @@ public sealed class GroupMemberFlowTests : PostgresFixture
 			await using var db = new GroupingDbContext(new DbContextOptionsBuilder<GroupingDbContext>().UseNpgsql(connection).Options);
 			await using var inbox = new NotificationsDbContext(new DbContextOptionsBuilder<NotificationsDbContext>().UseNpgsql(connection).Options);
 			var tx = new GroupingTransactionCoordinator(db, inbox, NullLogger<GroupingTransactionCoordinator>.Instance);
-			if (leave) return (await new GroupMemberService(new GroupRepository(db), new GroupMemberRepository(db), db, tx).LeaveAsync(Member, Group)).Status;
+			await using var userDb = new UserDbContext(new DbContextOptionsBuilder<UserDbContext>().UseNpgsql(ConnectionString).Options);
+			if (leave) return (await new GroupMemberService(new GroupRepository(db), new GroupMemberRepository(db), db, tx, new UserDisplayNameLookup(userDb)).LeaveAsync(Member, Group)).Status;
 			return (await new ZPI4M.Grouping.Services.Groups.GroupService(db, new Users(), null!, tx, new ZPI4M.Grouping.Repositories.GroupRepository.GroupRepository(db), new ZPI4M.Grouping.Repositories.GroupMemberRepository.GroupMemberRepository(db)).TransferAdministratorAsync(Admin, Group, Member)).Status;
 		}
 		var results = await Task.WhenAll(Change(true), Change(false));

@@ -25,8 +25,11 @@ public sealed class ExpenseSystemCategoryMigrationTests : PostgresFixture
 	{
 		await MigrateAsync();
 		await MigrateAsync();
-		Assert.Equal(20L, await ScalarAsync<long>("SELECT count(*) FROM expense.category"));
+		Assert.Equal(21L, await ScalarAsync<long>("SELECT count(*) FROM expense.category"));
 		Assert.Equal(1L, await ScalarAsync<long>("SELECT count(*) FROM expense.category WHERE name = 'Nieznane'"));
+		Assert.Equal(0L, await ScalarAsync<long>("SELECT count(*) FROM expense.category WHERE left(name, 1) <> upper(left(name, 1))"));
+		Assert.Equal("Kaucja", await ScalarAsync<string>("SELECT name FROM expense.category WHERE icon = 'recycle'"));
+		Assert.Equal(1L, await ScalarAsync<long>("SELECT count(*) FROM expense.category WHERE icon = 'recycle'"));
 	}
 
 	[PostgresFact]

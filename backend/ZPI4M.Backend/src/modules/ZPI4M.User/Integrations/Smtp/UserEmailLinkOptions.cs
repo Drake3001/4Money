@@ -3,7 +3,7 @@ namespace ZPI4M.User.Integrations.Smtp;
 public sealed class UserEmailLinkOptions
 {
 	public const string SectionName = "UserEmailLinks";
-	public string FrontendBaseUrl { get; set; } = "http://localhost:5173";
+	public string FrontendBaseUrl { get; set; } = "";
 
 	public static bool IsValid(UserEmailLinkOptions options) =>
 		Uri.TryCreate(options.FrontendBaseUrl, UriKind.Absolute, out var uri) &&
