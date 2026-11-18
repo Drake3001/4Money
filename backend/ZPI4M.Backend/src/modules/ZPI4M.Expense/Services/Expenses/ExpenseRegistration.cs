@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using ZPI4M.Expense.Services.Aggregation;
 using ZPI4M.Expense.Services.Reads;
 using ZPI4M.Shared.CurrentUser;
 
@@ -27,8 +28,7 @@ public static class ExpenseRegistration
 		services.AddSingleton<IExpenseCalculationService, ExpenseCalculationService>();
 		services.AddScoped<IExpenseService, ExpenseService>();
 		services.AddScoped<ExpenseQueryService>();
-		services.AddScoped<IExpenseReadService, ExpenseReadService>();
-		services.AddSingleton<ExpenseReportCalculator>();
+		services.AddScoped<IExpenseAggregationService, ExpenseAggregationService>();
 		return services;
 	}
 

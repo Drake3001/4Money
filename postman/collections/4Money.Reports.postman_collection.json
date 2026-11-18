@@ -1,0 +1,1889 @@
+{
+  "info": {
+    "name": "4Money - Reports",
+    "description": "Cztery raporty GET. Wspólne parametry: dateFrom >= 1970-01-01, dateTo >= 1970-01-01, dateFrom <= dateTo (400 on violation). No maximum range length, separate year restrictions or business upper date limit; .NET DateOnly limits apply. dateFrom/dateTo włącznie, scope=personal|group, opcjonalne groupId i categoryIds. Lista: powtarzaj categoryIds=UUID. Pusty wybór: pomiń categoryIds (200 i pusty raport). Standardowe wiązanie ASP.NET Core odrzuca categoryIds=, błędny UUID oraz mieszanie pustych wartości i UUID (400). Nigdy nie wybieramy automatycznie wszystkich kategorii. Group wymaga uprawnień do grupy. Progi okresów: do 24 miesięcy kalendarzowych Month, 25–48 Quarter, powyżej 48 Year, także niepełne miesiące. Granularity nie jest parametrem. categoryId=null identyfikuje Pozostałe. Zapisane odpowiedzi są syntetycznymi przykładami kontraktu, nie wynikami wywołań. Login w kolekcji User dostarcza fourMoneyAccessToken. Wysyłaj ręcznie przez Send; Runner zatrzymuje się po każdym żądaniu. postman/README.md i notes/REPORTS_API.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{fourMoneyAccessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "reportDateFrom",
+      "value": "2026-11-01",
+      "type": "string"
+    },
+    {
+      "key": "reportDateTo",
+      "value": "2026-11-30",
+      "type": "string"
+    },
+    {
+      "key": "reportGroupId",
+      "value": "20000000-0000-0000-0000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "reportCategoryId1",
+      "value": "30000000-0000-0000-0000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "reportCategoryId2",
+      "value": "30000000-0000-0000-0000-000000000010",
+      "type": "string"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.execution.setNextRequest(null);",
+          "const missing = ['baseUrl', 'fourMoneyAccessToken'].filter(key => {",
+          "    const value = pm.variables.get(key);",
+          "    return typeof value !== 'string' || !value.trim() || value.includes('{{');",
+          "});",
+          "if (missing.length) {",
+          "    pm.test('Wymagane zmienne', () => { throw new Error('Uzupełnij: ' + missing.join(', ')); });",
+          "    pm.execution.skipRequest();",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 — Category Breakdown",
+      "item": [
+        {
+          "name": "Personal — jedna kategoria",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/category-breakdown?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=personal&categoryIds={{reportCategoryId1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "category-breakdown"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "{{reportDateFrom}}"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "{{reportDateTo}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "personal"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "{{reportCategoryId1}}"
+                }
+              ]
+            },
+            "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Jedna wybrana kategoria. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+          },
+          "response": [
+            {
+              "name": "200 — syntetyczny przykład kontraktu",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/category-breakdown?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=personal&categoryIds={{reportCategoryId1}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "category-breakdown"
+                  ],
+                  "query": [
+                    {
+                      "key": "dateFrom",
+                      "value": "{{reportDateFrom}}"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "{{reportDateTo}}"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "personal"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "{{reportCategoryId1}}"
+                    }
+                  ]
+                },
+                "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Jedna wybrana kategoria. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"items\": [\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000001\",\n      \"name\": \"Żywność\",\n      \"totalAmount\": 12.34\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Group — dwie kategorie",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/category-breakdown?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=group&groupId={{reportGroupId}}&categoryIds={{reportCategoryId1}}&categoryIds={{reportCategoryId2}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "category-breakdown"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "{{reportDateFrom}}"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "{{reportDateTo}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "group"
+                },
+                {
+                  "key": "groupId",
+                  "value": "{{reportGroupId}}"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "{{reportCategoryId1}}"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "{{reportCategoryId2}}"
+                }
+              ]
+            },
+            "description": "Daty są włącznie. Pełne dostępne zakupy wskazanej grupy; groupId wymagane. Dwie kategorie przez powtarzany parametr categoryIds. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+          },
+          "response": [
+            {
+              "name": "200 — syntetyczny przykład kontraktu",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/category-breakdown?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=group&groupId={{reportGroupId}}&categoryIds={{reportCategoryId1}}&categoryIds={{reportCategoryId2}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "category-breakdown"
+                  ],
+                  "query": [
+                    {
+                      "key": "dateFrom",
+                      "value": "{{reportDateFrom}}"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "{{reportDateTo}}"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "group"
+                    },
+                    {
+                      "key": "groupId",
+                      "value": "{{reportGroupId}}"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "{{reportCategoryId1}}"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "{{reportCategoryId2}}"
+                    }
+                  ]
+                },
+                "description": "Daty są włącznie. Pełne dostępne zakupy wskazanej grupy; groupId wymagane. Dwie kategorie przez powtarzany parametr categoryIds. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"items\": [\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000001\",\n      \"name\": \"Żywność\",\n      \"totalAmount\": 12.34\n    },\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000010\",\n      \"name\": \"Dom\",\n      \"totalAmount\": 5.66\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Pusty wybór — brak categoryIds",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/category-breakdown?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=personal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "category-breakdown"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "{{reportDateFrom}}"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "{{reportDateTo}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "personal"
+                }
+              ]
+            },
+            "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Pusty wybór: brak parametru categoryIds (200). categoryIds= daje 400 ze standardowego wiązania Guid. Wynik pusty, a nie wszystkie kategorie. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+          },
+          "response": [
+            {
+              "name": "200 — syntetyczny przykład kontraktu",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/category-breakdown?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=personal",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "category-breakdown"
+                  ],
+                  "query": [
+                    {
+                      "key": "dateFrom",
+                      "value": "{{reportDateFrom}}"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "{{reportDateTo}}"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "personal"
+                    }
+                  ]
+                },
+                "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Pusty wybór: brak parametru categoryIds (200). categoryIds= daje 400 ze standardowego wiązania Guid. Wynik pusty, a nie wszystkie kategorie. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"items\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Group — dziewięć kategorii i Pozostałe",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/category-breakdown?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=group&groupId={{reportGroupId}}&categoryIds=30000000-0000-0000-0000-000000000001&categoryIds=30000000-0000-0000-0000-000000000002&categoryIds=30000000-0000-0000-0000-000000000003&categoryIds=30000000-0000-0000-0000-000000000004&categoryIds=30000000-0000-0000-0000-000000000005&categoryIds=30000000-0000-0000-0000-000000000006&categoryIds=30000000-0000-0000-0000-000000000007&categoryIds=30000000-0000-0000-0000-000000000008&categoryIds=30000000-0000-0000-0000-000000000009",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "category-breakdown"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "{{reportDateFrom}}"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "{{reportDateTo}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "group"
+                },
+                {
+                  "key": "groupId",
+                  "value": "{{reportGroupId}}"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "30000000-0000-0000-0000-000000000001"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "30000000-0000-0000-0000-000000000002"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "30000000-0000-0000-0000-000000000003"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "30000000-0000-0000-0000-000000000004"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "30000000-0000-0000-0000-000000000005"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "30000000-0000-0000-0000-000000000006"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "30000000-0000-0000-0000-000000000007"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "30000000-0000-0000-0000-000000000008"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "30000000-0000-0000-0000-000000000009"
+                }
+              ]
+            },
+            "description": "Jawnie wybranych dziewięć syntetycznych UUID, bez automatycznego wyboru wszystkich kategorii. Jeśli mają wydatki, wynik zawiera top 8 i Pozostałe. categoryId=null oznacza Pozostałe. Zapisana odpowiedź jest ilustracją kontraktu."
+          },
+          "response": [
+            {
+              "name": "200 — syntetyczny przykład kontraktu",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/category-breakdown?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=group&groupId={{reportGroupId}}&categoryIds=30000000-0000-0000-0000-000000000001&categoryIds=30000000-0000-0000-0000-000000000002&categoryIds=30000000-0000-0000-0000-000000000003&categoryIds=30000000-0000-0000-0000-000000000004&categoryIds=30000000-0000-0000-0000-000000000005&categoryIds=30000000-0000-0000-0000-000000000006&categoryIds=30000000-0000-0000-0000-000000000007&categoryIds=30000000-0000-0000-0000-000000000008&categoryIds=30000000-0000-0000-0000-000000000009",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "category-breakdown"
+                  ],
+                  "query": [
+                    {
+                      "key": "dateFrom",
+                      "value": "{{reportDateFrom}}"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "{{reportDateTo}}"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "group"
+                    },
+                    {
+                      "key": "groupId",
+                      "value": "{{reportGroupId}}"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "30000000-0000-0000-0000-000000000001"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "30000000-0000-0000-0000-000000000002"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "30000000-0000-0000-0000-000000000003"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "30000000-0000-0000-0000-000000000004"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "30000000-0000-0000-0000-000000000005"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "30000000-0000-0000-0000-000000000006"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "30000000-0000-0000-0000-000000000007"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "30000000-0000-0000-0000-000000000008"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "30000000-0000-0000-0000-000000000009"
+                    }
+                  ]
+                },
+                "description": "Jawnie wybranych dziewięć syntetycznych UUID, bez automatycznego wyboru wszystkich kategorii. Jeśli mają wydatki, wynik zawiera top 8 i Pozostałe. categoryId=null oznacza Pozostałe. Zapisana odpowiedź jest ilustracją kontraktu."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"items\": [\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000001\",\n      \"name\": \"Kategoria 1\",\n      \"totalAmount\": 100\n    },\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000002\",\n      \"name\": \"Kategoria 2\",\n      \"totalAmount\": 99\n    },\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000003\",\n      \"name\": \"Kategoria 3\",\n      \"totalAmount\": 98\n    },\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000004\",\n      \"name\": \"Kategoria 4\",\n      \"totalAmount\": 97\n    },\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000005\",\n      \"name\": \"Kategoria 5\",\n      \"totalAmount\": 96\n    },\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000006\",\n      \"name\": \"Kategoria 6\",\n      \"totalAmount\": 95\n    },\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000007\",\n      \"name\": \"Kategoria 7\",\n      \"totalAmount\": 94\n    },\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000008\",\n      \"name\": \"Kategoria 8\",\n      \"totalAmount\": 93\n    },\n    {\n      \"categoryId\": null,\n      \"name\": \"Pozostałe\",\n      \"totalAmount\": 10\n    }\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 — Period Category Totals",
+      "item": [
+        {
+          "name": "Personal — jedna kategoria",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/period-category-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=personal&categoryIds={{reportCategoryId1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "period-category-totals"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "{{reportDateFrom}}"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "{{reportDateTo}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "personal"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "{{reportCategoryId1}}"
+                }
+              ]
+            },
+            "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Jedna wybrana kategoria. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+          },
+          "response": [
+            {
+              "name": "200 — syntetyczny przykład kontraktu",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/period-category-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=personal&categoryIds={{reportCategoryId1}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "period-category-totals"
+                  ],
+                  "query": [
+                    {
+                      "key": "dateFrom",
+                      "value": "{{reportDateFrom}}"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "{{reportDateTo}}"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "personal"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "{{reportCategoryId1}}"
+                    }
+                  ]
+                },
+                "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Jedna wybrana kategoria. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"series\": [\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000001\",\n      \"name\": \"Żywność\",\n      \"items\": [\n        {\n          \"period\": \"2026-11-01\",\n          \"totalAmount\": 12.34\n        }\n      ]\n    }\n  ],\n  \"granularity\": \"Month\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Group — dwie kategorie",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/period-category-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=group&groupId={{reportGroupId}}&categoryIds={{reportCategoryId1}}&categoryIds={{reportCategoryId2}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "period-category-totals"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "{{reportDateFrom}}"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "{{reportDateTo}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "group"
+                },
+                {
+                  "key": "groupId",
+                  "value": "{{reportGroupId}}"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "{{reportCategoryId1}}"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "{{reportCategoryId2}}"
+                }
+              ]
+            },
+            "description": "Daty są włącznie. Pełne dostępne zakupy wskazanej grupy; groupId wymagane. Dwie kategorie przez powtarzany parametr categoryIds. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+          },
+          "response": [
+            {
+              "name": "200 — syntetyczny przykład kontraktu",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/period-category-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=group&groupId={{reportGroupId}}&categoryIds={{reportCategoryId1}}&categoryIds={{reportCategoryId2}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "period-category-totals"
+                  ],
+                  "query": [
+                    {
+                      "key": "dateFrom",
+                      "value": "{{reportDateFrom}}"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "{{reportDateTo}}"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "group"
+                    },
+                    {
+                      "key": "groupId",
+                      "value": "{{reportGroupId}}"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "{{reportCategoryId1}}"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "{{reportCategoryId2}}"
+                    }
+                  ]
+                },
+                "description": "Daty są włącznie. Pełne dostępne zakupy wskazanej grupy; groupId wymagane. Dwie kategorie przez powtarzany parametr categoryIds. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"series\": [\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000001\",\n      \"name\": \"Żywność\",\n      \"items\": [\n        {\n          \"period\": \"2026-11-01\",\n          \"totalAmount\": 12.34\n        }\n      ]\n    },\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000010\",\n      \"name\": \"Dom\",\n      \"items\": [\n        {\n          \"period\": \"2026-11-01\",\n          \"totalAmount\": 5.66\n        }\n      ]\n    }\n  ],\n  \"granularity\": \"Month\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Pusty wybór — brak categoryIds",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/period-category-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=personal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "period-category-totals"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "{{reportDateFrom}}"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "{{reportDateTo}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "personal"
+                }
+              ]
+            },
+            "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Pusty wybór: brak parametru categoryIds (200). categoryIds= daje 400 ze standardowego wiązania Guid. Wynik pusty, a nie wszystkie kategorie. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+          },
+          "response": [
+            {
+              "name": "200 — syntetyczny przykład kontraktu",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/period-category-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=personal",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "period-category-totals"
+                  ],
+                  "query": [
+                    {
+                      "key": "dateFrom",
+                      "value": "{{reportDateFrom}}"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "{{reportDateTo}}"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "personal"
+                    }
+                  ]
+                },
+                "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Pusty wybór: brak parametru categoryIds (200). categoryIds= daje 400 ze standardowego wiązania Guid. Wynik pusty, a nie wszystkie kategorie. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"series\": [],\n  \"granularity\": \"Month\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "24 miesięcy — Month",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/period-category-totals?dateFrom=2025-01-01&dateTo=2026-12-31&scope=personal&categoryIds={{reportCategoryId1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "period-category-totals"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "2026-12-31"
+                },
+                {
+                  "key": "scope",
+                  "value": "personal"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "{{reportCategoryId1}}"
+                }
+              ]
+            },
+            "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Jedna wybrana kategoria. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+          },
+          "response": [
+            {
+              "name": "200 — syntetyczny przykład kontraktu",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/period-category-totals?dateFrom=2025-01-01&dateTo=2026-12-31&scope=personal&categoryIds={{reportCategoryId1}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "period-category-totals"
+                  ],
+                  "query": [
+                    {
+                      "key": "dateFrom",
+                      "value": "2025-01-01"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "2026-12-31"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "personal"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "{{reportCategoryId1}}"
+                    }
+                  ]
+                },
+                "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Jedna wybrana kategoria. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"series\": [\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000001\",\n      \"name\": \"Żywność\",\n      \"items\": [\n        {\n          \"period\": \"2025-01-01\",\n          \"totalAmount\": 12.34\n        },\n        {\n          \"period\": \"2025-02-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2025-03-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2025-04-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2025-05-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2025-06-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2025-07-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2025-08-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2025-09-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2025-10-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2025-11-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2025-12-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-01-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-02-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-03-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-04-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-05-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-06-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-07-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-08-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-09-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-10-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-11-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-12-01\",\n          \"totalAmount\": 0\n        }\n      ]\n    }\n  ],\n  \"granularity\": \"Month\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "25 miesięcy — Quarter",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/period-category-totals?dateFrom=2025-01-01&dateTo=2027-01-31&scope=personal&categoryIds={{reportCategoryId1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "period-category-totals"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "2027-01-31"
+                },
+                {
+                  "key": "scope",
+                  "value": "personal"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "{{reportCategoryId1}}"
+                }
+              ]
+            },
+            "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Jedna wybrana kategoria. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+          },
+          "response": [
+            {
+              "name": "200 — syntetyczny przykład kontraktu",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/period-category-totals?dateFrom=2025-01-01&dateTo=2027-01-31&scope=personal&categoryIds={{reportCategoryId1}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "period-category-totals"
+                  ],
+                  "query": [
+                    {
+                      "key": "dateFrom",
+                      "value": "2025-01-01"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "2027-01-31"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "personal"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "{{reportCategoryId1}}"
+                    }
+                  ]
+                },
+                "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Jedna wybrana kategoria. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"series\": [\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000001\",\n      \"name\": \"Żywność\",\n      \"items\": [\n        {\n          \"period\": \"2025-01-01\",\n          \"totalAmount\": 12.34\n        },\n        {\n          \"period\": \"2025-04-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2025-07-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2025-10-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-01-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-04-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-07-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-10-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2027-01-01\",\n          \"totalAmount\": 0\n        }\n      ]\n    }\n  ],\n  \"granularity\": \"Quarter\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "48 miesięcy — Quarter",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/period-category-totals?dateFrom=2023-01-01&dateTo=2026-12-31&scope=personal&categoryIds={{reportCategoryId1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "period-category-totals"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "2023-01-01"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "2026-12-31"
+                },
+                {
+                  "key": "scope",
+                  "value": "personal"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "{{reportCategoryId1}}"
+                }
+              ]
+            },
+            "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Jedna wybrana kategoria. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+          },
+          "response": [
+            {
+              "name": "200 — syntetyczny przykład kontraktu",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/period-category-totals?dateFrom=2023-01-01&dateTo=2026-12-31&scope=personal&categoryIds={{reportCategoryId1}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "period-category-totals"
+                  ],
+                  "query": [
+                    {
+                      "key": "dateFrom",
+                      "value": "2023-01-01"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "2026-12-31"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "personal"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "{{reportCategoryId1}}"
+                    }
+                  ]
+                },
+                "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Jedna wybrana kategoria. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"series\": [\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000001\",\n      \"name\": \"Żywność\",\n      \"items\": [\n        {\n          \"period\": \"2023-01-01\",\n          \"totalAmount\": 12.34\n        },\n        {\n          \"period\": \"2023-04-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2023-07-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2023-10-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2024-01-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2024-04-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2024-07-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2024-10-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2025-01-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2025-04-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2025-07-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2025-10-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-01-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-04-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-07-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-10-01\",\n          \"totalAmount\": 0\n        }\n      ]\n    }\n  ],\n  \"granularity\": \"Quarter\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "49 miesięcy — Year",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/period-category-totals?dateFrom=2023-01-01&dateTo=2027-01-31&scope=personal&categoryIds={{reportCategoryId1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "period-category-totals"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "2023-01-01"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "2027-01-31"
+                },
+                {
+                  "key": "scope",
+                  "value": "personal"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "{{reportCategoryId1}}"
+                }
+              ]
+            },
+            "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Jedna wybrana kategoria. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+          },
+          "response": [
+            {
+              "name": "200 — syntetyczny przykład kontraktu",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/period-category-totals?dateFrom=2023-01-01&dateTo=2027-01-31&scope=personal&categoryIds={{reportCategoryId1}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "period-category-totals"
+                  ],
+                  "query": [
+                    {
+                      "key": "dateFrom",
+                      "value": "2023-01-01"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "2027-01-31"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "personal"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "{{reportCategoryId1}}"
+                    }
+                  ]
+                },
+                "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Jedna wybrana kategoria. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"series\": [\n    {\n      \"categoryId\": \"30000000-0000-0000-0000-000000000001\",\n      \"name\": \"Żywność\",\n      \"items\": [\n        {\n          \"period\": \"2023-01-01\",\n          \"totalAmount\": 12.34\n        },\n        {\n          \"period\": \"2024-01-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2025-01-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2026-01-01\",\n          \"totalAmount\": 0\n        },\n        {\n          \"period\": \"2027-01-01\",\n          \"totalAmount\": 0\n        }\n      ]\n    }\n  ],\n  \"granularity\": \"Year\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 — Day of Week Totals",
+      "item": [
+        {
+          "name": "Personal — jedna kategoria",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/day-of-week-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=personal&categoryIds={{reportCategoryId1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "day-of-week-totals"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "{{reportDateFrom}}"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "{{reportDateTo}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "personal"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "{{reportCategoryId1}}"
+                }
+              ]
+            },
+            "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Jedna wybrana kategoria. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+          },
+          "response": [
+            {
+              "name": "200 — syntetyczny przykład kontraktu",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/day-of-week-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=personal&categoryIds={{reportCategoryId1}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "day-of-week-totals"
+                  ],
+                  "query": [
+                    {
+                      "key": "dateFrom",
+                      "value": "{{reportDateFrom}}"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "{{reportDateTo}}"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "personal"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "{{reportCategoryId1}}"
+                    }
+                  ]
+                },
+                "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Jedna wybrana kategoria. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"items\": [\n    {\n      \"dayOfWeek\": \"Monday\",\n      \"averageAmount\": 0\n    },\n    {\n      \"dayOfWeek\": \"Tuesday\",\n      \"averageAmount\": 0\n    },\n    {\n      \"dayOfWeek\": \"Wednesday\",\n      \"averageAmount\": 0\n    },\n    {\n      \"dayOfWeek\": \"Thursday\",\n      \"averageAmount\": 0\n    },\n    {\n      \"dayOfWeek\": \"Friday\",\n      \"averageAmount\": 0\n    },\n    {\n      \"dayOfWeek\": \"Saturday\",\n      \"averageAmount\": 0\n    },\n    {\n      \"dayOfWeek\": \"Sunday\",\n      \"averageAmount\": 2.468\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Group — dwie kategorie",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/day-of-week-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=group&groupId={{reportGroupId}}&categoryIds={{reportCategoryId1}}&categoryIds={{reportCategoryId2}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "day-of-week-totals"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "{{reportDateFrom}}"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "{{reportDateTo}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "group"
+                },
+                {
+                  "key": "groupId",
+                  "value": "{{reportGroupId}}"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "{{reportCategoryId1}}"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "{{reportCategoryId2}}"
+                }
+              ]
+            },
+            "description": "Daty są włącznie. Pełne dostępne zakupy wskazanej grupy; groupId wymagane. Dwie kategorie przez powtarzany parametr categoryIds. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+          },
+          "response": [
+            {
+              "name": "200 — syntetyczny przykład kontraktu",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/day-of-week-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=group&groupId={{reportGroupId}}&categoryIds={{reportCategoryId1}}&categoryIds={{reportCategoryId2}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "day-of-week-totals"
+                  ],
+                  "query": [
+                    {
+                      "key": "dateFrom",
+                      "value": "{{reportDateFrom}}"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "{{reportDateTo}}"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "group"
+                    },
+                    {
+                      "key": "groupId",
+                      "value": "{{reportGroupId}}"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "{{reportCategoryId1}}"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "{{reportCategoryId2}}"
+                    }
+                  ]
+                },
+                "description": "Daty są włącznie. Pełne dostępne zakupy wskazanej grupy; groupId wymagane. Dwie kategorie przez powtarzany parametr categoryIds. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"items\": [\n    {\n      \"dayOfWeek\": \"Monday\",\n      \"averageAmount\": 0\n    },\n    {\n      \"dayOfWeek\": \"Tuesday\",\n      \"averageAmount\": 0\n    },\n    {\n      \"dayOfWeek\": \"Wednesday\",\n      \"averageAmount\": 0\n    },\n    {\n      \"dayOfWeek\": \"Thursday\",\n      \"averageAmount\": 0\n    },\n    {\n      \"dayOfWeek\": \"Friday\",\n      \"averageAmount\": 0\n    },\n    {\n      \"dayOfWeek\": \"Saturday\",\n      \"averageAmount\": 0\n    },\n    {\n      \"dayOfWeek\": \"Sunday\",\n      \"averageAmount\": 3.6\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Pusty wybór — brak categoryIds",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/day-of-week-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=personal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "day-of-week-totals"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "{{reportDateFrom}}"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "{{reportDateTo}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "personal"
+                }
+              ]
+            },
+            "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Pusty wybór: brak parametru categoryIds (200). categoryIds= daje 400 ze standardowego wiązania Guid. Wynik pusty, a nie wszystkie kategorie. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+          },
+          "response": [
+            {
+              "name": "200 — syntetyczny przykład kontraktu",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/day-of-week-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=personal",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "day-of-week-totals"
+                  ],
+                  "query": [
+                    {
+                      "key": "dateFrom",
+                      "value": "{{reportDateFrom}}"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "{{reportDateTo}}"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "personal"
+                    }
+                  ]
+                },
+                "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Pusty wybór: brak parametru categoryIds (200). categoryIds= daje 400 ze standardowego wiązania Guid. Wynik pusty, a nie wszystkie kategorie. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"items\": []\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 — Daily Totals",
+      "item": [
+        {
+          "name": "Personal — jedna kategoria",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/daily-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=personal&categoryIds={{reportCategoryId1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "daily-totals"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "{{reportDateFrom}}"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "{{reportDateTo}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "personal"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "{{reportCategoryId1}}"
+                }
+              ]
+            },
+            "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Jedna wybrana kategoria. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+          },
+          "response": [
+            {
+              "name": "200 — syntetyczny przykład kontraktu",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/daily-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=personal&categoryIds={{reportCategoryId1}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "daily-totals"
+                  ],
+                  "query": [
+                    {
+                      "key": "dateFrom",
+                      "value": "{{reportDateFrom}}"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "{{reportDateTo}}"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "personal"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "{{reportCategoryId1}}"
+                    }
+                  ]
+                },
+                "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Jedna wybrana kategoria. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"items\": [\n    {\n      \"date\": \"2026-11-01\",\n      \"totalAmount\": 12.34\n    },\n    {\n      \"date\": \"2026-11-02\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-03\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-04\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-05\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-06\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-07\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-08\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-09\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-10\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-11\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-12\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-13\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-14\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-15\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-16\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-17\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-18\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-19\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-20\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-21\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-22\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-23\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-24\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-25\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-26\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-27\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-28\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-29\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-30\",\n      \"totalAmount\": 0\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Group — dwie kategorie",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/daily-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=group&groupId={{reportGroupId}}&categoryIds={{reportCategoryId1}}&categoryIds={{reportCategoryId2}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "daily-totals"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "{{reportDateFrom}}"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "{{reportDateTo}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "group"
+                },
+                {
+                  "key": "groupId",
+                  "value": "{{reportGroupId}}"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "{{reportCategoryId1}}"
+                },
+                {
+                  "key": "categoryIds",
+                  "value": "{{reportCategoryId2}}"
+                }
+              ]
+            },
+            "description": "Daty są włącznie. Pełne dostępne zakupy wskazanej grupy; groupId wymagane. Dwie kategorie przez powtarzany parametr categoryIds. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+          },
+          "response": [
+            {
+              "name": "200 — syntetyczny przykład kontraktu",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/daily-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=group&groupId={{reportGroupId}}&categoryIds={{reportCategoryId1}}&categoryIds={{reportCategoryId2}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "daily-totals"
+                  ],
+                  "query": [
+                    {
+                      "key": "dateFrom",
+                      "value": "{{reportDateFrom}}"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "{{reportDateTo}}"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "group"
+                    },
+                    {
+                      "key": "groupId",
+                      "value": "{{reportGroupId}}"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "{{reportCategoryId1}}"
+                    },
+                    {
+                      "key": "categoryIds",
+                      "value": "{{reportCategoryId2}}"
+                    }
+                  ]
+                },
+                "description": "Daty są włącznie. Pełne dostępne zakupy wskazanej grupy; groupId wymagane. Dwie kategorie przez powtarzany parametr categoryIds. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"items\": [\n    {\n      \"date\": \"2026-11-01\",\n      \"totalAmount\": 18\n    },\n    {\n      \"date\": \"2026-11-02\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-03\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-04\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-05\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-06\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-07\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-08\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-09\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-10\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-11\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-12\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-13\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-14\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-15\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-16\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-17\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-18\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-19\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-20\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-21\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-22\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-23\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-24\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-25\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-26\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-27\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-28\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-29\",\n      \"totalAmount\": 0\n    },\n    {\n      \"date\": \"2026-11-30\",\n      \"totalAmount\": 0\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Pusty wybór — brak categoryIds",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/daily-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=personal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "daily-totals"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "{{reportDateFrom}}"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "{{reportDateTo}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "personal"
+                }
+              ]
+            },
+            "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Pusty wybór: brak parametru categoryIds (200). categoryIds= daje 400 ze standardowego wiązania Guid. Wynik pusty, a nie wszystkie kategorie. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+          },
+          "response": [
+            {
+              "name": "200 — syntetyczny przykład kontraktu",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/daily-totals?dateFrom={{reportDateFrom}}&dateTo={{reportDateTo}}&scope=personal",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "daily-totals"
+                  ],
+                  "query": [
+                    {
+                      "key": "dateFrom",
+                      "value": "{{reportDateFrom}}"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "{{reportDateTo}}"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "personal"
+                    }
+                  ]
+                },
+                "description": "Daty są włącznie. Koszty z udziałów zalogowanego użytkownika; groupId nie jest przesyłane. Pusty wybór: brak parametru categoryIds (200). categoryIds= daje 400 ze standardowego wiązania Guid. Wynik pusty, a nie wszystkie kategorie. Odpowiedzi zapisane poniżej są wyłącznie syntetycznymi przykładami."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"items\": []\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

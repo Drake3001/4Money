@@ -46,7 +46,9 @@ ich wyniki nie są nową regresją całego backendu.
   bankowych atomowo ze swoim zapisem; GroupSettlement nadal odrzuca nowe
   bankTransactionId. Ostatnia migracja to
   `20261116211631_NormalizeExpenseCategoriesAndAddDeposit`.
-- **Pozostałe braki:** aplikacja mobilna/Capacitor, usługi i API Limits/Reports,
+- **Reports API (aktualizacja 2026-11-18):** cztery raporty GET korzystają
+  z IExpenseAggregationService i agregacji SQL; szczegóły w sekcji Reports poniżej.
+- **Pozostałe braki:** aplikacja mobilna/Capacitor, usługi i API Limits, UI Reports,
   alerty limitów, odbudowa agregatów, bankowe źródła rozliczeń, odłączanie banku
   i odnawianie zgód oraz produkcyjny obraz/hosting frontendu. Automatyczne
   dopasowanie paragonów i push pozostają rozszerzeniami poza MVP.
@@ -356,6 +358,256 @@ Postmana. Raporty TRX i logi: `.cache/backend-results/rebase-20261110-final/`.
 Jednorazowy kontener PostgreSQL i jego anonimowy wolumen usunięto po testach;
 nie pozostały procesy testhost. Nie migrowano ani seedowano bazy aplikacji.
 Starsze wyniki poniżej dotyczą wcześniejszych rewizji i przebiegów.
+## Expense — dedykowane agregacje dla Reports, 2026-11-17
+
+Refaktoryzacja repozytoriów 2026-11-18: ExpenseAggregationService w
+Services/Aggregation korzysta z IExpenseRepository.GetAggregatedExpenseTotalsAsync.
+Implementacja oraz typy ExpenseAggregateRow i ExpenseAggregationType są w
+Repositories/ExpenseRepository; SQL pozostaje w osobnym ExpenseAggregationQueries.cs.
+Serwis używa istniejącej rejestracji scoped IExpenseRepository w hoście.
+Bez zmian logiki, SQL, parametrów, wyników serwisu ani endpointów HTTP.
+
+Usunięcie nieużywanego odczytu 2026-11-18: poza DI i testami starszy serwis nie
+miał konsumentów. Usunięto jego interfejs, implementację, kalkulator w pamięci,
+dziesięć prywatnych DTO, dwa odczyty repozytorium, projekcję encji z udziałami
+i opcję włącznego końca historii. Bieżąca historia zawsze miała tę opcję wyłączoną.
+Test finansowy agregacji SQL zachowano z jawnymi oczekiwanymi kwotami dla tych
+samych zakupów; usunięto testy dotyczące wyłącznie starego odczytu i kalkulatora.
+Weryfikacja: cała solucja Release bez błędów i ostrzeżeń, Expense.UnitTests 67/67,
+Reports.UnitTests 129/129, bez pominięć; `git diff --check` zaliczony.
+Spadek liczby testów Expense o siedem wynika wyłącznie z usunięcia testów starego
+kalkulatora. Testy integracyjne skompilowano, ale ich nie wykonywano.
+Nie uruchamiano bazy ani Dockera. Reports i aktywne serwisy agregacji pozostały
+bez zmian; SQL zmienił wyłącznie komentarz odwołujący się do usuniętego kalkulatora.
+
+Ujednolicenie nazewnictwa 2026-11-18: kontrakty są w Services/Contracts/Aggregation,
+typy otrzymały prefiks ExpenseAggregation. Starszy kalkulator i odczyty encji
+były częścią tej zmiany nazw, a następnie zostały usunięte jako nieużywane.
+Zaktualizowano konsumentów, DI, testy i dokumentację bez zmian obliczeń ani SQL.
+Weryfikacja po zmianie nazw: cała solucja Release bez błędów i ostrzeżeń,
+Expense.UnitTests 74/74, Reports.UnitTests 129/129, bez pominięć; `git diff --check`
+zaliczony. Nie uruchamiano testów integracyjnych ani PostgreSQL/Dockera.
+
+Weryfikacja 2026-11-18 po przeniesieniu agregacji: kompilacja całej solucji Release
+z `--no-restore --disable-build-servers -m:1` bez błędów i ostrzeżeń.
+Expense.UnitTests 74/74 i Reports.UnitTests 129/129, bez pominięć.
+Porównanie ze stanem wyjściowym potwierdziło zachowanie CTE, końcowego SQL,
+wyboru agregacji, parametrów zapytania i logiki serwisu.
+Brak odwołań do usuniętych typów repozytorium; `git diff --check` zaliczony.
+Testy integracyjne dostosowano i skompilowano, ale ich nie uruchamiano.
+Nie uruchamiano ani nie konfigurowano PostgreSQL, Dockera ani innych usług zewnętrznych.
+
+Późniejsza ocena LINQ i weryfikacja 2026-11-18: zachowano powyższą implementację
+SQL. Wariant IQueryable ze skorelowanymi Count/Sum przetłumaczył się i dał zgodne
+wyniki na syntetycznym zbiorze dla wszystkich sześciu agregacji w obu zakresach,
+ale osobiste kategorie po rozgrzaniu trwały 471–487 ms zamiast 50–52 ms.
+EXPLAIN ANALYZE wykazał powtarzaną agregację pozycji w korelacjach. Nie wdrożono
+wariantu pogarszającego wydajność. [Analiza i ograniczenia](../notes/EXPENSE_LINQ_EVALUATION.md).
+Na osobnym tymczasowym PostgreSQL 15 wykonano Expense.IntegrationTests 128/128,
+bez pominięć; fixture tworzył i usuwał wyłącznie własne losowe bazy.
+Expense.UnitTests 74/74, Reports.UnitTests 129/129, bez pominięć.
+Kompilacja całej solucji Release bez błędów i ostrzeżeń; `git diff --check` zaliczony.
+Testy integracyjne potwierdzają pozostawioną metodę SQL, nie pełną zgodność prototypu LINQ.
+Bez zmian kodu aplikacji i oczekiwanych wyników testów w ramach tej oceny.
+
+ExpenseAggregationService implementuje cztery metody IExpenseAggregationService:
+kategorie, okresy Month/Quarter/Year z kategoriami, dni tygodnia i konkretne daty.
+ExpenseRepository wykonuje wspólny parametryzowany SQL z CTE i funkcjami
+okienkowymi. Filtrowanie ExpenseItem, dwa etapy rozdzielania groszy i końcowe
+sumowanie odbywają się w PostgreSQL; aplikacja pobiera tylko agregaty.
+Personal zachowuje koszt z udziału, Group pełne kwoty dostępnych zakupów.
+Pusta lista kategorii zwraca pustą listę; nie dodajemy pustych dni/okresów ani
+„Pozostałych”. Dostęp zachowuje istniejące reguły historii Expense i publiczny
+lookup aktywnych grup Grouping. Serwis odrzuca niepoprawne argumenty wewnętrzne,
+ale walidacja requestów pozostaje w Reports. Scoped DI jest w AddExpenseServices.
+Bez migracji i nowych endpointów. Reports korzysta obecnie z IExpenseAggregationService;
+stan jego dostosowania opisano poniżej. Szczegóły: [kontrakt](../notes/EXPENSE_REPORTS.md).
+
+Weryfikacja 2026-11-17: pełny Expense.IntegrationTests z PostgreSQL 18:
+127/127 bez pominięć (17 nowych przypadków), Expense.UnitTests 74/74.
+Release build całej solucji bez błędów i ostrzeżeń. Po dopracowaniu obsługi
+timestampów infinity ponowiono 17/17 nowych przypadków w Release, bez pominięć.
+Testy porównują grosze SQL z istniejącymi kalkulatorami dla obu uczestników,
+obejmują filtry, okresy częściowe, udziały, brak dostępu, dni tygodnia, rzadkie
+daty, zerowe/ujemne kwoty i lata 1/9999 (także domyślne mapowanie Npgsql na infinity).
+Whitespace i git diff --check zaliczone. Na Windows provider EventLog wyłączono
+zmienną procesu testowego; serwer testowy uruchomiono poza sandboxem ze względu
+na blokowanie sygnałów między procesami. Bazy aplikacji nie zmieniano.
+Nie wykonywano testów obciążeniowych ani regresji testów innych modułów.
+
+## Reports — stan 2026-11-18
+
+Końcowa weryfikacja 2026-11-18: Expense.UnitTests 67/67,
+Expense.IntegrationTests 122/122, Reports.UnitTests 182/182 i
+Reports.IntegrationTests 19/19, bez błędów i pominięć. Pełny host sprawdził
+również zakres 1970–2060 oraz produkcyjne OpenAPI. Szczegóły i wyniki
+regresji całej solucji: [raport](../notes/REPORTS_FINAL_VERIFICATION.md).
+Usunięto nieużywany ExpenseAggregationParameters, bez zmiany aktywnych kontraktów.
+Końcowa regresja wszystkich 17 projektów z PostgreSQL 15 i testem S3:
+1277 zaliczonych, 0 błędów, 0 pominiętych. Release bez błędów i ostrzeżeń;
+`git diff --check` poprawny. Zasoby testowe usunięto, bez zmian danych aplikacji.
+
+Weryfikacja 2026-11-18 po zmianie wspólnej walidacji dat: cała solucja Release
+bez błędów i ostrzeżeń, Reports.UnitTests 182/182 (w tym HTTP/OpenAPI czterech
+endpointów), Expense.UnitTests 67/67, bez pominięć. Testy obejmują minimum
+1970-01-01, wcześniejsze daty, zakresy wieloletnie, odwrócony zakres i granice
+typu DateOnly. Zaktualizowano OpenAPI, kontrakt Reports i opis kolekcji Postman;
+JSON kolekcji i zapisanych odpowiedzi oraz `git diff --check` poprawne.
+Testy integracyjne dostosowano i skompilowano, ale ich nie wykonywano.
+Nie uruchamiano PostgreSQL ani Dockera.
+
+Weryfikacja 2026-11-18 po uproszczeniu wiązania `categoryIds`: cała solucja
+Release bez błędów i ostrzeżeń, Reports.UnitTests 133/133 (osobno HTTP/OpenAPI
+109/109), Expense.UnitTests 67/67, bez pominięć. Expense uruchomiono ponownie
+z `Logging__EventLog__LogLevel__Default=None` po odmowie dostępu do Windows EventLog.
+Testy integracyjne dostosowano i skompilowano, ale ich nie wykonywano.
+Nie uruchamiano PostgreSQL, Dockera ani innych usług zewnętrznych.
+
+IReportsService i ReportsService obsługują GetCategoryBreakdownAsync,
+GetExpenseTotalsByPeriodAndCategoryAsync, GetExpenseTotalsByDayOfWeekAsync
+i GetDailyExpenseTotalsAsync. Wszystkie requesty dziedziczą po ReportRequest:
+DateFrom, DateTo, Scope, GroupId i domyślnie puste CategoryIds. Wspólne
+ReportsService.Validate wymaga obu dat >= 1970-01-01 i DateFrom <= DateTo
+(HTTP 400 przy naruszeniu). Nie ogranicza długości zakresu ani samego roku
+i nie dodaje biznesowej górnej granicy dat; obowiązuje zakres DateOnly. Reports waliduje parametry,
+przekazuje je bezpośrednio do IExpenseAggregationService, mapuje błędy przez
+ReportsReadException i pobiera nazwy kategorii przez publiczny IExpenseService.
+Odczyt/autoryzacja nadal korzystają z istniejącego przepływu Expense → Grouping;
+Reports nie dodaje osobnego mechanizmu członkostwa ani zapytań do bazy.
+
+Koło ma do 8 kategorii lub top 8 i „Pozostałe” (CategoryId=null), sortowane po
+sumie malejąco. Serie okresowe używają tego samego top 8 z całego zakresu,
+„Pozostałe” liczone per okres; brakujące okresy mają zera. Znane wybrane kategorie
+bez zakupów również mają serię zerową. Progi agregacji liczą miesiące kalendarzowe
+objęte zakresem, także niepełne: do 24 Month, do 48 Quarter, dalej Year.
+Ranking dni tygodnia zwraca AverageAmount (decimal bez zaokrąglania do grosza),
+dzieląc sumy przez liczbę wszystkich wystąpień danego dnia w zakresie, w kolejności
+poniedziałek–niedziela. Dzień niewystępujący w krótkim zakresie ma średnią 0.
+Kalendarz zwraca wszystkie daty zakresu z zerami. Puste CategoryIds daje pusty
+wynik każdego raportu. Nie zmieniono implementacji Expense ani Grouping.
+
+HTTP ma cztery docelowe trasy GET: category-breakdown, period-category-totals,
+day-of-week-totals i daily-totals, bez aliasów starych tras. Standardowe wiązanie
+ASP.NET Core obsługuje kolekcję Guid, także powtarzane i indeksowane parametry.
+Brak `categoryIds` oznacza pustą listę i pusty raport (200), nigdy wszystkie kategorie.
+`categoryIds=`, błędny UUID, mieszanie pustych wartości/UUID i kilka pustych wartości
+dają 400 z model bindingu. Guid.Empty nadal odrzuca serwis. Nie ma własnego bindera
+ani walidacji pustych wartości HTTP. Kontroler odrzuca liczbowe/nieznane scope, powtórzone
+scope/daty/groupId i niepoprawny groupId. Warunki dat/scope/grupy waliduje Reports;
+uprawnienia egzekwuje istniejący odczyt Expense/Grouping. Dedykowany transformer
+OpenAPI hosta opisuje pięć wspólnych parametrów, opcjonalną tablicę UUID i progi okresów.
+Jedna nowa kolekcja Reports w Postmanie zawiera 17 definicji GET i syntetycznych
+odpowiedzi: personal/group, puste wybory, Pozostałe i progi 24/25/48/49 miesięcy.
+Weryfikacja 2026-11-17: dostosowane Reports.UnitTests 129/129 i
+Reports.IntegrationTests 18/18 w Release, bez pominięć, z PostgreSQL 15 w osobnym
+tymczasowym kontenerze i losowymi bazami testowymi. Testy obejmują aktualne
+filtry, puste/błędne/mieszane listy, progi 24/25/48/49 miesięcy, top 8/Pozostałe,
+stałe serie i zera, średnie dla dni bez wydatków, skrajne daty, przełom roku,
+grosze, ujemne kwoty, odmowę dostępu i historię byłego członka.
+
+ReportsWorkflowTests używa rzeczywistych agregacji Expense i repozytoriów
+Grouping/kategorii; tylko auth i granica metadanych kategorii mają adaptery
+testowe. ReportsProductionHostTests dodatkowo uruchamia pełny host Kestrel
+z produkcyjnym DI i rzeczywistym IExpenseService, logowaniem seed_anna oraz JWT.
+Wykonano wszystkie 17 definicji GET z kolekcji Postman przez HttpClient
+(nie Postman CLI), wygenerowano OpenAPI i potwierdzono odrzucenie sesji po logout.
+Klucze są losowe i procesowe; test nie czyta lokalnego .env, nie ujawnia tokenów
+i nie wywołuje S3/OCR/SMTP/Tink. Każdy host i jego baza są sprzątane po teście.
+Nie zmieniono logiki produkcyjnej w ramach tej weryfikacji. Wcześniejsze wyniki
+poniżej dotyczą historycznego ReportsService.
+
+Końcowa regresja całej solucji 2026-11-17: 17 projektów, 1071 zaliczonych,
+0 błędów, 1 pominięty ręcznie włączany test Receipt S3 (STORAGE_INTEGRATION_TESTS=0).
+Wszystkie testy PostgreSQL wykonano na osobnym Docker PostgreSQL 15 z bazami
+fixture, bez używania bazy aplikacji. Końcowy Release build solucji: 0 błędów
+i ostrzeżeń; whitespace i git diff --check zaliczone. Tymczasowy kontener
+PostgreSQL oraz procesy hostów testowych zostały zatrzymane. Nie wykonywano
+testów obciążeniowych ani rzeczywistych połączeń Tink/SMTP/S3/OCR.
+
+## Reports — stan 2026-11-16
+
+Poniższy opis i wyniki są historyczne; aktualny kontrakt opisano powyżej.
+
+Reports zawiera DTO czterech wykresów oraz interfejs IReportsService w
+Services/Reports: GetCategoryBreakdownAsync, GetMonthlyTotalsAsync,
+GetSpendingTrendAsync i GetDailyTotalsAsync. Metody przyjmują actor pochodzący
+z ICurrentUser, request i CancellationToken oraz zwracają asynchronicznie
+odpowiedni Response. Brak GroupId oznacza koszty z udziałów użytkownika,
+a podane GroupId pełne koszty wskazanej grupy.
+
+Historyczny ReportsService implementował cztery raporty przez dawny odczyt Expense, bez
+bezpośredniego dostępu do encji ani repozytoriów Expense. Wybiera UserShareAmount
+dla raportu osobistego i Amount dla grupowego. Listy kategorii filtruje po ID
+na agregatach kategorii, zachowując obliczenia groszy Expense. Sumy miesięczne
+zwracają 12 pozycji, dzienne każdy dzień miesiąca, a trend wspólne przedziały
+chronologiczne z zerami dla pustych okresów. Serie trendu obejmują kategorie
+obecne w odczycie dla wybranego zakresu; całkowity brak danych daje pustą listę
+serii. Kategorie o ujemnej sumie zachowują znak, bez reguł prezentacji wykresu.
+
+Grupowanie zatwierdzone przez użytkownika 2026-11-17: trend używa dni do 31 dni włącznie,
+tygodni do 366 dni i miesięcy powyżej 366 dni. Tydzień zaczyna się w poniedziałek;
+PeriodStart wskazuje początek kalendarzowego przedziału, także przed From.
+Skrajne przedziały sumują tylko daty objęte filtrem. Tygodnie są sumowane
+z dziennych danych Expense, bez zmiany jego kontraktu.
+
+Walidacja serwisu odrzuca odwrócone zakresy, lata poza 1–9999, miesiące poza
+1–12 i puste identyfikatory. Metody zwracają bezpośrednio Response, a błędy
+odczytu przekazują przez ReportsReadException, zachowując ExpenseErrorCode
+i ValidationErrors ze źródła. Lokalna walidacja rzuca ValidationException
+z ValidationResult wskazującym pola pierwszego błędu. Nie ma ReportsResult,
+osobnego enumu błędów Reports ani katalogu Results/Contracts w Reports.
+Anulowanie nadal przerywa operację przez OperationCanceledException.
+Odmowa dostępu nie jest zamieniana na puste dane. CancellationToken jest
+przekazywany do odczytów. Host rejestruje scoped IReportsService → ReportsService
+i kontroler Reports. Cztery autoryzowane endpointy GET w /api/reports obsługują
+raport kategorii, miesięczne sumy, trend i dzienne sumy. Kontroler pobiera ID
+przez ICurrentUser, zamienia wyjątki na ProblemDetails i wyłącza cache.
+Wymagane parametry GET mają BindRequired, daty wymagają YYYY-MM-DD,
+a rok zakresu 1–9999. Kontrakt: [Reports API](../notes/REPORTS_API.md).
+Projekt ZPI4M.Reports.UnitTests jest dodany do solucji; jego testy używają
+atrapy ówczesnego serwisu odczytu Expense, bez bazy i usług zewnętrznych. Testy HTTP TestServer
+używają rzeczywistego ReportsService i HttpCurrentUser oraz testowego
+uwierzytelniania; nie potwierdzają walidacji JWT ani dostępu na rzeczywistej bazie.
+
+Weryfikacja HTTP 2026-11-16: Reports.UnitTests 55/55, bez pominięć (26 testów
+serwisu i 29 przypadków HTTP). Build Release hosta API z zależnościami:
+0 błędów i ostrzeżeń. Potwierdzono cztery trasy, brakujące i błędne parametry,
+osobiste i grupowe kwoty, ID z uwierzytelnienia, serializację JSON, mapowanie
+wyjątków i brak ujawniania komunikatów awarii transportu. Kontrole dotnet format
+style/whitespace Reports i testów oraz git diff --check przeszły. Nie uruchamiano
+regresji pozostałych modułów, PostgreSQL, JWT hosta ani usług zewnętrznych.
+
+Weryfikacja wariantu z wyjątkami 2026-11-16: Reports.UnitTests 26/26,
+bez pominięć, z kompilacją Release zależności i projektu testowego. Sprawdzono
+dane czterech raportów, wyjątki odczytu z kodami i szczegółami źródła, pola
+błędów walidacji bez odczytu Expense oraz anulowanie. Kontrole dotnet format
+style, whitespace i git diff --check przeszły. Bez nowej regresji pozostałych
+modułów, testów PostgreSQL i usług zewnętrznych.
+
+
+Weryfikacja 2026-11-13: Release build zależności i projektu testowego zakończony
+bez ostrzeżeń i błędów; Reports.UnitTests 23/23, bez pominięć. Kontrole
+dotnet format style, whitespace nowych plików oraz git diff --check przeszły.
+Nie uruchamiano regresji pozostałych modułów, PostgreSQL ani usług zewnętrznych.
+
+Weryfikacja integracji Reports 2026-11-17: nowy projekt
+ZPI4M.Reports.IntegrationTests jest w solucji i korzysta z linkowanego fixture
+PostgreSQL Expense (osobna losowa baza na przypadek, SQL init, migracje, seed,
+cleanup). 20/20 testów HTTP → ReportsService → dawny odczyt Expense → PostgreSQL
+zaliczonych bez pominięć na jednorazowym PostgreSQL 15. TestServer używa
+HttpCurrentUser i testowego uwierzytelniania; nie zastępuje ówczesnego serwisu odczytu Expense
+ani repozytoriów. Nie potwierdza JWT i rejestracji pełnego hosta API.
+Sprawdzono cztery raporty, osobiste i grupowe kwoty, filtry kategorii i dat,
+puste okresy, cudze i nieistniejące grupy, byłego członka, płatnika bez udziału,
+grosze, ujemne pozycje, lata 1/9999, rok przestępny i progi trendu.
+Build Release całej solucji: 0 błędów i ostrzeżeń. Reports.UnitTests 55/55,
+Expense.UnitTests 74/74 i Expense.IntegrationTests 110/110 na PostgreSQL,
+bez pominięć. W testach Expense wyłączono provider Windows EventLog
+zmienną procesu z powodu odmowy dostępu do dziennika .NET Runtime; bez zmiany kodu.
+Nie zmieniano kodu produkcyjnego, kontraktów, agregacji ani zakresów dat.
+Raportowanie limitów i optymalizacja agregacji pozostają do dyskusji zespołu.
+Kontrola stylu nowych testów i git diff --check przeszły; formatowanie dopasowano
+do backend/.editorconfig. Wyniki TRX: .cache/backend-results/reports-integration-20261117/.
 
 ## Expense i integracja Receipt — stan 2026-11-10
 
@@ -363,7 +615,7 @@ Działa 10 operacji opisanych w [kontrakcie Expense](../notes/EXPENSE_API.md):
 kategorie, dostępne transakcje bankowe, historia, szczegóły, preview tworzenia
 i edycji, POST, PUT, DELETE oraz analiza i odczyt paragonu. Kontrolery korzystają
 z IExpenseService, który deleguje szczegóły, historię i kategorie do
-ExpenseQueryService w Services/Reads. IExpenseReadService obsługuje raporty.
+ExpenseQueryService w Services/Reads. Bieżące raporty korzystają z IExpenseAggregationService.
 ExpenseService współdzieli reguły dostępu i koordynuje przygotowanie formularza,
 walidację, etykiety i zapis. Zapytania EF i operacje na zbiorach należą do
 repozytoriów; SaveChangesAsync i koordynacja transakcji pozostają w serwisie.
@@ -419,7 +671,7 @@ Nie ma osobnego uploadu ani analizy pliku już zapisanego w storage.
 Po potwierdzonym rollbacku sprzątany jest nowy plik, po commicie usunięty lub
 zastąpiony. Niepewny commit zachowuje plik do uzgodnienia; cleanup jest best effort.
 
-IExpenseReadService dostarcza Reports listę, sumy, podział na kategorie i oś
+Historyczny serwis odczytu (stan 2026-11-08, usunięty 2026-11-18) dostarczał Reports listę, sumy, podział na kategorie i oś
 czasu dzień/miesiąc/rok, z autoryzacją i filtrami. Oddziela wartość zakupów,
 koszt użytkownika i kwotę zapłaconą. Daty raportów są obustronnie włączne;
 historia HTTP zachowuje koniec wyłączny. Kategorie kosztu użytkownika są
@@ -429,7 +681,7 @@ proporcjonalne do jego udziału, z uzgodnieniem groszy. Szczegóły i ograniczen
 Weryfikacja odczytów dla Reports (2026-11-08): Release build całej solucji
 bez błędów i ostrzeżeń, Expense.UnitTests 73/73 oraz pełne
 Expense.IntegrationTests 109/109 na PostgreSQL 15, bez pominięć.
-Wcześniejszy przebieg nowych ExpenseReadTests: 6/6. Potwierdzono obie daty
+Wcześniejszy przebieg nowych testów ówczesnego odczytu Expense: 6/6. Potwierdzono obie daty
 włącznie, dostęp historyczny, filtry/sortowanie, sumy kategorii i okresów,
 rozdzielenie kosztu i kwot zapłaconych oraz grosze z ujemnymi pozycjami.
 Kontrole stylu, whitespace zmienionych plików i git diff --check przeszły.
@@ -467,8 +719,8 @@ i .cache/backend-results/expense-notifications-targeted-20261108/.
 
 Czytaj przed pracą nad danym obszarem; po zmianach sprawdź ponownie źródła.
 Aktualne oznaczenia MVP i rozszerzenia opisuje [produkt](product.md#zakres-funkcjonalny-i-mvp).
-Solucja ma 15 projektów testowych: po trzy User, Banking i Notifications,
-po dwa Receipt i Expense oraz Grouping i Shared. Testy PostgreSQL wymagają
+Solucja ma 17 projektów testowych: po trzy User, Banking i Notifications,
+po dwa Receipt, Expense i Reports oraz Grouping i Shared. Testy PostgreSQL wymagają
 TEST_POSTGRES_CONNECTION_STRING i tworzą własne losowe bazy; brak konfiguracji
 lokalnie oznacza pominięcie, a w CI błąd. Starsze wyniki poniżej zachowują daty
 swoich weryfikacji.
@@ -477,7 +729,7 @@ swoich weryfikacji.
 
 Przed dołączeniem Expense solucja miała trzynaście projektów testowych: po trzy
 User, Banking i Notifications, dwa Receipt oraz Shared.UnitTests i Grouping.Tests.
-Obecnie ma piętnaście. Historyczne wyniki z poprzednich rewizji: 152 testy .NET
+Po dołączeniu Reports ma siedemnaście. Historyczne wyniki z poprzednich rewizji: 152 testy .NET
 (User + Notifications, w tym 45 Notifications, PostgreSQL 17.6) oraz opisane
 w kontekście Banking 223 testy .NET i 45 testów Pythona dla ówczesnego zakresu.
 Nie sumuj tych wyników ani nie przedstawiaj ich jako przebiegu aktualnej solucji
@@ -850,9 +1102,9 @@ z lokalnego cache. Kontrole stylu i formatowania zmienionych plików oraz
 | Grouping | Usługi i API grup, członkostw, zaproszeń, rozliczeń i sugestii, agregaty Expense i powiadomienie ExpenseAdded; szczegóły w README modułu | Odbudowa agregatów pozostaje do wykonania |
 | Limits | Model i repozytorium CategoryGroupLimit oraz pola limitów grupy | Brak serwisów i API budżetów oraz przepływu alertów |
 | Notifications | NotifyAsync z filtrowaniem aktywnych kont; inbox HTTP z paginacją i filtrem, odczyt pojedynczy/zbiorczy; klient webowy, licznik i dzwonek; Grouping generuje ExpenseAdded, GroupMemberJoined i SettlementReceived | Null bez odbiorców nie blokuje zapisu biznesowego. Limits nie generuje alertów; brak aplikacji mobilnej, push poza zakresem. Datowane testy poniżej dotyczą konkretnych rewizji |
-| Reports | Projekt modułu; Expense udostępnia IExpenseReadService z listą, agregatami kategorii i okresów | Brak implementacji raportów i endpointów w samym Reports; kontrakt Expense nie oznacza ukończenia tego modułu |
+| Reports | Cztery raporty HTTP przez ReportsService i IExpenseAggregationService; Expense agreguje dane w PostgreSQL | Starszy odczyt encji usunięto 2026-11-18; stan weryfikacji usług zewnętrznych opisują datowane wyniki |
 | Web / mobile | React 19 + TypeScript + Vite 8 + Tailwind 4; widoki konta, grup, rozliczeń, wydatków/OCR, Banking i inboxa korzystają z API; proxy i kontener developerski | Brak projektu mobile/Capacitor, raportów/limitów UI i produkcyjnego obrazu frontendu. Testy Node/SSR i build nie potwierdzają interakcji w przeglądarce ani usług zewnętrznych |
-| Narzędzia | Hooki, testy hooków, workflow backendu z PostgreSQL i wykrywaniem UnitTests/Tests/IntegrationTests; piętnaście projektów w solucji | CI ustawia wspólną zmienną TEST_POSTGRES_CONNECTION_STRING dla testów bazy User, Banking, Notifications i Expense. Runner wybiera tylko śledzone projekty; „not configured” nie oznacza wykonania testów |
+| Narzędzia | Hooki, testy hooków, workflow backendu z PostgreSQL i wykrywaniem UnitTests/Tests/IntegrationTests; siedemnaście projektów w solucji | CI ustawia wspólną zmienną TEST_POSTGRES_CONNECTION_STRING dla testów bazy User, Banking, Notifications, Expense i Reports. Runner wybiera tylko śledzone projekty; „not configured” nie oznacza wykonania testów |
 | Infrastruktura | Wspólny Compose pięciu usług: frontend, PostgreSQL, backend, SeaweedFS i OCR z jednym containers/local/.env; Terraform Proxmox z workflow | containers/deploy zawiera tylko .gitkeep; bez nowego uruchomienia kontenerów, migracji ani wdrożenia podczas przeglądu; AWS pozostaje planem |
 
 Źródła: [solucja](../backend/ZPI4M.Backend/ZPI4M.Backend.slnx),

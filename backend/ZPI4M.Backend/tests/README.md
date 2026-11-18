@@ -1,5 +1,92 @@
 # Testy backendu
 
+## Reports
+
+Końcowa weryfikacja 2026-11-18: Expense.UnitTests 67/67,
+Expense.IntegrationTests 122/122, Reports.UnitTests 182/182 i
+Reports.IntegrationTests 19/19, bez błędów i pominięć. Test pełnego hosta
+rozszerzono o produkcyjne OpenAPI, minimum obu dat i zakres 1970–2060.
+Szczegóły i wyniki całej regresji: [raport weryfikacji](../../../notes/REPORTS_FINAL_VERIFICATION.md).
+Cała solucja: 1277 zaliczonych, 0 błędów, 0 pominiętych w 17 projektach,
+z PostgreSQL 15 i rzeczywistym testem S3; Release bez błędów i ostrzeżeń.
+Wszystkie utworzone kontenery testowe i ich wolumeny usunięto po regresji.
+
+Weryfikacja 2026-11-18 po usunięciu własnego bindera: Reports.UnitTests 133/133,
+w tym osobno HTTP/OpenAPI 109/109; Expense.UnitTests 67/67, bez pominięć.
+Cała solucja Release skompilowana bez błędów i ostrzeżeń, także zmienione testy
+integracyjne. Integracji, PostgreSQL, Dockera i usług zewnętrznych nie uruchamiano.
+Expense wymagało zmiennej procesu `Logging__EventLog__LogLevel__Default=None`
+po odmowie dostępu do dziennika Windows EventLog.
+
+Weryfikacja 2026-11-17: Reports.UnitTests 129/129, Reports.IntegrationTests
+18/18 bez pominięć. Pełna solucja Release z Docker PostgreSQL 15: 1071 zaliczonych,
+0 błędów, 1 pominięty ręcznie włączany test S3; końcowa kompilacja bez ostrzeżeń.
+
+`ZPI4M.Reports.UnitTests` sprawdza cztery aktualne raporty na atrapach
+IExpenseAggregationService i wyłącznie metadanych kategorii IExpenseService.
+Obejmuje przekazywanie filtrów, puste kategorie, top 8/Pozostałe, wspólny zestaw
+serii, zera, progi 24/25/48/49 miesięcy kalendarzowych, średnie dni tygodnia,
+rok przestępny, minimalną datę 1970-01-01, górną granicę typu DateOnly,
+anulowanie i błędy odczytu. Wspólna walidacja odrzuca wcześniejsze i odwrócone
+daty; wieloletnie zakresy są akceptowane dla wszystkich czterech endpointów.
+ReportsApiContractTests używa rzeczywistego ReportsService, HttpCurrentUser
+i kontrolera na TestServer. Sprawdza cztery docelowe trasy GET, brak aliasów,
+standardowe wiązanie Guid: brak `categoryIds` daje pusty raport (200), pojedyncze,
+powtarzane i indeksowane UUID są akceptowane, puste/błędne/mieszane wartości
+dają 400. Sprawdza też walidację pozostałych parametrów i ProblemDetails.
+Generuje też dokument OpenAPI z produkcyjnym transformerem linkowanym z hosta
+API i sprawdza pięć wspólnych parametrów oraz opcjonalną tablicę UUID.
+Ten projekt nie sprawdza PostgreSQL ani rzeczywistego JWT.
+
+```powershell
+dotnet test tests/ZPI4M.Reports.UnitTests/ZPI4M.Reports.UnitTests.csproj --configuration Release
+```
+
+`ZPI4M.Reports.IntegrationTests` sprawdza HTTP → ReportsService →
+ExpenseAggregationService → ExpenseRepository/Grouping → PostgreSQL.
+ReportsWorkflowTests korzysta z rzeczywistych agregacji SQL, repozytoriów
+i HttpCurrentUser. TestServer ma testowe uwierzytelnianie oraz adapter wyłącznie
+metadanych IExpenseService, który czyta kategorie z rzeczywistego CategoryRepository.
+Nie zastępuje agregacji ani uprawnień atrapami i nie uruchamia OCR/S3/SMTP.
+
+ReportsProductionHostTests uruchamia dodatkowo pełny produkcyjny host API jako
+proces dotnet/Kestrel, na wolnym porcie localhost i własnej bazie fixture.
+ProjectReference do API zapewnia jego kompilację. Host używa rzeczywistego DI,
+IExpenseService, logowania seed_anna, podpisanego JWT i sprawdzania sesji.
+Wykonuje 17 definicji GET z kolekcji Postman przez HttpClient, generuje OpenAPI,
+sprawdza puste/błędne kategorie, brak starej trasy oraz odrzucenie JWT po logout.
+Nie jest to uruchomienie Postman CLI. Konfiguracja jest syntetyczna, klucze JWT/OCR
+losowane w procesie, a cwd to własny katalog tymczasowy bez lokalnego .env.
+Host jest zatrzymywany przed usunięciem bazy. S3/OCR/SMTP mają lokalne nieczynne
+adresy; te funkcje nie są wywoływane przez weryfikowane raporty.
+
+Projekt linkuje istniejący `ZPI4M.Expense.IntegrationTests/PostgresFixture.cs`:
+każdy przypadek dostaje osobną bazę `expense_tests_<guid>`, SQL init, migracje
+i syntetyczny seed. Zmiany danych dotyczą wyłącznie tej bazy, usuwanej po teście.
+Nie wymaga Testcontainers ani dodatkowych pakietów do zarządzania Dockerem.
+Ustaw `TEST_POSTGRES_CONNECTION_STRING` do jednorazowego serwera testowego
+według instrukcji PostgreSQL poniżej. Bez zmiennej lokalnie testy są pomijane;
+w CI jej brak jest błędem. Nowy projekt jest w solucji i pasuje do istniejącego
+filtra `.IntegrationTests.csproj` w CI.
+
+Zakres obejmuje cztery raporty osobiste i grupowe, udziały i płatnika bez udziału,
+filtry kategorii, puste okresy, odmowę dostępu do cudzych i nieistniejących grup
+(także przy pustym wyborze), byłego członka, włączne granice dat (także ostatnią
+mikrosekundę dnia), rok przestępny, lata 1/9999, ujemne kwoty, grosze i Pozostałe
+oraz progi 24/25/48/49 miesięcy i średnie uwzględniające dni bez wydatków.
+Wartości oczekiwane są zapisane na podstawie stałych danych syntetycznych;
+obejmują również grosze i ujemne pozycje kategorii.
+
+```powershell
+dotnet test tests/ZPI4M.Reports.IntegrationTests/ZPI4M.Reports.IntegrationTests.csproj --configuration Release
+```
+
+Jeśli testy HTTP Expense na Windows zgłoszą brak uprawnień do dziennika zdarzeń
+`.NET Runtime`, można dla procesu testowego wyłączyć ten provider bez zmiany kodu:
+`$env:Logging__EventLog__LogLevel__Default = 'None'`.
+
+## User i Notifications
+
 Moduły User i Notifications mają po trzy projekty xUnit:
 
 - `ZPI4M.User.UnitTests`: tokeny, podpis i zawartość JWT, normalizacja i walidacja DTO,
@@ -182,9 +269,10 @@ oddzielnych baz. Testy nie wykonują seeda na skonfigurowanej bazie serwera,
 wyłącznie we własnych losowo nazwanych bazach. Brak konfiguracji lokalnie oznacza
 pominięcie testów PostgreSQL, nie potwierdzenie powodzenia przepływu.
 
-ExpenseReadTests sprawdza serwis dla Reports na PostgreSQL: obie daty włącznie,
-zakres jednego dnia, kategorie i sumy, okresy dzień/miesiąc/rok, filtrowanie,
-sortowanie, paginację, walidację i dostęp byłego członka bez ujawniania cudzych
-zakupów. ExpenseReportCalculatorTests sprawdza rozdzielanie groszy kategorii,
-ujemne/zerowe pozycje, rabaty, ilości ułamkowe i płatnika bez udziału.
+ExpenseAggregationTests sprawdza cztery bieżące agregacje SQL, obie daty włącznie,
+skrajne daty i infinity, dostęp byłego członka, puste kategorie, udziały,
+rozdzielanie groszy, ujemne/zerowe pozycje, rabaty i ilości ułamkowe.
+Oczekiwane kwoty testu finansowego są jawne dla stałych danych syntetycznych;
+nie zależą od starszego serwisu odczytu i jego kalkulatora, usuniętych 2026-11-18.
+Usunięto testy dotyczące wyłącznie tego nieużywanego serwisu i kalkulatora.
 Kontrakt: [Expense dla Reports](../../../notes/EXPENSE_REPORTS.md).

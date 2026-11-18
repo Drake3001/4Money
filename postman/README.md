@@ -8,6 +8,7 @@ ich obecność nie potwierdza wykonania rzeczywistego przepływu Sandbox.
 | --- | --- | --- |
 | `collections/4Money.User.postman_collection.json` | `environments/4Money.Local.example.postman_environment.json` | Rejestracja lokalna i Google, potwierdzenia e-maila, login/refresh/logout, profil i zdjęcie, zmiana e-maila, reset hasła i dezaktywacja |
 | `collections/4Money.Notifications.postman_collection.json` | `environments/4Money.Local.example.postman_environment.json` | Inbox z paginacją, wszystkie/nieodczytane/odczytane, oznaczanie jednego lub wszystkich jako odczytane |
+| `collections/4Money.Reports.postman_collection.json` | `environments/4Money.Local.example.postman_environment.json` | Cztery raporty GET: kategorie, okresy/kategorie, średnie dni tygodnia i kalendarz dat; przykłady personal/group, pustego wyboru oraz progów agregacji |
 | `collections/4Money.Banking.postman_collection.json` | `environments/4Money.Local.example.postman_environment.json` | Logowanie 4Money, rozpoczęcie próby, odczyt rezultatu, połączeń, zgód i błędy callbacku |
 | `collections/Tink.Diagnostics.postman_collection.json` | `environments/Tink.Sandbox.example.postman_environment.json` | Token aplikacji, token użytkownika, zgody oraz osobne delegowanie Tink Link |
 | `collections/4Money.Storage.postman_collection.json` | `environments/4Money.Storage.Local.example.postman_environment.json` | Lokalny SeaweedFS S3 na http://localhost:8333: listowanie, upload, pobranie i usunięcie obiektu testowego |
@@ -165,8 +166,51 @@ Po ustawieniu hasła wymagane jest ponowne logowanie; Google nadal działa.
 Zmiana maila zwraca 403, niezależnie od hasła. Odłączania Google nie ma.
 Szczegółowy kontrakt i kody błędów:
 [development](../agent-context/development.md#rejestracja-i-logowanie-google).
+## Moduł Reports
+
+Importuj `collections/4Money.Reports.postman_collection.json` i wspólne
+środowisko 4Money.Local. Zaloguj się przez kolekcję User; Reports korzysta z
+`fourMoneyAccessToken`. Do syntetycznej grupy domyślnej użyj konta mającego do
+niej dostęp (np. seed_anna). Kolekcja zawiera wyłącznie odczyty i zatrzymuje Runner
+po każdym żądaniu. Zapisane odpowiedzi są przykładami syntetycznymi, nie wynikami
+wykonania żądań.
+
+Parametry przykładów są zmiennymi kolekcji: `reportDateFrom`, `reportDateTo`,
+`reportGroupId`, `reportCategoryId1`, `reportCategoryId2`. Można je nadpisać
+w środowisku. UUID-y są syntetyczne, zgodne z lokalnym seedem.
+
+Trasy GET: `category-breakdown`, `period-category-totals`,
+`day-of-week-totals`, `daily-totals` pod `/api/reports`. Każda ma wariant
+personal z jedną kategorią, group z dwiema kategoriami i pusty wybór.
+Kategorie przesyłamy jako powtarzany parametr:
+`categoryIds=UUID1&categoryIds=UUID2`. Pusty wybór oznacza pominięcie
+parametru `categoryIds` i zwraca 200 z pustym raportem. Standardowe wiązanie
+ASP.NET Core dla kolekcji Guid odrzuca `categoryIds=`, błędny UUID oraz
+mieszanie pustych wartości z UUID (400).
+Pusta lista nigdy nie wybiera wszystkich kategorii.
+
+Wszystkie cztery raporty wymagają `dateFrom >= 1970-01-01`,
+`dateTo >= 1970-01-01` i `dateFrom <= dateTo`; naruszenie zwraca 400.
+Nie ma limitu długości zakresu, ograniczeń samego roku ani biznesowej górnej
+granicy dat (pozostaje zakres .NET DateOnly). Do ręcznej kontroli każdej trasy
+ustaw `reportDateFrom`/`reportDateTo`: `1969-12-31`/`1970-01-01` (400),
+`1970-01-01`/`1969-12-31` (400), `1970-01-01`/`1970-01-01` (200),
+`1970-01-01`/`2060-12-31` (200), `2026-11-30`/`2026-11-01` (400).
+
+Przykłady okresowe pokazują progi 24/25/48/49 miesięcy kalendarzowych, również
+niepełnych: Month do 24, Quarter do 48, dalej Year. Nie dodawaj granularity
+do żądania. categoryId=null oznacza „Pozostałe”, niezależnie od wyświetlanej nazwy.
+Średnie dni tygodnia obejmują także dni bez wydatków; kalendarz ma wszystkie
+daty zakresu z zerami. Kontrakt i modele: [Reports API](../notes/REPORTS_API.md).
+
+Weryfikacja 2026-11-17: ReportsProductionHostTests wykonał wszystkie 17 definicji
+GET tej kolekcji przez HttpClient do rzeczywistego hosta API/Kestrel z PostgreSQL 15
+i JWT uzyskanym przez login. Potwierdzono także generowanie OpenAPI i odrzucenie
+sesji po logout. Nie uruchamiano Postman CLI ani zapisanych skryptów kolekcji;
+odpowiedzi zapisane w JSON pozostają syntetycznymi przykładami kontraktu.
 
 ## Moduł Notifications
+
 
 1. Zaimportuj kolekcję Notifications oraz aktualny szablon `4Money.Local`.
    Jeśli używasz już lokalnego środowiska, dodaj `notificationPageNumber=1`,

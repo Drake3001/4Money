@@ -370,14 +370,16 @@ faktycznie udostępniony zakres i konfigurację limitów.
   i sumy dla użytkownika we wszystkich grupach i we wskazanej grupie oraz dane
   z podziałem na kategorie. Nie ograniczać tego do endpointów dla frontendu.
 - Płatności między osobami nie wchodzą do tych raportów.
-- Ustalenie z 2026-11-08: IExpenseReadService zwraca listę, sumy, kategorie
+- Historyczne ustalenie z 2026-11-08: starszy serwis zwracał listę, sumy, kategorie
   oraz okresy dzienne/miesięczne/roczne. Osobno liczy wartość zakupów, udział
   użytkownika i kwotę przez niego zapłaconą. Kategorie wynikają z pozycji po
   rabacie, z uwzględnieniem ujemnych pozycji i systemowego „Nieznane”. Koszt
   użytkownika w kategorii jest proporcjonalny do jego udziału w całym wydatku;
   grosze kategorii są uzgadniane do rzeczywistej kwoty tego udziału.
 - Filtr kategorii pozostawia cały wydatek na liście; agregaty raportowe sumują
-  wyłącznie wskazaną kategorię. Pełny kontrakt i przykłady: [Expense dla Reports](EXPENSE_REPORTS.md).
+  wyłącznie wskazaną kategorię. Ten kontrakt odczytu zastąpiły cztery agregacje SQL;
+  nieużywany serwis i jego DTO usunięto 2026-11-18. Bieżący kontrakt:
+  [Expense dla Reports](EXPENSE_REPORTS.md).
 
 ## 13. Zapis, współbieżność, usuwanie i powiadomienia
 
@@ -477,7 +479,7 @@ Wiersze oznaczone jako rozstrzygnięte nie są już pytaniami otwartymi.
 | O8 | Trasy, przypinanie i blokada bankowa ustalone w Expense API. Nazwa, sprzedawca i data pochodzą z zatwierdzonego formularza; od 2026-11-07 data jest dzienna, bez godziny. Banking stosuje wykluczenia przypisanych transakcji przed paginacją i totalCount. |
 | O9 | Analiza przed zapisem bez persystencji, ponowne przesłanie pliku przy zapisie i jeden oryginalny wynik OCR. Odczyt przez Expense. |
 | O10 | Rozstrzygnięte: usunięcie/odłączenie/wymiana usuwa stary paragon po udanym zapisie; nie tworzymy biblioteki do ponownego użycia. |
-| O11 | Agregaty i podsumowania dla frontendu należą do Reports; brak endpointu summary w kontrakcie Expense. Rozstrzygnięte 2026-11-08: koszt kategorii proporcjonalny do udziału w wydatku, z uzgodnieniem groszy. IExpenseReadService i reguły filtrów opisuje EXPENSE_REPORTS.md. |
+| O11 | Agregaty i podsumowania dla frontendu należą do Reports; brak endpointu summary w kontrakcie Expense. Rozstrzygnięte 2026-11-08: koszt kategorii proporcjonalny do udziału w wydatku, z uzgodnieniem groszy. Bieżący IExpenseAggregationService i reguły filtrów opisuje EXPENSE_REPORTS.md; starszy odczyt usunięto 2026-11-18. |
 | O12 | Rozstrzygnięte 2026-11-08: tylko ExpenseAdded, do aktualnych członków poza autorem operacji; szczegóły w sekcji 13. Po usunięciu wydatku treść zostaje, ExpenseId staje się null. Edycja/usunięcie nie tworzą nowych powiadomień. |
 | O13 | Aktualizacja 2026-11-07: kontrakt 10 operacji, DTO, paginacja, wersja i statusy są w Expense API/OpenAPI oraz kontrolerach/DTO C#. Działają historia, szczegóły, preview, tworzenie, edycja i usuwanie oraz analiza i odczyt paragonu. Paragon zapisujemy razem z formularzem Expense. Grouping dostarcza rzeczywiste członkostwa, metadane i agregaty we wszystkich środowiskach. ExpenseAdded jest wysyłane przy tworzeniu według sekcji 13; edycja i usuwanie nie powiadamiają. Idempotency pozostaje odłożone. |
 

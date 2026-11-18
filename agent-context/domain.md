@@ -220,8 +220,9 @@ przy tworzeniu wydatku. Edycja i usuwanie nie powiadamiają.
 
 ## Dane zakupowe dla Reports
 
-IExpenseReadService udostępnia zakup, koszt z udziału i kwotę zapłaconą jako
-odrębne wartości. Koszt kategorii wynika z udziału w całym wydatku, bez przypisywania
+IExpenseAggregationService udostępnia agregaty kategorii, okresów i dat:
+koszt z udziału w zakresie Personal oraz pełne kwoty w zakresie Group.
+Koszt kategorii wynika z udziału w całym wydatku, bez przypisywania
 produktów do osób; uwzględnia rabaty, pozycje ujemne i systemowe „Nieznane”.
 Raporty nie doliczają rozliczeń ani ponownie paragonów/transakcji bankowych.
 Daty raportów są obustronnie włączne. [Kontrakt](../notes/EXPENSE_REPORTS.md)

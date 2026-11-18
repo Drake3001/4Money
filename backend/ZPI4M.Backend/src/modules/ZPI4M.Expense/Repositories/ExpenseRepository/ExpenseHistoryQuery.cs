@@ -4,7 +4,6 @@ namespace ZPI4M.Expense.Repositories.ExpenseRepository;
 
 public sealed class ExpenseHistoryQuery : PagedQuery
 {
-	public bool IncludeEndDate { get; init; }
 	public Guid? GroupId { get; init; }
 	public Guid? ParticipantId { get; init; }
 	public Guid? PayerId { get; init; }

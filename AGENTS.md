@@ -149,10 +149,11 @@ Obecność integracji nie potwierdza działania rzeczywistych usług zewnętrzny
   go po ID wydatku. Nie zakładaj atomowości PostgreSQL i S3; kompensacja jest
   best effort. OCR FastAPI domyślnie używa RapidOCR i Gemini przez OpenRouter;
   propozycje kategorii mapuje Expense, użytkownik poprawia formularz.
-- Reports nie ma usług/API; Expense udostępnia IExpenseReadService dla raportów.
-  Daty tego kontraktu są obustronnie włączne; koniec historii HTTP jest wyłączny.
+- Reports korzysta z IExpenseAggregationService dla czterech raportów;
+  starszy serwis odczytu usunięto jako nieużywany 2026-11-18.
+  Daty agregacji są obustronnie włączne; koniec historii HTTP jest wyłączny.
   Limits ma modele i repozytorium CategoryGroupLimit, bez usług/API limitów.
-- Solucja ma piętnaście projektów xUnit. Testy PostgreSQL wymagają wspólnej
+- Solucja ma siedemnaście projektów xUnit. Testy PostgreSQL wymagają wspólnej
   TEST_POSTGRES_CONNECTION_STRING; brak lokalnie oznacza pominięcie, w CI błąd.
   Ręczny test S3 wymaga STORAGE_INTEGRATION_TESTS=1. Workflow backendu nie
   uruchamia testów frontendu ani workera Python. Ostatnie zmiany frontendu:

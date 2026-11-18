@@ -9,7 +9,7 @@ Rejestracje hosta, aktualny łańcuch migracji, konfigurację Compose i skrypty
 frontendu ponownie sprawdzono statycznie 2026-11-15. Zakres wykonanych kontroli
 tej rewizji opisuje [status](implementation-status.md); nie uruchamiano migracji.
 Solucja zawiera po trzy projekty testowe User, Banking i Notifications
-oraz dwa Receipt, dwa Expense, Grouping i Shared — łącznie piętnaście. Starsze wyniki uruchomień opisuje status; nie traktuj
+oraz dwa Receipt, dwa Expense, Grouping, Shared i dwa Reports — łącznie siedemnaście. Starsze wyniki uruchomień opisuje status; nie traktuj
 ich jako nowej weryfikacji obecnej rewizji po rebase.
 
 ## Wymagania
@@ -1143,7 +1143,7 @@ bash tools/ci/backend_checks.sh integration --results .cache/backend-results
 Użyj świeżego katalogu wyników przy kolejnych uruchomieniach. Pomocnik wybiera
 śledzone projekty `.UnitTests.csproj` i `.Tests.csproj` dla zestawu unit oraz
 `.IntegrationTests.csproj` dla integration. Solucja zawiera po trzy projekty
-User, Banking i Notifications, dwa Receipt, dwa Expense, Grouping i Shared (łącznie piętnaście projektów). Komunikat
+User, Banking i Notifications, dwa Receipt, dwa Expense, Grouping, Shared i dwa Reports (łącznie siedemnaście projektów). Komunikat
 „not configured” nie oznacza wykonania testów.
 
 Workflow backendu uruchamia PostgreSQL i ustawia `TEST_POSTGRES_CONNECTION_STRING`

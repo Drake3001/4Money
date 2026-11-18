@@ -1,5 +1,9 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using NpgsqlTypes;
 using ZPI4M.Expense.Database;
+using ZPI4M.Expense.Services.Contracts.Aggregation;
 using ZPI4M.Shared.Pagination;
 
 namespace ZPI4M.Expense.Repositories.ExpenseRepository;
@@ -51,15 +55,7 @@ public class ExpenseRepository : IExpenseRepository
 		if (query.TransactionTimeTo is DateOnly endDate)
 		{
 			var end = endDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-			if (query.IncludeEndDate)
-			{
-				if (endDate != DateOnly.MaxValue)
-				{
-					end = end.AddDays(1);
-					history = history.Where(expense => expense.TransactionTime < end);
-				}
-			}
-			else history = history.Where(expense => expense.TransactionTime < end);
+			history = history.Where(expense => expense.TransactionTime < end);
 		}
 		if (query.MinAmount.HasValue) history = history.Where(expense => expense.Amount >= query.MinAmount.Value);
 		if (query.MaxAmount.HasValue) history = history.Where(expense => expense.Amount <= query.MaxAmount.Value);
@@ -76,19 +72,21 @@ public class ExpenseRepository : IExpenseRepository
 		return history;
 	}
 
-	public async Task<IReadOnlyList<ExpenseReadRow>> GetReportRowsAsync(Guid actor, IReadOnlyList<Guid> activeGroupIds,
-		ExpenseHistoryQuery query, CancellationToken cancellationToken = default) =>
-		await ReadRows(FilterHistory(actor, activeGroupIds, query)).ToArrayAsync(cancellationToken);
-
-	public async Task<PagedResult<ExpenseReadRow>> GetReportPageAsync(Guid actor, IReadOnlyList<Guid> activeGroupIds,
-		ExpenseHistoryQuery query, CancellationToken cancellationToken = default)
+	public async Task<IReadOnlyList<ExpenseAggregateRow>> GetAggregatedExpenseTotalsAsync(Guid actor, IReadOnlyList<Guid> activeGroupIds,
+		DateOnly dateFrom, DateOnly dateTo, ExpenseAggregationScope scope, Guid? groupId,
+		IReadOnlyList<Guid> categoryIds, ExpenseAggregationType aggregation, CancellationToken cancellationToken = default)
 	{
-		var history = FilterHistory(actor, activeGroupIds, query);
-		var total = await history.CountAsync(cancellationToken);
-		var sorted = SortHistory(history, query);
-		var page = await ReadRows(sorted.ThenBy(expense => expense.Id).Skip(query.GetOffset()).Take(query.PageSize))
+		var sql = ExpenseAggregationQueries.GetTotalsQuery(aggregation);
+		return await _context.Database.SqlQueryRaw<ExpenseAggregateRow>(sql,
+			new NpgsqlParameter("actor", actor),
+			new NpgsqlParameter("active", activeGroupIds.ToArray()),
+			// Avoid Npgsql's DateOnly.MinValue/MaxValue conversion to PostgreSQL infinities.
+			new NpgsqlParameter("dateFrom", dateFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+			new NpgsqlParameter("dateTo", dateTo.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+			new NpgsqlParameter("personal", scope == ExpenseAggregationScope.Personal),
+			new NpgsqlParameter("groupId", NpgsqlDbType.Uuid) { Value = (object?)groupId ?? DBNull.Value },
+			new NpgsqlParameter("categories", categoryIds.Distinct().ToArray()))
 			.ToArrayAsync(cancellationToken);
-		return new(page, total, query.PageNumber, query.PageSize);
 	}
 
 	private static IOrderedQueryable<Models.Expense> SortHistory(IQueryable<Models.Expense> history, ExpenseHistoryQuery query) =>
@@ -103,12 +101,6 @@ public class ExpenseRepository : IExpenseRepository
 			(_, true) => history.OrderByDescending(expense => expense.TransactionTime),
 			_ => history.OrderBy(expense => expense.TransactionTime)
 		};
-
-	private IQueryable<ExpenseReadRow> ReadRows(IQueryable<Models.Expense> query) => query
-		.Include(expense => expense.ExpenseItems).ThenInclude(item => item.FkCategory)
-		.AsSingleQuery()
-		.Select(expense => new ExpenseReadRow(expense,
-			_context.ExpenseShares.Where(share => share.FkExpenseId == expense.Id).ToArray()));
 
 	public void Add(Models.Expense entity)
 	{

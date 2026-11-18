@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
 using Npgsql;
+using ZPI4M.Api.OpenApi;
 using ZPI4M.Banking.ApiControllers;
 using ZPI4M.Banking.Database;
 using ZPI4M.Banking.Repositories.BankAccountRepository;
@@ -35,6 +36,8 @@ using ZPI4M.Notifications.Services.Notifications;
 using ZPI4M.Receipt.Database;
 using ZPI4M.Receipt.Repositories.ReceiptRepository;
 using ZPI4M.Receipt.Services;
+using ZPI4M.Reports.ApiControllers;
+using ZPI4M.Reports.Services.Reports;
 using ZPI4M.Shared.CurrentUser;
 using ZPI4M.Shared.Storage;
 using ZPI4M.User.ApiControllers;
@@ -68,6 +71,7 @@ builder.Services.AddControllers()
 	.AddApplicationPart(typeof(UsersController).Assembly)
 	.AddApplicationPart(typeof(ExpensesController).Assembly)
 	.AddApplicationPart(typeof(BankingController).Assembly)
+	.AddApplicationPart(typeof(ReportsController).Assembly)
 	.AddApplicationPart(typeof(ZPI4M.Grouping.ApiControllers.GroupsController).Assembly);
 builder.Services.AddProblemDetails();
 builder.Services.AddAuthorization();
@@ -111,6 +115,7 @@ builder.Services.AddOpenApi(options => options.AddOperationTransformer((operatio
 			}
 		};
 	}
+	ReportsOpenApi.Configure(operation, name);
 	return Task.CompletedTask;
 }));
 builder.Services.AddUserRateLimiting(builder.Configuration);
@@ -149,6 +154,9 @@ builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<IExpenseItemRepository, ExpenseItemRepository>();
 builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
 builder.Services.AddScoped<IExpenseShareRepository, ExpenseShareRepository>();
+
+// Reports module
+builder.Services.AddScoped<IReportsService, ReportsService>();
 
 // Banking module
 // Factory contexts keep independent connections for Banking connection persistence.

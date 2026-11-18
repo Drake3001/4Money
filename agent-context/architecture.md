@@ -73,13 +73,53 @@ projektu Expense do Notifications, bo utworzyłaby cykl zależności.
 
 ## Expense — odczyty dla Reports (2026-11-08)
 
-Reports korzysta z IExpenseReadService i DTO w Expense.Services.Contracts.Reports.
-ExpenseReadService odpowiada za autoryzację, walidację i agregaty; repozytorium
-współdzieli filtrowanie i sortowanie z historią. Dane wydatku, pozycji i udziałów
-raportu są pobierane jednym zapytaniem SQL bez śledzenia. ExpenseReportCalculator
-korzysta z istniejącego obliczania udziałów i wartości pozycji. Nie dodano
-referencji Expense → Reports, endpointów ani migracji. Reguły i przykłady:
+Od 2026-11-17 Expense udostępnia także dedykowany `IExpenseAggregationService`
+w Services/Aggregation: kategorie, okresy z kategoriami (Month/Quarter/Year),
+dni tygodnia i daty. ExpenseRepository wykonuje parametryzowany SQL
+z agregacją i rozdzielaniem groszy w bazie, bez materializowania encji.
+Wspólne CTE utrzymują dotychczasowe reguły kosztu osobistego i dostępu do historii;
+Grouping dostarcza aktywne grupy istniejącym portem metadanych. Od 2026-11-18
+serwis wywołuje IExpenseRepository.GetAggregatedExpenseTotalsAsync; SQL pozostaje
+w osobnym ExpenseAggregationQueries.cs w Repositories/ExpenseRepository.
+Ocena LINQ z 2026-11-18 zachowała tę implementację: alternatywa ze skorelowanymi
+Count/Sum tłumaczy się na SQL, ale powtarza agregację pozycji i istotnie pogarsza
+zmierzony czas raportu osobistego. [Analiza](../notes/EXPENSE_LINQ_EVALUATION.md)
+opisuje próbę, plany wykonania i ograniczenia weryfikacji.
+Serwis jest scoped w AddExpenseServices, a repozytorium ma istniejącą rejestrację
+scoped w hoście. Reports korzysta z interfejsu serwisu agregacji, a nazwy
+kategorii pobiera przez IExpenseService.GetCategoriesAsync. Szczegóły i ograniczenia:
+[Expense dla Reports](../notes/EXPENSE_REPORTS.md#dedykowane-agregacje-sql--2026-11-17).
+
+Nazwy ExpenseAggregation oraz katalog Services/Contracts/Aggregation opisują własną
+funkcję modułu Expense, niezależnie od konsumenta. Reports importuje te kontrakty;
+Expense nie odwołuje się do typów modułu Reports. Nieużywany starszy serwis odczytu
+usunięto 2026-11-18 wraz z jego metodami repozytorium, DTO i kalkulatorem w pamięci.
+Historia nadal korzysta z ExpenseQueryService i GetHistoryAsync; agregacje dla
+czterech raportów pozostają w PostgreSQL. Test porównujący SQL ze starym serwisem
+korzysta teraz z jawnych oczekiwanych kwot dla tych samych danych syntetycznych.
+Nie dodano referencji Expense → Reports, endpointów ani migracji. Reguły:
 [Expense dla Reports](../notes/EXPENSE_REPORTS.md).
+
+ReportsService w Reports.Services.Reports korzysta z IExpenseAggregationService.
+Waliduje wspólne parametry dat/scope/groupId/kategorii, wybiera Month/Quarter/Year
+według liczby miesięcy kalendarzowych objętych zakresem (do 24 / do 48 / powyżej 48).
+Przygotowuje top 8 kategorii i „Pozostałe”, ciągłe serie okresów i dat oraz
+średnie według dni tygodnia z uwzględnieniem wszystkich wystąpień w zakresie.
+Nie ma własnego repozytorium ani dostępu do encji Expense. IReportsService zwraca
+bezpośrednio Response. Serwis przekazuje błędy Expense przez ReportsReadException,
+z kodem i szczegółami walidacji źródła. Lokalna walidacja rzuca ValidationException
+z informacją o polach błędu. ReportsController mapuje te wyjątki na ProblemDetails
+i udostępnia cztery trasy GET: category-breakdown, period-category-totals,
+day-of-week-totals i daily-totals. CategoryIds używa standardowego wiązania
+kolekcji Guid z query. DTO inicjalizuje IReadOnlyList<Guid> jako pustą List<Guid>,
+którą binder może uzupełnić. Brak parametru daje pusty raport; puste wartości
+(`categoryIds=`), także mieszane z UUID, dają standardowe 400.
+OpenAPI opisuje opcjonalną tablicę UUID i powtarzany parametr.
+Stare trasy miesięczna/trendu nie mają aliasów.
+Host rejestruje scoped ReportsService
+i assembly kontrolera. Tożsamość przekazywana do serwisu pochodzi z ICurrentUser.
+Stan podłączenia i założenia agregacji opisuje
+[status Reports](implementation-status.md#reports--stan-2026-11-18).
 
 ## Warstwy modułu
 
@@ -466,7 +506,7 @@ Konfigurację i polecenia opisuje [development](development.md).
 | Mobile | Uzgodniono React + Capacitor; Stos technologiczny.txt nadal wymienia alternatywę React Native, brak aplikacji w repo |
 | OCR i storage | Worker FastAPI z OCR i kategoryzacją produktów; Receipt opcjonalnie wywołuje POST /api/v1/extract i korzysta z magazynu zgodnego z S3; HTTP analizy, zapisu i odczytu paragonu jest dostępne przez Expense; brak nowego potwierdzenia pełnego przepływu z rzeczywistymi usługami |
 | Automatyzacja | GitHub Actions, pre-commit, narzędzia Python zarządzane przez uv |
-| Testy backendu | Piętnaście projektów: po trzy User, Banking i Notifications, dwa Receipt i dwa Expense (UnitTests, IntegrationTests), Grouping i Shared; CI dostarcza PostgreSQL 15 dla testów bazy |
+| Testy backendu | Siedemnaście projektów: po trzy User, Banking i Notifications, po dwa Receipt, Expense i Reports (UnitTests, IntegrationTests), Grouping i Shared; CI dostarcza PostgreSQL 15 dla testów bazy |
 | Infrastruktura | Obecna konfiguracja Terraform dla Proxmox; Linux i Tailscale w środowisku developerskim |
 | Prezentacja | AWS jako założenie docelowe, nie potwierdzone wdrożenie aplikacji |
 
