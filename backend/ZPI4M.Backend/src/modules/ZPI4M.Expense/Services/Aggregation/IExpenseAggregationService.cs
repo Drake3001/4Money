@@ -5,6 +5,9 @@ namespace ZPI4M.Expense.Services.Aggregation;
 
 public interface IExpenseAggregationService
 {
+	Task<ExpenseResult<ExpenseUsageTotal>> GetUsageTotalAsync(Guid actor, DateOnly dateFrom, DateOnly dateTo,
+		ExpenseAggregationScope scope, Guid? groupId, Guid? categoryId, CancellationToken cancellationToken = default);
+
 	Task<ExpenseResult<IReadOnlyList<ExpenseCategoryBreakdownItem>>> GetCategoryBreakdownAsync(
 		Guid actor, DateOnly dateFrom, DateOnly dateTo, ExpenseAggregationScope scope,
 		Guid? groupId, IReadOnlyList<Guid> categoryIds, CancellationToken cancellationToken = default);

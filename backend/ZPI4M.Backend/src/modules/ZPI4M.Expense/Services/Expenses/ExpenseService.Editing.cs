@@ -104,6 +104,7 @@ public sealed partial class ExpenseService
 			var updatedItems = await UpdateItemsAsync(expenseId, prepared.Items, token);
 			await UpdateSharesAsync(expenseId, prepared.Shares, token);
 			await db.SaveChangesAsync(token);
+			await HandleChangeAsync(actor, previous, ExpenseQueryService.MapDetails(expense, updatedItems, prepared.Shares), token);
 			if (previous.ReceiptId is Guid receiptId && receiptId != expense.FkReceiptId)
 				await RemoveReceiptAsync(receiptId, token);
 			return ExpenseResult<ExpenseView>.Success(new(ExpenseQueryService.MapDetails(expense, updatedItems, prepared.Shares),
@@ -132,6 +133,7 @@ public sealed partial class ExpenseService
 			await shares.DeleteByExpenseAsync(expenseId, token);
 			expenses.Remove(expense);
 			await db.SaveChangesAsync(token);
+			await HandleChangeAsync(actor, previous, null, token);
 			if (previous.ReceiptId is Guid receiptId)
 				await RemoveReceiptAsync(receiptId, token);
 			return ExpenseResult<bool>.Success(true);

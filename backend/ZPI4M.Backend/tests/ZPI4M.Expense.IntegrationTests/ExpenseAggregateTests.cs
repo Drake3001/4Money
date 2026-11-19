@@ -430,7 +430,7 @@ public sealed class ExpenseAggregateTests : PostgresFixture
 			Expenses = new(Expense, expenseRepository, items, shares, categories,
 				Members, new ExpenseRequestService(calculations), Queries, new UnusedBanking(), metadata,
 				Transactions, new GroupExpenseContributionService(Grouping, Groups, members, aggregates, Transactions), new GroupExpenseNotificationService(members, notifications, Transactions, new UserDisplayNameLookup(Users)), receiptService, Receipts, new ReceiptOcrProof(Options.Create(new ReceiptOcrProofOptions { SigningKey = Convert.ToBase64String(new byte[32]) }), TimeProvider.System), Banking,
-				new BankTransactionAssignmentService(new BankTransactionAssignmentRepository(Banking)));
+				new BankTransactionAssignmentService(new BankTransactionAssignmentRepository(Banking)), []);
 			Settlements = new(Grouping, Groups, members, new GroupSettlementRepository(Grouping), aggregates, Transactions, TimeProvider.System, null!, null!, null!);
 		}
 		public async ValueTask DisposeAsync()

@@ -17,6 +17,9 @@
   <Folder Name="/tests/">
     <Project Path="tests/ZPI4M.Reports.IntegrationTests/ZPI4M.Reports.IntegrationTests.csproj" />
     <Project Path="tests/ZPI4M.Reports.UnitTests/ZPI4M.Reports.UnitTests.csproj" />
+
+    <Project Path="tests/ZPI4M.Limits.UnitTests/ZPI4M.Limits.UnitTests.csproj" />
+    <Project Path="tests/ZPI4M.Limits.IntegrationTests/ZPI4M.Limits.IntegrationTests.csproj" />
     <Project Path="tests/ZPI4M.Expense.IntegrationTests/ZPI4M.Expense.IntegrationTests.csproj" />
     <Project Path="tests/ZPI4M.Expense.UnitTests/ZPI4M.Expense.UnitTests.csproj" />
     <Project Path="tests/ZPI4M.Shared.UnitTests/ZPI4M.Shared.UnitTests.csproj" />

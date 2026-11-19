@@ -18,9 +18,7 @@ public sealed class GroupingModelTests : PostgresFixture
 	private const string GroupId = "20000000-0000-0000-0000-000000000001";
 	private const string AnnaId = "10000000-0000-0000-0000-000000000001";
 	private const string BartekId = "10000000-0000-0000-0000-000000000002";
-
 	private AppDbContext OpenModel() => new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(ConnectionString).Options);
-
 	private async Task ExecuteAsync(string sql)
 	{
 		await using var connection = new NpgsqlConnection(ConnectionString);
@@ -30,7 +28,6 @@ public sealed class GroupingModelTests : PostgresFixture
 	}
 
 	private Task SeedAsync() => ExecuteAsync(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Baseline", "seed_local.sql")));
-
 	[PostgresFact]
 	public async Task EmptyBaselineSupportsUpDownUpAndRejectsHistoricalDataBeforeDdl()
 	{
@@ -51,7 +48,22 @@ public sealed class GroupingModelTests : PostgresFixture
 		await migrator.MigrateAsync();
 		Assert.False(db.Database.HasPendingModelChanges());
 		await SeedAsync();
+		await ExecuteAsync("""
+            INSERT INTO limits.user_limit (id,user_id,period,amount,currency_code,is_enabled)
+            VALUES ('d0000000-0000-0000-0000-000000000099','10000000-0000-0000-0000-000000000001',2,100,'PLN',false);
+            """);
 		await SeedAsync();
+		Assert.Equal(6, await db.UserLimits.CountAsync());
+		Assert.Equal(8, await db.GroupLimits.CountAsync());
+		Assert.True(await db.Database.SqlQueryRaw<bool>("""
+			SELECT (SELECT count(*) FROM limits.user_limit WHERE period=4 AND isfinite(start_date) AND isfinite(end_date)) = 2
+			   AND (SELECT count(*) FROM limits.group_limit WHERE period=4 AND isfinite(start_date) AND isfinite(end_date)) = 2
+			   AND NOT EXISTS (SELECT 1 FROM limits.user_limit WHERE period IN (1,2,3) AND (start_date IS NOT NULL OR end_date IS NOT NULL))
+			   AND NOT EXISTS (SELECT 1 FROM limits.group_limit WHERE period IN (1,2,3) AND (start_date IS NOT NULL OR end_date IS NOT NULL)) AS "Value"
+			""").SingleAsync());
+		await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(migrations[^2]));
+		Assert.Equal(migrations, await db.Database.GetAppliedMigrationsAsync());
+		await ExecuteAsync("TRUNCATE limits.user_limit_alert_state, limits.group_limit_alert_state, limits.user_limit, limits.group_limit;");
 		await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(migrations[approved - 1]));
 		var expenseMigration = Array.FindIndex(migrations, m => m.EndsWith("_CompleteExpenseModel", StringComparison.Ordinal));
 		// EF can commit successful Down steps before the guarded Expense migration rejects data.
@@ -81,8 +93,8 @@ public sealed class GroupingModelTests : PostgresFixture
 	[InlineData("UPDATE grouping.group_invitation SET expires_at = NULL", "23502")]
 	[InlineData("INSERT INTO grouping.group_invitation (id, group_id, created_by_user_id, token_hash, max_uses, use_count, expires_at, is_active) SELECT 'b0000000-0000-0000-0000-000000000002', group_id, created_by_user_id, token_hash, max_uses, use_count, expires_at, is_active FROM grouping.group_invitation", "23505")]
 	[InlineData("UPDATE limits.group_limit SET amount = 0", "23514")]
-	[InlineData("UPDATE limits.group_limit SET period = 4", "23514")]
-	[InlineData("UPDATE limits.group_limit SET period = 1", "23505")]
+	[InlineData("UPDATE limits.group_limit SET period = 99", "23514")]
+	[InlineData("UPDATE limits.group_limit SET currency_code = 'EUR'", "23514")]
 	[InlineData("DELETE FROM \"user\".\"user\" WHERE _id = '10000000-0000-0000-0000-000000000001'", "23503")]
 	[InlineData("UPDATE grouping.group_settlements SET group_id = 'ffffffff-ffff-ffff-ffff-ffffffffffff'", "23503")]
 	[InlineData("UPDATE grouping.group_settlements SET from_user_id = 'ffffffff-ffff-ffff-ffff-ffffffffffff'", "23503")]
@@ -90,7 +102,7 @@ public sealed class GroupingModelTests : PostgresFixture
 	[InlineData("UPDATE grouping.group_settlements SET bank_transaction_id = 'ffffffff-ffff-ffff-ffff-ffffffffffff' WHERE id = (SELECT id FROM grouping.group_settlements LIMIT 1)", "23503")]
 	[InlineData("UPDATE grouping.group_invitation SET group_id = 'ffffffff-ffff-ffff-ffff-ffffffffffff'", "23503")]
 	[InlineData("UPDATE grouping.group_invitation SET created_by_user_id = 'ffffffff-ffff-ffff-ffff-ffffffffffff'", "23503")]
-	[InlineData("UPDATE limits.group_limit SET group_id = 'ffffffff-ffff-ffff-ffff-ffffffffffff'", "23503")]
+	[InlineData("UPDATE limits.group_limit SET group_id = 'ffffffff-ffff-ffff-ffff-ffffffffffff' WHERE id = (SELECT id FROM limits.group_limit LIMIT 1)", "23503")]
 	public async Task DatabaseRejectsInvalidRows(string sql, string sqlState)
 	{
 		await SeedAsync();
@@ -148,15 +160,7 @@ public sealed class GroupingModelTests : PostgresFixture
 		var shares = new ExpenseShareRepository(expense);
 		Assert.Equal(100m, await shares.GetTotalPercentageAsync(Guid.Parse("70000000-0000-0000-0000-000000000004")));
 		Assert.Equal(2, (await shares.GetPageAsync(new ExpenseShareQuery { MinPercentage = 55m, SortBy = ExpenseShareSortBy.Percentage })).Items.Count);
-		var expenseHistory = await new ExpenseRepository(expense).GetHistoryAsync(Guid.Parse(AnnaId), [Guid.Parse(GroupId)], new ExpenseHistoryQuery
-		{
-			GroupId = Guid.Parse(GroupId),
-			Search = "Czynsz",
-			TransactionTimeFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-10)),
-			TransactionTimeTo = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1),
-			SortBy = ExpenseSortBy.TransactionTime,
-			Descending = true
-		});
+		var expenseHistory = await new ExpenseRepository(expense).GetHistoryAsync(Guid.Parse(AnnaId), [Guid.Parse(GroupId)], new ExpenseHistoryQuery { GroupId = Guid.Parse(GroupId), Search = "Czynsz", TransactionTimeFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-10)), TransactionTimeTo = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1), SortBy = ExpenseSortBy.TransactionTime, Descending = true });
 		Assert.Single(expenseHistory.Items);
 		await ExecuteAsync($"INSERT INTO grouping.group_user (group_id, user_id, joined_at) VALUES ('{GroupId}', '10000000-0000-0000-0000-000000000003', CURRENT_TIMESTAMP);");
 		var joined = await grouping.GroupMembers.SingleAsync(m => m.FkGroupId == Guid.Parse(GroupId) && m.FkUserId == Guid.Parse("10000000-0000-0000-0000-000000000003"));
@@ -166,13 +170,7 @@ public sealed class GroupingModelTests : PostgresFixture
 		await grouping.SaveChangesAsync();
 		grouping.ChangeTracker.Clear();
 		Assert.False((await grouping.GroupMembers.SingleAsync(m => m.FkGroupId == joined.FkGroupId && m.FkUserId == joined.FkUserId)).IsMember);
-		grouping.GroupMembers.Add(new ZPI4M.Grouping.Models.GroupMember
-		{
-			FkGroupId = Guid.Parse(GroupId),
-			FkUserId = Guid.Parse("10000000-0000-0000-0000-000000000004"),
-			JoinedAt = DateTime.UtcNow,
-			IsMember = false
-		});
+		grouping.GroupMembers.Add(new ZPI4M.Grouping.Models.GroupMember { FkGroupId = Guid.Parse(GroupId), FkUserId = Guid.Parse("10000000-0000-0000-0000-000000000004"), JoinedAt = DateTime.UtcNow, IsMember = false });
 		await grouping.SaveChangesAsync();
 		grouping.ChangeTracker.Clear();
 		Assert.False((await grouping.GroupMembers.SingleAsync(m => m.FkGroupId == Guid.Parse(GroupId) && m.FkUserId == Guid.Parse("10000000-0000-0000-0000-000000000004"))).IsMember);

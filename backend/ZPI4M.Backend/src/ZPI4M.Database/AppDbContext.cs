@@ -21,6 +21,7 @@ namespace ZPI4M.Database
 		public DbSet<ZPI4M.Grouping.Models.GroupSettlement> GroupSettlements { get; set; }
 		public DbSet<ZPI4M.Grouping.Models.GroupInvitation> GroupInvitations { get; set; }
 		public DbSet<ZPI4M.Limits.Models.GroupLimit> GroupLimits { get; set; }
+		public DbSet<ZPI4M.Limits.Models.UserLimit> UserLimits { get; set; }
 
 		protected override void OnModelCreating(ModelBuilder modelBuilder)
 		{
@@ -53,6 +54,15 @@ namespace ZPI4M.Database
 
 			modelBuilder.Entity<ZPI4M.Limits.Models.GroupLimit>().HasOne<ZPI4M.Grouping.Models.Group>().WithMany()
 				.HasForeignKey(e => e.GroupId).OnDelete(DeleteBehavior.NoAction);
+
+			modelBuilder.Entity<ZPI4M.Limits.Models.GroupLimit>().HasOne<ZPI4M.Expense.Models.Category>().WithMany()
+				.HasForeignKey(e => e.CategoryId).OnDelete(DeleteBehavior.NoAction);
+
+			modelBuilder.Entity<ZPI4M.Limits.Models.UserLimit>().HasOne<ZPI4M.User.Models.User>().WithMany()
+				.HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.NoAction);
+
+			modelBuilder.Entity<ZPI4M.Limits.Models.UserLimit>().HasOne<ZPI4M.Expense.Models.Category>().WithMany()
+				.HasForeignKey(e => e.CategoryId).OnDelete(DeleteBehavior.NoAction);
 
 			modelBuilder.Entity<ZPI4M.Expense.Models.Expense>()
 				.HasOne<ZPI4M.User.Models.User>().WithMany()

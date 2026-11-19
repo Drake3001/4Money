@@ -8,6 +8,22 @@ namespace ZPI4M.Expense.Services.Aggregation;
 public sealed class ExpenseAggregationService(IExpenseRepository expenses,
 	IGroupExpenseMetadataLookup groups) : IExpenseAggregationService
 {
+	public async Task<ExpenseResult<ExpenseUsageTotal>> GetUsageTotalAsync(Guid actor, DateOnly dateFrom,
+		DateOnly dateTo, ExpenseAggregationScope scope, Guid? groupId, Guid? categoryId,
+		CancellationToken cancellationToken = default)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+		if (actor == Guid.Empty) return ExpenseResult<ExpenseUsageTotal>.Failure(ExpenseErrorCode.Forbidden);
+		if (!Enum.IsDefined(scope) || dateFrom > dateTo || categoryId == Guid.Empty ||
+			(scope == ExpenseAggregationScope.Personal ? groupId is not null : groupId is null || groupId == Guid.Empty))
+			return ExpenseResult<ExpenseUsageTotal>.Failure(ExpenseErrorCode.InvalidExpense);
+		var active = await groups.GetActiveGroupIdsAsync(actor, cancellationToken);
+		if (groupId is Guid id && !active.Contains(id) && !await expenses.HasRelatedExpenseInGroupAsync(actor, id, cancellationToken))
+			return ExpenseResult<ExpenseUsageTotal>.Failure(ExpenseErrorCode.NotFound);
+		var amount = await expenses.GetUsageTotalAsync(actor, active, dateFrom, dateTo, scope, groupId, categoryId, cancellationToken);
+		return ExpenseResult<ExpenseUsageTotal>.Success(new(amount));
+	}
+
 	public Task<ExpenseResult<IReadOnlyList<ExpenseCategoryBreakdownItem>>> GetCategoryBreakdownAsync(
 		Guid actor, DateOnly dateFrom, DateOnly dateTo, ExpenseAggregationScope scope, Guid? groupId,
 		IReadOnlyList<Guid> categoryIds, CancellationToken cancellationToken = default) =>

@@ -62,6 +62,7 @@ public sealed class StarterGroupTests : PostgresFixture
 	{
 		await using var context = OpenModel();
 		var groupCount = await context.Set<Group>().CountAsync();
+		await context.Database.ExecuteSqlRawAsync("TRUNCATE limits.user_limit_alert_state, limits.group_limit_alert_state, limits.user_limit, limits.group_limit;");
 		var memberCount = await context.Set<GroupMember>().CountAsync();
 		await context.Database.ExecuteSqlRawAsync("""
 			ALTER TABLE grouping.group_user ADD CONSTRAINT test_reject_starter_membership
@@ -124,6 +125,7 @@ public sealed class StarterGroupTests : PostgresFixture
 		var triggerIndex = Array.FindIndex(migrations, m => m.EndsWith("_UserImprovements", StringComparison.Ordinal));
 		var migrator = context.GetService<IMigrator>();
 		var groupCount = await context.Set<Group>().CountAsync();
+		await context.Database.ExecuteSqlRawAsync("TRUNCATE limits.user_limit_alert_state, limits.group_limit_alert_state, limits.user_limit, limits.group_limit;");
 		await migrator.MigrateAsync(migrations[triggerIndex - 1]);
 		Assert.Equal(groupCount, await context.Set<Group>().CountAsync());
 		var existingUser = NewUser();

@@ -100,7 +100,7 @@ public sealed class GroupArchiveTests : PostgresFixture
 		await db.Database.ExecuteSqlRawAsync("UPDATE grouping.\"group\" SET description = repeat('😀',255)");
 		await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlRawAsync("UPDATE grouping.\"group\" SET description = repeat('a',256)"));
 		await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlRawAsync("UPDATE grouping.\"group\" SET icon_storage_key = 'custom'"));
-		await db.Database.ExecuteSqlRawAsync("DELETE FROM limits.category_group_limit; DELETE FROM expense.expense_share; DELETE FROM expense.expense_item; UPDATE notifications.notification SET fk_expense_id=NULL; DELETE FROM expense.expense;");
+		await db.Database.ExecuteSqlRawAsync("DELETE FROM limits.user_limit; DELETE FROM limits.group_limit; DELETE FROM expense.expense_share; DELETE FROM expense.expense_item; UPDATE notifications.notification SET fk_expense_id=NULL; DELETE FROM expense.expense;");
 		await migrator.MigrateAsync(migrations[^2]);
 		await migrator.MigrateAsync();
 		Assert.False(db.Database.HasPendingModelChanges());

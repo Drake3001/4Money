@@ -27,6 +27,7 @@ public sealed class BankTransactionAssignmentTests : PostgresFixture
 		await using var bank = Banking();
 		var transactions = await bank.BankTransactions.OrderBy(t => t.Id).Select(t => t.Id).ToArrayAsync();
 		var migrator = db.GetService<IMigrator>();
+		await db.Database.ExecuteSqlRawAsync("TRUNCATE limits.user_limit_alert_state, limits.group_limit_alert_state, limits.user_limit, limits.group_limit;");
 		await migrator.MigrateAsync(migrations[assignmentMigration - 1]);
 		Assert.True(await db.Database.SqlQueryRaw<bool>(
 			"SELECT to_regclass('banking.bank_transaction_assignment') IS NULL AS \"Value\"").SingleAsync());

@@ -191,6 +191,7 @@ public sealed class UserIconFlowTests : PostgresFixture
 		var failure = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlRawAsync(
 			"UPDATE \"user\".\"user\" SET icon = 'preset.png', icon_storage_key = 'users/synthetic/icons/file' WHERE login = 'seed_anna'"));
 		Assert.Equal("c_user_icon_source", failure.ConstraintName);
+		await db.Database.ExecuteSqlRawAsync("TRUNCATE limits.user_limit_alert_state, limits.group_limit_alert_state, limits.user_limit, limits.group_limit;");
 		await migrator.MigrateAsync(previousMigration);
 		await migrator.MigrateAsync();
 		Assert.False(db.Database.HasPendingModelChanges());

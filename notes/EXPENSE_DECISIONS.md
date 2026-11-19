@@ -427,7 +427,7 @@ decyzji produktowej ani potwierdzenia implementacji Expense.
 - Uzgodniony w architekturze przepływ powiadomień to Expense → Grouping →
   Notifications → User. Nie tworzymy cyklicznych zależności projektów.
 - Zapis biznesowy i powiadomienie mają stosować
-  [checklistę transakcji](../agent-context/architecture.md#do-wykonania-przy-implementacji-expense-i-grouping).
+  [checklistę transakcji](../agent-context/architecture.md#checklista-zapisu-między-modułami).
   Wspólne połączenie nie rozpoczyna transakcji automatycznie.
 - Atomowość bazy nie obejmuje automatycznie OCR ani S3. Błędy i sprzątanie
   plików wymagają jawnej koordynacji; pożądane usunięcie obrazu nie dowodzi,

@@ -84,9 +84,31 @@ public class ExpenseRepository : IExpenseRepository
 			new NpgsqlParameter("dateFrom", dateFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
 			new NpgsqlParameter("dateTo", dateTo.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
 			new NpgsqlParameter("personal", scope == ExpenseAggregationScope.Personal),
+			new NpgsqlParameter("allCategories", false),
 			new NpgsqlParameter("groupId", NpgsqlDbType.Uuid) { Value = (object?)groupId ?? DBNull.Value },
 			new NpgsqlParameter("categories", categoryIds.Distinct().ToArray()))
 			.ToArrayAsync(cancellationToken);
+	}
+
+	public async Task<decimal> GetUsageTotalAsync(Guid actor, IReadOnlyList<Guid> activeGroupIds,
+		DateOnly dateFrom, DateOnly dateTo, ExpenseAggregationScope scope, Guid? groupId,
+		Guid? categoryId, CancellationToken cancellationToken = default)
+	{
+		// General budgets use the original expense/share amount; categories use the same cent allocation as Reports.
+		var total = categoryId.HasValue ? "SELECT coalesce(sum(total_amount), 0) AS \"Value\" FROM selected"
+			: scope == ExpenseAggregationScope.Personal ? "SELECT coalesce(sum(target_cents), 0) / 100 AS \"Value\" FROM actor_share"
+			: "SELECT coalesce(sum(amount), 0) AS \"Value\" FROM eligible";
+		var sql = ExpenseAggregationQueries.AllocatedAmounts + "\n" + total;
+		return await _context.Database.SqlQueryRaw<decimal>(sql,
+			new NpgsqlParameter("actor", actor),
+			new NpgsqlParameter("active", activeGroupIds.ToArray()),
+			new NpgsqlParameter("dateFrom", dateFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+			new NpgsqlParameter("dateTo", dateTo.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+			new NpgsqlParameter("personal", scope == ExpenseAggregationScope.Personal),
+			new NpgsqlParameter("allCategories", !categoryId.HasValue),
+			new NpgsqlParameter("groupId", NpgsqlDbType.Uuid) { Value = (object?)groupId ?? DBNull.Value },
+			new NpgsqlParameter("categories", categoryId.HasValue ? new[] { categoryId.Value } : Array.Empty<Guid>()))
+			.SingleAsync(cancellationToken);
 	}
 
 	private static IOrderedQueryable<Models.Expense> SortHistory(IQueryable<Models.Expense> history, ExpenseHistoryQuery query) =>

@@ -36,6 +36,7 @@ public sealed class ActiveEmailUniquenessTests : PostgresFixture
 		var migrations = context.Database.GetMigrations().ToArray();
 		var emailMigrationIndex = Array.FindIndex(migrations, m => m.EndsWith("_UserImprovements", StringComparison.Ordinal));
 		var migrator = context.GetService<IMigrator>();
+		await context.Database.ExecuteSqlRawAsync("TRUNCATE limits.user_limit_alert_state, limits.group_limit_alert_state, limits.user_limit, limits.group_limit;");
 		await migrator.MigrateAsync(migrations[emailMigrationIndex - 1]);
 		Assert.Null(await ReadEmailIndexFilterAsync());
 		await migrator.MigrateAsync();
@@ -54,6 +55,7 @@ public sealed class ActiveEmailUniquenessTests : PostgresFixture
 		await using var context = OpenAppDatabase();
 		var migrations = context.Database.GetMigrations().ToArray();
 		var emailMigrationIndex = Array.FindIndex(migrations, m => m.EndsWith("_UserImprovements", StringComparison.Ordinal));
+		await context.Database.ExecuteSqlRawAsync("TRUNCATE limits.user_limit_alert_state, limits.group_limit_alert_state, limits.user_limit, limits.group_limit;");
 		var error = await Assert.ThrowsAsync<PostgresException>(() => context.GetService<IMigrator>().MigrateAsync(migrations[emailMigrationIndex - 1]));
 		Assert.Equal(PostgresErrorCodes.UniqueViolation, error.SqlState);
 		Assert.Contains("is_active", await ReadEmailIndexFilterAsync());

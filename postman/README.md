@@ -128,7 +128,7 @@ i userIconUrlExpiresAt. Import pliku nie aktualizuje automatycznie istniejącego
 środowiska w Postmanie. Presety trzeba wgrać wcześniej pod skonfigurowany prefiks.
 
 Prefiksy User, Grouping i Receipt oraz ograniczenia transakcji opisuje
-[development](../agent-context/development.md#zdjęcia-profilu-i-prefiksy-storage).
+[User](../backend/ZPI4M.Backend/src/modules/ZPI4M.User/README.md#zdjęcia-profilu-i-prefiksy-storage).
 
 ## Google
 
@@ -165,7 +165,7 @@ resetu hasła (forgot-password → reset-password) ustawia pierwsze hasło przez
 Po ustawieniu hasła wymagane jest ponowne logowanie; Google nadal działa.
 Zmiana maila zwraca 403, niezależnie od hasła. Odłączania Google nie ma.
 Szczegółowy kontrakt i kody błędów:
-[development](../agent-context/development.md#rejestracja-i-logowanie-google).
+[User](../backend/ZPI4M.Backend/src/modules/ZPI4M.User/README.md#rejestracja-i-logowanie-google).
 ## Moduł Reports
 
 Importuj `collections/4Money.Reports.postman_collection.json` i wspólne
@@ -283,3 +283,10 @@ przykładów w kolekcji. Nie udostępniaj wartości tokenów, kodów ani Link UR
 Automatyczny folder 40 i scenariusze 50–76 kolekcji Banking opisuje
 [instrukcja symulacji refreshu](simulations/banking-refresh/README.md).
 Obejmuje Runner, lokalną atrapę Tink, HTTPS, restart workera i kontrolę SQL.
+
+### Nawigacja alertów Limits w inboxie
+
+Typy LimitApproaching (2) i LimitExceeded (3) z groupId prowadzą do listy
+limitów tej grupy. Bez groupId i expenseId prowadzą do własnej listy limitów.
+Alerty Limits zawsze mają expenseId=null. Reguły generowania i odbiorców:
+[kontrakt Limits](../backend/ZPI4M.Backend/src/modules/ZPI4M.Limits/README.md#alerty-w-inboxie).

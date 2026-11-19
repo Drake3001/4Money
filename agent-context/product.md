@@ -1,171 +1,130 @@
 # Produkt i wymagania 4Money
 
-Czytaj przy ustalaniu zachowania funkcji, zakresu MVP, UI oraz prac nad OCR,
-kategoryzacją i integracjami. Stan wykonania opisuje [status](implementation-status.md).
-
-Zakres porównano z tekstami i roadmapą w lokalnym `ZPI/doc` dnia 2026-10-21.
-Tekstowe źródła wymagań, w tym aktualne `Funkcjonalności.txt`, ponownie
-sprawdzono dnia 2026-10-23, uwzględniając aktualizację `Baza danych.txt`
-o dezaktywację konta. `Funkcjonalności.txt` i `Baza danych.txt` ponownie sprawdzono 2026-10-27;
-poniższy zakres uwzględnia aktualne oznaczenia MVP i rozszerzenia.
-Diagramy architektury, modelu konceptualnego, logicznego i podziału encji
-ponownie sprawdzono 2026-10-27. Roadmapa zachowuje datę wcześniejszego przeglądu.
-Katalog ten znajduje się poza repozytorium, pod `../doc` względem jego katalogu
-głównego; poniższe odnośniki są względne względem plików w `agent-context`.
+Ten dokument opisuje cel i zakres produktu, a nie stopień ukończenia kodu.
+Bieżące możliwości i braki są w [statusie](implementation-status.md), reguły
+modelu w [domenie](domain.md), szczegółowe kontrakty w dokumentacji modułów.
+Wymagania źródłowe są w lokalnym `../doc/` poza repozytorium. Ich oznaczenia MVP
+poniżej zachowują odrębność od późniejszych ustaleń implementacyjnych.
 
 ## Cel i odbiorcy
 
 4Money (For Money, 4M) ogranicza ręczną pracę przy rejestrowaniu, klasyfikacji
 i analizie wydatków osobistych oraz współdzielonych. Odbiorcami są osoby
-kontrolujące własny budżet, pary, rodziny, współlokatorzy i grupy wyjazdowe.
+kontrolujące budżet, pary, rodziny, współlokatorzy i grupy wyjazdowe.
 
-Wspólny model obejmuje wydatki wpisane ręcznie, odczytane z paragonu i pobrane
-z banku. Analiza schodzi do poziomu produktów: jedna płatność w supermarkecie
-może obejmować żywność, kosmetyki i chemię gospodarczą. Połączenie tego modelu
-z paragonami, bankowością i udziałami użytkowników stanowi wyróżnik produktu.
+Wspólny model łączy zakupy wpisane ręcznie, odczytane z paragonów i oparte na
+transakcjach bankowych. Wyróżnikiem jest analiza produktów, nie tylko całych
+płatności: zakup w jednym sklepie może obejmować żywność, kosmetyki i chemię.
+Kategorie pozycji pozwalają analizować te koszty niezależnie od sprzedawcy.
+Powiązanie źródeł nie oznacza utworzenia kilku wydatków dla jednego zakupu.
+
+System pokazuje udziały użytkowników i wzajemne zobowiązania. Przekazanie pieniędzy
+następuje poza aplikacją; rozliczenie w systemie jest zapisem zdarzenia, które
+już się odbyło. Sugestia rozliczenia nie jest zleceniem płatniczym.
 
 ## Reprezentatywny scenariusz
 
-1. Użytkownik płaci 183,47 zł w supermarkecie; transakcja trafia do systemu z banku.
-2. Skanuje paragon; system odczytuje sprzedawcę, datę, kwotę i pozycje.
-3. System proponuje powiązanie z transakcją na podstawie kwoty, daty i sprzedawcy.
-4. Użytkownik akceptuje lub odrzuca propozycję i poprawia wynik OCR lub kategorie.
-5. Wskazuje uczestników i proporcje podziału kosztu całego wydatku.
-6. System aktualizuje wykorzystanie limitów, raporty i salda zobowiązań.
+1. Użytkownik płaci za zakupy; transakcja trafia do systemu przez import bankowy.
+2. Przesyła paragon; OCR proponuje sprzedawcę, datę, kwotę, produkty i kategorie.
+3. Sprawdza wynik, poprawia błędy i zatwierdza formularz wydatku.
+4. Przypisuje płatnika i uczestników całego wydatku oraz proporcje podziału.
+5. System aktualizuje zobowiązania, wykorzystanie budżetów i dane do analiz.
 
-To scenariusz docelowy, a nie opis obecnego przepływu działającego end-to-end.
-Automatyczne dopasowanie paragonu do transakcji (kroki 3–4) jest obecnie
-rozszerzeniem poza MVP.
+Docelowo system może również proponować połączenie paragonu z transakcją;
+użytkownik akceptuje lub odrzuca propozycję. Automatyczne dopasowanie jest
+rozszerzeniem poza MVP. Ten scenariusz nie dowodzi działania wszystkich etapów
+end-to-end ani spełnienia celów jakościowych przez aktualną integrację.
 
 ## Zakres funkcjonalny i MVP
 
-Szczegóły Expense i otwarte decyzje opisują [ustalenia zespołu](../notes/EXPENSE_DECISIONS.md).
+Tylko podsekcje oznaczone `(MVP)` w `Funkcjonalności.txt` stanowią jawny zakres
+MVP. Obecność modelu, endpointu lub ekranu nie zmienia tej klasyfikacji.
 
-Sekcja 2 `Funkcjonalności.txt` nazywa się obecnie „Zakres funkcjonalny”.
-Tylko podsekcje oznaczone `(MVP)` traktuj jako jawnie wskazany zakres MVP.
-
-| Obszar | Wymagana możliwość | Oznaczenie w źródle |
+| Obszar | Wymagana możliwość | Oznaczenie źródłowe |
 | --- | --- | --- |
 | Konto | Rejestracja, logowanie, wylogowanie, edycja danych i danych uwierzytelniających | 2.1, MVP |
-| Wydatki | Ręczne dodawanie, historia, edycja, kategorie i wspólny model różnych źródeł | 2.2, MVP |
-| Paragony | Zdjęcie w aplikacji mobilnej, upload zdjęcia lub zrzutu ekranu, OCR pozycji i ręczna korekta | 2.3, MVP |
-| Kategoryzacja | Automatyczne propozycje dla wydatków i produktów z możliwością zmiany | 2.4, MVP |
-| Bankowość | Automatyczny import transakcji; dopuszczalny dostawca API, sandbox lub symulator | 2.5, MVP |
-| Limity | Definiowanie limitów, powiązanie z kategoriami, alerty przed przekroczeniem i po nim | 2.6, bez oznaczenia MVP |
-| Grupy | Tworzenie, zaproszenia, wiele członkostw, przypisanie wydatku i powiadomienie członków o dodaniu wydatku | 2.7, MVP |
-| Podział kosztów | Wskazanie uczestników całego wydatku, obliczenie udziałów i prezentacja wzajemnych zobowiązań | 2.8, MVP |
-| Raporty | Wydatki w czasie, kategorie, wykorzystanie limitów, struktura zakupów, finanse osobiste i grupowe | 2.9, bez oznaczenia MVP |
-| Powiadomienia | Wewnętrzna skrzynka powiadomień dotyczących konta użytkownika | 2.10, MVP |
+| Wydatki | Ręczny zapis, historia, edycja, kategorie, wspólny model źródeł | 2.2, MVP |
+| Paragony | Zdjęcie w aplikacji mobilnej, upload obrazu/zrzutu, OCR i korekta | 2.3, MVP |
+| Kategoryzacja | Propozycje dla wydatków i produktów, możliwe do zmiany | 2.4, MVP |
+| Bankowość | Import transakcji przez dostawcę, sandbox lub symulator | 2.5, MVP |
+| Limity | Definicje budżetów, kategorie, alerty przed i po przekroczeniu | 2.6, bez oznaczenia MVP |
+| Grupy | Tworzenie, zaproszenia, wiele członkostw, wydatki i powiadomienie o ich dodaniu | 2.7, MVP |
+| Podział kosztów | Uczestnicy całego wydatku, udziały, prezentacja zobowiązań | 2.8, MVP |
+| Raporty | Czas, kategorie, budżety, struktura produktów, widok osobisty i grupowy | 2.9, bez oznaczenia MVP |
+| Powiadomienia | Wewnętrzna skrzynka użytkownika | 2.10, MVP |
 
-Limity i raportowanie pozostają w zakresie funkcjonalnym; brak oznaczenia MVP
-nie oznacza usunięcia ich z projektu. Automatyczne dopasowanie przeniesiono
-do sekcji 3, mimo pozostawienia historyjki użytkownika 1.6.
+Limity i raportowanie pozostają częścią projektu mimo braku oznaczenia MVP.
+Podział całego wydatku należy do MVP, a przypisywanie uczestników do pojedynczych
+produktów jest rozszerzeniem. Odczyt i kategoryzacja produktów nie wymagają
+przez to osobnych rozliczeń każdej pozycji. Szczegóły formularza opisuje
+[Expense API](../notes/EXPENSE_API.md).
 
-MVP obejmuje podział na poziomie całego wydatku (sekcje 1.9 i 2.8
-`Funkcjonalności.txt`). Przypisywanie uczestników do poszczególnych produktów
-w ramach jednego wydatku jest rozszerzeniem poza MVP (sekcja 3).
-Odczyt pozycji paragonu i kategoryzacja produktów nadal należą do MVP;
-nie wymagają przez to rozliczania każdej pozycji między uczestnikami.
+## Uzgodnione zachowania produktu
 
-Rozliczenie finansowe odbywa się poza aplikacją. Dokumentacja nie określa jeszcze
-wszystkich reguł naliczania udziałów, zaokrągleń ani progów alertów — nie traktuj
-przypadkowo wybranych wartości jako uzgodnionych wymagań.
+Wynik OCR i kategoria są propozycjami możliwymi do ręcznej korekty. Nie zapisuj
+automatycznie wyniku ekstrakcji jako zaakceptowanego wydatku. Użytkownik musi
+mieć możliwość weryfikacji, także gdy usługa zwróci HTTP 200. Nieznana kwota,
+data lub nazwa nie uprawnia do dopowiadania danych finansowych.
 
-## Uzgodnione rozszerzenie konta
+Konta wymagają e-maila. Obsługa obejmuje potwierdzenie adresu, sesje, zmianę
+e-maila, reset hasła i uzgodnioną dezaktywację. Dezaktywacja nie jest fizycznym
+usunięciem danych ani reaktywacją. Adres nieaktywnego konta może zostać ponownie
+użyty, login pozostaje zajęty. Google nie łączy automatycznie kont lokalnych po
+zgodnym adresie. Kontrakt konta ma główne miejsce w [User](../backend/ZPI4M.Backend/src/modules/ZPI4M.User/README.md).
 
-Opis bazy w `ZPI/doc/Baza danych.txt` uwzględnia już potwierdzenie e-maila
-i `UserToken` z przeznaczeniami weryfikacji, zmiany e-maila, resetu hasła,
-odświeżania sesji oraz dezaktywacji konta (purpose 5). Lista MVP
-w `Funkcjonalności.txt` pozostaje bardziej ogólna. Bieżący kod realizuje
-rejestrację i potwierdzanie e-maila, logowanie,
-odświeżanie i wylogowanie, edycję profilu, zmianę e-maila, reset zapomnianego
-hasła oraz dezaktywację konta po potwierdzeniu tokenem z e-maila. Dezaktywacja
-ustawia IsActive = false i usuwa wszystkie tokeny konta; dane użytkownika
-pozostają w bazie. Zmiana hasła po podaniu obecnego hasła pozostaje
-niezaimplementowana; szczegóły i ograniczenia opisuje status implementacji.
-Dezaktywacja jest uzgodnionym rozszerzeniem obsługi konta; aktualna lista MVP
-w `Funkcjonalności.txt` nie wymienia jej jako osobnego punktu. Nie obejmuje
-fizycznego usuwania danych ani reaktywacji konta.
+Powiadomienia w bieżącym zakresie to inbox web/mobile i indywidualny stan odczytu.
+Powiadomienie o dołączeniu nie jest zaproszeniem push. Nie dodawaj teraz tokenów
+urządzeń, integracji dostawcy push ani kolejki wysyłki. Źródłowe wymagania alertów
+budżetu nie określają progów i częstotliwości; aktualnie uzgodnione reguły
+opisuje [Limits](../backend/ZPI4M.Backend/src/modules/ZPI4M.Limits/README.md).
 
-Wysyłanie wiadomości odbywa się przez konfigurowalny adapter SMTP. Serwer może
-należeć do zewnętrznego dostawcy, np. o2, albo być utrzymywany samodzielnie.
-Nie zapisuj danych skrzynki w kodzie ani Git.
-E-mail jest wymagany; obecna implementacja zapewnia jego unikalność wśród
-aktywnych kont i dopuszcza ponowne użycie adresu konta nieaktywnego.
-Reset przez e-mail wymaga potwierdzonego adresu.
-Te ustalenia uzupełniają dokumentację funkcjonalną; sama obecność wymagania
-nie oznacza realizacji całego przepływu ani potwierdzonego wdrożenia.
-
-## Powiadomienia
-
-`Funkcjonalności.txt` wymaga powiadomienia członków grupy o dodaniu wydatku
-(2.7, MVP) oraz alertów o zbliżaniu się do limitu i przekroczeniu limitu
-(2.6, bez oznaczenia MVP). Nie określa progów ani częstotliwości alertów.
-Wewnętrzna skrzynka jest wprost wymagana w 2.10 (MVP). Push zamiast samej
-skrzynki oraz interaktywny push po wykryciu transakcji bankowej, z opcją „tak”
-dodającą wydatek, są rozszerzeniami z sekcji 3; nie należą do bieżącego zakresu.
-
-Aktualny zakres uzgodniony z użytkownikiem to inbox w aplikacji webowej
-i mobilnej, ze stanem odczytu per użytkownik. Push odłożono do rozszerzeń;
-nie planuj teraz tokenów urządzeń, integracji dostawcy ani kolejki wysyłki.
-`Baza danych.txt` opisuje już NotificationRecipient z read_at oraz nowe pola
-Notification. Dołączanie do grupy ma odbywać się kodem lub linkiem; uzgodniony
-typ GroupMemberJoined informuje o dołączeniu, a nie stanowi zaproszenia push.
-Serwis NotifyAsync i API inboxa (lista, odczyt pojedynczy i zbiorczy) są już
-w kodzie. Przegląd implementacji z 2026-11-15 potwierdza generowanie
-ExpenseAdded, GroupMemberJoined i SettlementReceived przez Grouping oraz
-podłączony inbox webowy. Alerty Limits i aplikacja mobilna pozostają
-niezaimplementowane; szczegóły i zakres weryfikacji opisuje status implementacji.
+Budżet PLN może być kalendarzowy według Warsaw albo jednorazowy Custom ze
+skończonym zakresem dat, np. podróż 25 marca–10 kwietnia. Zakres podróży nie
+resetuje się na granicy miesiąca. Daty pozostają stałe, a po zakończeniu cel
+nie jest edytowalny. Custom działa niezależnie od innych limitów: miesięczny
+limit i 3-dniowy wyjazd mogą współistnieć, podobnie jak nakładające się wyjazdy.
+Każdy liczy pasujące wydatki i wysyła własne alerty. Zapis jednego nie wyłącza
+pozostałych. Szczegóły zakresów i konfliktów kalendarzowych należą do kontraktu
+Limits; nie wyprowadzaj reguł z dawnych modeli okresów.
 
 ## Rozszerzenia i wyłączenia
 
-Rozszerzenia poza MVP, zgodnie z sekcją 3 `Funkcjonalności.txt`:
+Rozszerzenia poza MVP obejmują automatyczne dopasowanie banku do paragonu,
+push, interaktywny push z pytaniem o dodanie transakcji jako wydatku, podział
+produktów między uczestników, przejście do widoku przelewu bankowego, integracje
+e-paragonów i MCP. Nie są automatycznie zakresem zadania dotyczącego istniejących
+wydatków lub inboxa. Źródła nie ustanawiają obecnie prognozowania przyszłych
+wydatków jako funkcji; trendy historyczne i alerty nie oznaczają takiego wymagania.
 
-- automatyczne dopasowanie transakcji bankowej do paragonu;
-- powiadomienia push zamiast jedynie wewnętrznej skrzynki w aplikacji;
-- wykrywanie transakcji bankowej i interaktywny push z pytaniem o dodanie wydatku
-  (odpowiedź „tak” dodaje wydatek);
-- przypisywanie uczestników do poszczególnych produktów w ramach jednego wydatku;
-- przekierowanie do widoku przelewu bankowego z poziomu podziału wydatków;
-- integracje z systemami e-paragonów;
-- wdrożenie MCP.
-
-Aktualny `Słownik pojęć.txt` (sprawdzony 2026-10-27) nie zawiera już pojęcia
-prognozy. Prognozowanie wydatków nie jest wymienione w obecnym zakresie
-funkcjonalnym ani rozszerzeniach; raportowanie trendów i alerty limitów
-nie oznaczają wymagania przewidywania przyszłych wydatków.
-
-Poza zakresem projektu są wykonywanie przelewów między użytkownikami,
-przechowywanie środków, obsługa kart płatniczych, zastępowanie aplikacji bankowej
-i doradztwo finansowe.
+Poza projektem są wykonywanie przelewów, przechowywanie środków, obsługa kart,
+zastępowanie aplikacji bankowej i doradztwo finansowe. Sam import danych nie
+nadaje aplikacji uprawnień do operacji na rachunku. Dostępny sandbox lub symulator
+jest dopuszczalny dla MVP; nie nazywaj go potwierdzoną integracją produkcyjną.
 
 ## Cele jakościowe
 
-| Obszar | Cel projektowy |
+| Obszar | Wymagany cel |
 | --- | --- |
 | OCR | Co najmniej 90% poprawnie odczytanych pól liczbowych |
-| OCR | Poprawna kwota do zapłaty i data zakupu dla co najmniej 95% paragonów |
+| OCR | Poprawna kwota do zapłaty i data dla co najmniej 95% paragonów |
 | Kategoryzacja | Macro F1 co najmniej 0,8 dla zdefiniowanych kategorii |
 
-Są to wymagania, a nie potwierdzone wyniki aktualnego pipeline. Repozytorium ma
-już narzędzia ewaluacji, fixture'y i historyczne analizy eksperymentów
-([instrukcja](../workers/extraction_worker/experiments/README.md),
-[notatki](../notes/ocr/)). Przegląd statyczny z 2026-10-29 potwierdza implementację
-OCR i propozycji kategorii w workerze Python; nie dowodzi spełnienia powyższych
-progów przez aktualny domyślny model. Frontend pozwala już poprawić propozycję
-OCR przed zapisem Expense; nie jest to pomiar jakości modelu.
-Przy ocenie jakości wskaż konkretny model, pipeline, zbiór i protokół pomiaru.
+To cele projektowe, nie wyniki aktualnego pipeline. Pomiar musi wskazać model,
+wersję pipeline, zbiór, metrykę i protokół. Poprawienie pojedynczego paragonu
+przez użytkownika ani historyczny eksperyment innym modelem nie dowodzą realizacji
+celu. Narzędzia: [ewaluacja workera](../workers/extraction_worker/experiments/README.md).
 
-## Plan etapów
-
-Roadmapa przewiduje kolejno: analizę i projekt systemu, rdzeń, odczyt
-i klasyfikację paragonów, Open Banking, interfejs użytkownika, raporty i analizę
-oraz integrację i finalizację. Nie zawiera terminów ani potwierdzenia ukończenia.
+Roadmapa wskazuje kolejność: analiza, rdzeń, paragony, Open Banking, UI, raporty,
+integracja i finalizacja. Nie jest harmonogramem ani potwierdzeniem ukończenia.
+Dla zadania wymagającego nowej decyzji produktu zapisz uzgodnienie w odpowiednim
+kontrakcie zamiast traktować brak szczegółu w źródłach jako dowolność implementacji.
 
 ## Źródła
 
-- [Wizja projektu](../../doc/Wizja%20projektu.txt)
-- [Funkcjonalności i zakres MVP](../../doc/Funkcjonalności.txt)
-- [Fiszka i cele jakościowe](../../doc/Fiszka%20projektowa.txt)
-- [Słownik pojęć](../../doc/Słownik%20pojęć.txt)
-- [Roadmapa](../../doc/4Money-Roadmap.jpg)
+- [Wizja](../../doc/Wizja%20projektu.txt), [funkcjonalności](../../doc/Funkcjonalności.txt),
+  [cele jakościowe](../../doc/Fiszka%20projektowa.txt).
+- [Słownik](../../doc/Słownik%20pojęć.txt), [roadmapa](../../doc/4Money-Roadmap.jpg).
+
+Dokumenty w `../../doc/` są zewnętrznymi materiałami lokalnego projektu. Przy
+rozbieżności ze źródłem nazwij różnicę i zakres ustalenia; kod potwierdza zachowanie,
+ale nie zastępuje dokumentu wymagań.

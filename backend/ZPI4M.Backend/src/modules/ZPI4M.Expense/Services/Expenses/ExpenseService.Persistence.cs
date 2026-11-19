@@ -59,8 +59,15 @@ public sealed partial class ExpenseService
 			shares.Add(new ExpenseShare { FkExpenseId = expense.Id, FkUserId = share.UserId, Percentage = share.Percentage });
 		var details = ExpenseQueryService.MapDetails(expense, expenseItems, prepared.Shares);
 		await db.SaveChangesAsync(cancellationToken);
+		await HandleChangeAsync(actor, null, details, cancellationToken);
 		await groupNotifications.NotifyAddedAsync(actor, expense.Id, expense.Name, expense.Amount, group, cancellationToken);
 		return ExpenseResult<ExpenseDetails>.Success(details);
+	}
+
+	private async Task HandleChangeAsync(Guid actor, ExpenseDetails? previous, ExpenseDetails? current, CancellationToken token)
+	{
+		foreach (var handler in changeHandlers)
+			await handler.HandleAsync(actor, previous, current, token);
 	}
 
 	private async Task<ExpenseResult<T>> ExecuteWriteAsync<T>(Func<CancellationToken, Task<ExpenseResult<T>>> action,

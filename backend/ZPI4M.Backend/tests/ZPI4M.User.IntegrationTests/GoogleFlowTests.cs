@@ -216,6 +216,7 @@ public sealed class GoogleFlowTests : PostgresFixture
 		var migrator = app.GetService<IMigrator>();
 		var migrations = app.Database.GetMigrations().ToArray();
 		var previousMigration = migrations[Array.FindIndex(migrations, m => m.EndsWith("_UserImprovements", StringComparison.Ordinal)) - 1];
+		await app.Database.ExecuteSqlRawAsync("TRUNCATE limits.user_limit_alert_state, limits.group_limit_alert_state, limits.user_limit, limits.group_limit;");
 		await migrator.MigrateAsync(previousMigration);
 		await migrator.MigrateAsync();
 		Assert.False(app.Database.HasPendingModelChanges());

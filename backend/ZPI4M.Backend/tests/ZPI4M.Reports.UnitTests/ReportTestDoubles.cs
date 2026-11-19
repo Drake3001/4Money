@@ -40,6 +40,9 @@ public class CategoryMetadataProxy : DispatchProxy
 
 public sealed class ReportsSourceStub : IExpenseAggregationService
 {
+	public Task<ExpenseResult<ExpenseUsageTotal>> GetUsageTotalAsync(Guid actor, DateOnly dateFrom, DateOnly dateTo,
+		ExpenseAggregationScope scope, Guid? groupId, Guid? categoryId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
 	public IReadOnlyList<ExpenseCategoryBreakdownItem> Categories { get; set; } = [];
 	public IReadOnlyList<ExpensePeriodCategoryTotal> Periods { get; set; } = [];
 	public IReadOnlyList<ExpenseDayOfWeekTotal> Weekdays { get; set; } = [];

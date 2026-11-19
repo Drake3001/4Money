@@ -69,3 +69,30 @@ Personal (Food/Cleaning) 5,52/1,67 i 3,50/0,34; Group 9,02/2,01.
 Usunięto wyłącznie zestawy testów dawnego odczytu i jego kalkulatora.
 Aktywne kontrakty agregacji, SQL, Reports, endpointy, historia i kalkulator udziałów
 ExpenseCalculationService nie zmieniły działania.
+
+## Zużycie budżetów Limits
+
+`IExpenseAggregationService.GetUsageTotalAsync(actor, dateFrom, dateTo, scope,
+groupId, categoryId)` zwraca ExpenseResult<ExpenseUsageTotal> z Amount decimal
+i CurrencyCode=PLN. Kategorie są opcjonalne: null liczy cały wydatek/udział,
+konkretne ID wyłącznie jego pozycje. Pusta lista kategorii w czterech metodach
+Reports nadal daje pusty raport. Brak wydatków daje zero, błąd nie daje zera.
+Zakres osobisty sumuje udziały actor, grupowy pełne kwoty dostępnych wydatków.
+Autoryzacja jest taka sama jak dla raportów; filtr nigdy nie poszerza dostępu.
+
+SQL wykorzystuje wspólne CTE i rozdzielanie groszy, bez materializacji encji.
+Budżet ogólny sumuje Amount wydatku albo kwoty udziałów; budżet kategorii
+korzysta z alokacji Reports, uwzględniając rabaty i wartości ujemne. Systemowe
+pozycje również uczestniczą w sumach. Parametry użytkownika nie są interpolowane.
+
+`IExpenseSystemAggregationService.GetGroupUsageTotalAsync(groupId, dateFrom,
+dateTo, categoryId)` jest osobnym zaufanym portem bez aktora i endpointu HTTP.
+Wymaga aktywnego IGroupingTransactionCoordinator. Wywołujący dołącza scoped
+ExpenseDbContext, blokuje grupę i sprawdza jej istnienie, archiwum i PLN.
+Odczyt ogranicza się do wskazanej grupy, nie podszywa się pod administratora.
+Widzi zapis bieżącej transakcji i sam jej nie zatwierdza.
+
+Reports i Limits przypisują także starsze rekordy z godziną do daty UTC Expense.
+Obie granice agregacji są włączne. Europe/Warsaw określa tylko dzisiejszą datę
+i wybór bieżącego okna budżetu; nie przesuwa dat zakupów. Historia HTTP zachowuje
+wyłączny koniec. Nie ma nowej migracji dat ani przekształcania starych limitów.

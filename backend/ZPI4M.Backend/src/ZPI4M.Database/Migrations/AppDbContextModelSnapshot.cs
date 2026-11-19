@@ -989,43 +989,6 @@ namespace ZPI4M.Database.Migrations
                         });
                 });
 
-            modelBuilder.Entity("ZPI4M.Limits.Models.CategoryGroupLimit", b =>
-                {
-                    b.Property<Guid>("FkCategoryId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("fk_category_id");
-
-                    b.Property<Guid>("FkGroupId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("fk_group_id");
-
-                    b.Property<decimal?>("MonthlyLimit")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)")
-                        .HasColumnName("monthly_limit")
-                        .HasDefaultValueSql("NULL::numeric");
-
-                    b.Property<decimal?>("WeeklyLimit")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)")
-                        .HasColumnName("weekly_limit")
-                        .HasDefaultValueSql("NULL::numeric");
-
-                    b.Property<decimal?>("YearLimit")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)")
-                        .HasColumnName("year_limit")
-                        .HasDefaultValueSql("NULL::numeric");
-
-                    b.HasKey("FkCategoryId", "FkGroupId")
-                        .HasName("category_group_limit_pkey");
-
-                    b.ToTable("category_group_limit", "limits");
-                });
-
             modelBuilder.Entity("ZPI4M.Limits.Models.GroupLimit", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1037,25 +1000,191 @@ namespace ZPI4M.Database.Migrations
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("amount");
 
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency_code");
+
+                    b.Property<DateOnly?>("EndDate")
+                        .HasColumnType("date")
+                        .HasColumnName("end_date");
+
                     b.Property<Guid>("GroupId")
                         .HasColumnType("uuid")
                         .HasColumnName("group_id");
+
+                    b.Property<bool>("IsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_enabled");
 
                     b.Property<int>("Period")
                         .HasColumnType("integer")
                         .HasColumnName("period");
 
+                    b.Property<DateTime>("SetDate")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("set_date")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateOnly?>("StartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("start_date");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("version")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("GroupId", "Period")
-                        .IsUnique();
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("GroupId");
+
+                    b.HasIndex("IsEnabled", "Id");
 
                     b.ToTable("group_limit", "limits", t =>
                         {
                             t.HasCheckConstraint("c_group_limit_amount", "amount > 0");
 
-                            t.HasCheckConstraint("c_group_limit_period", "period IN (1, 2, 3)");
+                            t.HasCheckConstraint("c_group_limit_currency", "currency_code = 'PLN'");
+
+                            t.HasCheckConstraint("c_group_limit_dates", "(period IN (1,2,3) AND start_date IS NULL AND end_date IS NULL) OR (period = 4 AND start_date IS NOT NULL AND end_date IS NOT NULL AND isfinite(start_date) AND isfinite(end_date) AND start_date <= end_date)");
+
+                            t.HasCheckConstraint("c_group_limit_period", "period IN (1,2,3,4)");
                         });
+                });
+
+            modelBuilder.Entity("ZPI4M.Limits.Models.GroupLimitAlertState", b =>
+                {
+                    b.Property<Guid>("LimitId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("limit_id");
+
+                    b.Property<DateOnly>("PeriodStartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("period_start_date");
+
+                    b.Property<DateTime?>("ApproachingHandledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("approaching_handled_at");
+
+                    b.Property<DateTime?>("ExceededNotifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("exceeded_notified_at");
+
+                    b.HasKey("LimitId", "PeriodStartDate");
+
+                    b.ToTable("group_limit_alert_state", "limits");
+                });
+
+            modelBuilder.Entity("ZPI4M.Limits.Models.UserLimit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency_code");
+
+                    b.Property<DateOnly?>("EndDate")
+                        .HasColumnType("date")
+                        .HasColumnName("end_date");
+
+                    b.Property<bool>("IsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_enabled");
+
+                    b.Property<int>("Period")
+                        .HasColumnType("integer")
+                        .HasColumnName("period");
+
+                    b.Property<DateTime>("SetDate")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("set_date")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateOnly?>("StartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("start_date");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("version")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("IsEnabled", "Id");
+
+                    b.ToTable("user_limit", "limits", t =>
+                        {
+                            t.HasCheckConstraint("c_user_limit_amount", "amount > 0");
+
+                            t.HasCheckConstraint("c_user_limit_currency", "currency_code = 'PLN'");
+
+                            t.HasCheckConstraint("c_user_limit_dates", "(period IN (1,2,3) AND start_date IS NULL AND end_date IS NULL) OR (period = 4 AND start_date IS NOT NULL AND end_date IS NOT NULL AND isfinite(start_date) AND isfinite(end_date) AND start_date <= end_date)");
+
+                            t.HasCheckConstraint("c_user_limit_period", "period IN (1,2,3,4)");
+                        });
+                });
+
+            modelBuilder.Entity("ZPI4M.Limits.Models.UserLimitAlertState", b =>
+                {
+                    b.Property<Guid>("LimitId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("limit_id");
+
+                    b.Property<DateOnly>("PeriodStartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("period_start_date");
+
+                    b.Property<DateTime?>("ApproachingHandledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("approaching_handled_at");
+
+                    b.Property<DateTime?>("ExceededNotifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("exceeded_notified_at");
+
+                    b.HasKey("LimitId", "PeriodStartDate");
+
+                    b.ToTable("user_limit_alert_state", "limits");
                 });
 
             modelBuilder.Entity("ZPI4M.Notifications.Models.Notification", b =>
@@ -1488,9 +1617,46 @@ namespace ZPI4M.Database.Migrations
 
             modelBuilder.Entity("ZPI4M.Limits.Models.GroupLimit", b =>
                 {
+                    b.HasOne("ZPI4M.Expense.Models.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("ZPI4M.Grouping.Models.Group", null)
                         .WithMany()
                         .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ZPI4M.Limits.Models.GroupLimitAlertState", b =>
+                {
+                    b.HasOne("ZPI4M.Limits.Models.GroupLimit", null)
+                        .WithMany()
+                        .HasForeignKey("LimitId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ZPI4M.Limits.Models.UserLimit", b =>
+                {
+                    b.HasOne("ZPI4M.Expense.Models.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("ZPI4M.User.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ZPI4M.Limits.Models.UserLimitAlertState", b =>
+                {
+                    b.HasOne("ZPI4M.Limits.Models.UserLimit", null)
+                        .WithMany()
+                        .HasForeignKey("LimitId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
                 });

@@ -32,7 +32,7 @@ authentication responses enter the normal session store; the Google ID token sta
 in component memory. Accounts requiring email confirmation display instructions.
 
 Enable Google in the API and configure its Web Client ID and authorized JavaScript
-origins as described in [development](../agent-context/development.md#rejestracja-i-logowanie-google).
+origins as described in [User documentation](../backend/ZPI4M.Backend/src/modules/ZPI4M.User/README.md#rejestracja-i-logowanie-google).
 The frontend uses the ID returned by the API, without another frontend environment
 variable. Keep the same-origin Vite proxy for the challenge cookie. When the API's
 Google integration is unavailable, regular sign-in remains usable and retrying the

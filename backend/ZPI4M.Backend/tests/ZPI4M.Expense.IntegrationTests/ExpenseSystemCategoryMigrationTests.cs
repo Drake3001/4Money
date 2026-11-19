@@ -41,6 +41,7 @@ public sealed class ExpenseSystemCategoryMigrationTests : PostgresFixture
 			VALUES ('80000000-0000-0000-0000-000000000099', '70000000-0000-0000-0000-000000000001',
 			        '30000000-0000-0000-0000-000000000005', 'Nieznane', 1, 1, true);
 			""");
+		await ExecuteAsync("TRUNCATE limits.user_limit_alert_state, limits.group_limit_alert_state, limits.user_limit, limits.group_limit;");
 		var target = PreviousMigration;
 		var error = await Assert.ThrowsAsync<PostgresException>(() => MigrateAsync(target));
 		Assert.Contains("requires empty expenses", error.MessageText);

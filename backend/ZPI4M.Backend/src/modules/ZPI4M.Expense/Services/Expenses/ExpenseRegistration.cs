@@ -29,6 +29,8 @@ public static class ExpenseRegistration
 		services.AddScoped<IExpenseService, ExpenseService>();
 		services.AddScoped<ExpenseQueryService>();
 		services.AddScoped<IExpenseAggregationService, ExpenseAggregationService>();
+		services.AddScoped<IExpenseSystemAggregationService, ExpenseSystemAggregationService>();
+		services.AddScoped<ZPI4M.Expense.Services.Categories.ICategoryLookupService, ZPI4M.Expense.Services.Categories.CategoryLookupService>();
 		return services;
 	}
 

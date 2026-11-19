@@ -9,6 +9,8 @@ TRUNCATE TABLE
     banking.bank_transaction_assignment,
     grouping.group_settlements,
     grouping.group_invitation,
+    limits.group_limit_alert_state,
+    limits.user_limit_alert_state,
     limits.group_limit,
     banking.bank_refresh_account,
     banking.bank_refresh,
@@ -24,7 +26,7 @@ TRUNCATE TABLE
     banking.bank_transaction,
     banking.bank_account,
     receipt.receipt,
-    limits.category_group_limit,
+    limits.user_limit,
     notifications.notification,
     notifications.notification_recipient;
 
@@ -119,14 +121,6 @@ INSERT INTO expense.expense_share (fk_expense_id, fk_user_id, percentage) VALUES
     ('70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 60.00),
     ('70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000002', 40.00);
 
-INSERT INTO limits.category_group_limit
-    (fk_category_id, fk_group_id, weekly_limit, monthly_limit, year_limit)
-VALUES
-    ('30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 300.00, 1200.00, 14400.00),
-    ('30000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', NULL, 2500.00, 30000.00),
-    ('30000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', NULL, 400.00, NULL),
-    ('30000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002', NULL, 300.00, NULL);
-
 INSERT INTO notifications.notification
     (_id, fk_group_id, type, title, text, created_at, fk_expense_id)
 VALUES
@@ -153,10 +147,27 @@ VALUES
 INSERT INTO grouping.group_invitation (id, group_id, created_by_user_id, token_hash, max_uses, use_count, expires_at)
 VALUES ('b0000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'synthetic-hash-not-a-real-token', 5, 1, CURRENT_TIMESTAMP + INTERVAL '7 days');
 
-INSERT INTO limits.group_limit (id, group_id, period, amount) VALUES
-    ('c0000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 1, 1000.00),
-    ('c0000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', 2, 4000.00),
-    ('c0000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001', 3, 48000.00);
+-- Final budget definitions: calendar periods 1/2/3 have no saved dates; Custom=4 has inclusive dates.
+-- Calendar uniqueness excludes Custom: overlapping trips coexist with calendar limits.
+-- Disabled examples release their scope; no historical limit conversion or seeded alert state.
+INSERT INTO limits.group_limit (id, group_id, category_id, period, amount, currency_code, is_enabled, start_date, end_date)
+VALUES
+ ('c0000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001',NULL,2,4000,'PLN',false,NULL,NULL),
+ ('c0000000-0000-0000-0000-000000000002','20000000-0000-0000-0000-000000000001',NULL,2,4500,'PLN',true,NULL,NULL),
+ ('c0000000-0000-0000-0000-000000000004','20000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001',2,1200,'PLN',true,NULL,NULL),
+ ('c0000000-0000-0000-0000-000000000005','20000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000004',1,2500,'PLN',true,NULL,NULL),
+ ('c0000000-0000-0000-0000-000000000006','20000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000002',2,400,'PLN',true,NULL,NULL),
+ ('c0000000-0000-0000-0000-000000000007','20000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000003',3,300,'PLN',true,NULL,NULL),
+ ('c0000000-0000-0000-0000-000000000008','20000000-0000-0000-0000-000000000001',NULL,4,5000,'PLN',true,(CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Warsaw')::date,((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Warsaw')::date + 14)),
+ ('c0000000-0000-0000-0000-000000000009','20000000-0000-0000-0000-000000000001',NULL,4,500,'PLN',true,(CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Warsaw')::date,((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Warsaw')::date + 7));
+INSERT INTO limits.user_limit (id,user_id,category_id,period,amount,currency_code,is_enabled,start_date,end_date)
+VALUES
+ ('d0000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001',NULL,2,3000,'PLN',false,NULL,NULL),
+ ('d0000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000001',NULL,2,3500,'PLN',true,NULL,NULL),
+ ('d0000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001',2,800,'PLN',true,NULL,NULL),
+ ('d0000000-0000-0000-0000-000000000005','10000000-0000-0000-0000-000000000002',NULL,2,2500,'PLN',true,NULL,NULL),
+ ('d0000000-0000-0000-0000-000000000006','10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001',4,1000,'PLN',true,(CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Warsaw')::date,((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Warsaw')::date + 14)),
+ ('d0000000-0000-0000-0000-000000000007','10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001',4,600,'PLN',true,(CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Warsaw')::date,((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Warsaw')::date + 7));
 
 -- Rebuild the synthetic aggregates with Expense's largest-remainder cent allocation.
 WITH exact_shares AS (
@@ -206,7 +217,7 @@ UNION ALL SELECT 'banking.bank_account', COUNT(*) FROM banking.bank_account
 UNION ALL SELECT 'banking.bank_transaction', COUNT(*) FROM banking.bank_transaction
 UNION ALL SELECT 'banking.bank_transaction_assignment', COUNT(*) FROM banking.bank_transaction_assignment
 UNION ALL SELECT 'receipt.receipt', COUNT(*) FROM receipt.receipt
-UNION ALL SELECT 'limits.category_group_limit', COUNT(*) FROM limits.category_group_limit
+UNION ALL SELECT 'limits.user_limit', COUNT(*) FROM limits.user_limit
 UNION ALL SELECT 'notifications.notification', COUNT(*) FROM notifications.notification
 UNION ALL SELECT 'notifications.notification_recipient', COUNT(*) FROM notifications.notification_recipient
 ORDER BY "table";

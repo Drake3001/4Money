@@ -30,7 +30,7 @@ public sealed partial class ExpenseService(ExpenseDbContext db, IExpenseReposito
 	IGroupingTransactionCoordinator transactions, IGroupExpenseContributionService groupExpenses,
 	IGroupExpenseNotificationService groupNotifications, IReceiptService receipts,
 	ReceiptDbContext receiptDb, ReceiptOcrProof ocrProof,
-	BankingDbContext bankingDb, IBankTransactionAssignmentService bankAssignments) : IExpenseService
+	BankingDbContext bankingDb, IBankTransactionAssignmentService bankAssignments, IEnumerable<IExpenseChangeHandler> changeHandlers) : IExpenseService
 {
 	public Task<ExpenseResult<IReadOnlyList<CategoryDetails>>> GetCategoriesAsync(CancellationToken cancellationToken = default) =>
 		queries.GetCategoriesAsync(cancellationToken);

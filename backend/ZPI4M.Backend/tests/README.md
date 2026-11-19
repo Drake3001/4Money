@@ -117,6 +117,10 @@ Rejestracja Google wymagająca potwierdzenia adresu ma osobny kontrakt:
 awaria SMTP po commicie zachowuje konto, grupę i token; testy Google sprawdzają
 ponowną wysyłkę. Reset i ustawienie pierwszego hasła zatwierdzają token
 dopiero po przyjęciu wiadomości przez atrapę SMTP.
+Limits ma osobny `ZPI4M.Limits.UnitTests`: kontrakt 10 endpointów CRUD,
+uwierzytelnienie i ICurrentUser, odpowiedzi 501, wiązanie DTO/paginacji oraz
+OpenAPI. TestServer działa bez bazy i serwisów biznesowych; testy nie potwierdzają
+docelowych uprawnień grupowych ani zapisu limitów.
 
 Uruchom z katalogu `backend/ZPI4M.Backend`:
 

@@ -118,6 +118,7 @@ public sealed class ExpenseMigrationTests : PostgresFixture
 	public async Task SquashedDowngradeRefusesExistingExpensesWithoutLosingData()
 	{
 		await SeedAsync();
+		await ExecuteAsync("TRUNCATE limits.user_limit_alert_state, limits.group_limit_alert_state, limits.user_limit, limits.group_limit;");
 		var error = await Assert.ThrowsAsync<PostgresException>(() => MigrateAsync(PreviousMigration));
 		Assert.Contains("requires empty expenses", error.MessageText);
 		Assert.Equal(7L, await ScalarAsync<long>("SELECT count(*) FROM expense.expense_item WHERE discount = 0"));

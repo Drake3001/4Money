@@ -63,7 +63,7 @@ internal static class ExpenseAggregationQueries
 			SELECT e._id, e.day, i.fk_category_id AS category_id,
 				sum(round(i.unit_price * i.quantity, 2) + i.discount) AS amount
 			FROM eligible e JOIN expense.expense_item i ON i.fk_expense_id = e._id
-			WHERE @personal OR i.fk_category_id = ANY(@categories)
+			WHERE @personal OR @allCategories OR i.fk_category_id = ANY(@categories)
 			GROUP BY e._id, e.day, i.fk_category_id
 		), category_parts AS (
 			SELECT c.*, s.target_cents,
@@ -79,7 +79,7 @@ internal static class ExpenseAggregationQueries
 			UNION ALL
 			SELECT day, category_id, amount FROM category_amounts WHERE NOT @personal
 		), selected AS (
-			SELECT * FROM amounts WHERE category_id = ANY(@categories)
+			SELECT * FROM amounts WHERE @allCategories OR category_id = ANY(@categories)
 		)
 		""";
 }

@@ -210,7 +210,7 @@ Cancellation propagates and programming errors are not reclassified as 400.
 
 Response types and validation attributes are included in the host's generated
 Development OpenAPI document. Runnable synthetic examples are in folder 80 of
-the Banking Postman collection; see [Postman instructions](../../../../../notes/POSTMAN.md#odczyt-lokalnych-rachunków-i-transakcji).
+the Banking Postman collection; see [Postman instructions](../../../../../notes/TINK_POSTMAN.md#odczyt-lokalnych-rachunków-i-transakcji).
 
 ### Connections
 

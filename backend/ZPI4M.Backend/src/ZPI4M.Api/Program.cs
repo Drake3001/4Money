@@ -28,7 +28,7 @@ using ZPI4M.Grouping.Database;
 using ZPI4M.Grouping.Repositories.GroupMemberRepository;
 using ZPI4M.Grouping.Repositories.GroupRepository;
 using ZPI4M.Limits.Database;
-using ZPI4M.Limits.Repositories.CategoryGroupLimitRepository;
+using ZPI4M.Limits.Services;
 using ZPI4M.Notifications.Database;
 using ZPI4M.Notifications.Repositories.NotificationRecipientRepository;
 using ZPI4M.Notifications.Repositories.NotificationRepository;
@@ -72,7 +72,8 @@ builder.Services.AddControllers()
 	.AddApplicationPart(typeof(ExpensesController).Assembly)
 	.AddApplicationPart(typeof(BankingController).Assembly)
 	.AddApplicationPart(typeof(ReportsController).Assembly)
-	.AddApplicationPart(typeof(ZPI4M.Grouping.ApiControllers.GroupsController).Assembly);
+	.AddApplicationPart(typeof(ZPI4M.Grouping.ApiControllers.GroupsController).Assembly)
+	.AddApplicationPart(typeof(ZPI4M.Limits.ApiControllers.UserLimitsController).Assembly);
 builder.Services.AddProblemDetails();
 builder.Services.AddAuthorization();
 builder.Services.AddTink(builder.Configuration);
@@ -170,8 +171,11 @@ builder.Services.AddScoped<IBankTransactionAssignmentRepository, BankTransaction
 builder.Services.AddScoped<IBankTransactionAssignmentService, BankTransactionAssignmentService>();
 
 // Limits module
-builder.Services.AddDbContext<LimitsDbContext>(options => options.UseNpgsql(dbConnectionString));
-builder.Services.AddScoped<ICategoryGroupLimitRepository, CategoryGroupLimitRepository>();
+builder.Services.AddLimits();
+builder.Services.AddScoped<ZPI4M.Grouping.Services.Members.IGroupMemberLookup, ZPI4M.Grouping.Services.Members.GroupMemberLookup>();
+builder.Services.AddDbContext<LimitsDbContext>((provider, options) =>
+ options.UseNpgsql(provider.GetRequiredService<NpgsqlConnection>(), contextOwnsConnection: false));
+builder.Services.AddScoped<ZPI4M.Grouping.Services.Access.IGroupAccessService, ZPI4M.Grouping.Services.Access.GroupAccessService>();
 
 // Receipt module
 builder.Services.AddDbContext<ReceiptDbContext>((provider, options) =>

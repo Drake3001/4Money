@@ -12,7 +12,7 @@ using ZPI4M.Grouping.Services.ExpenseMetadata;
 
 namespace ZPI4M.Expense.IntegrationTests;
 
-public sealed class ExpenseAggregationTests : PostgresFixture
+public sealed partial class ExpenseAggregationTests : PostgresFixture
 {
 	private static readonly Guid Group = Guid.Parse("20000000-0000-0000-0000-000000000001");
 	private static readonly Guid PrivateGroup = Guid.Parse("20000000-0000-0000-0000-000000000002");
@@ -175,11 +175,13 @@ public sealed class ExpenseAggregationTests : PostgresFixture
 						? row.CategoryId == Food ? personalFood : personalCleaning
 						: row.CategoryId == Food ? 9.02m : 2.01m;
 					Assert.Equal(expected, row.TotalAmount);
+					Assert.Equal(expected, (await service.GetUsageTotalAsync(actor, new(2029, 1, 1), new(2029, 1, 3), scope, group, row.CategoryId)).Value!.Amount);
 					Assert.Equal(row, Assert.Single((await service.GetCategoryBreakdownAsync(actor, new(2029, 1, 1),
 						new(2029, 1, 3), scope, group, [row.CategoryId])).Value!));
 				}
 				var daily = (await service.GetDailyExpenseTotalsAsync(actor, new(2029, 1, 1), new(2029, 1, 3), scope, group, [Food, Cleaning])).Value!;
 				Assert.Equal(rows.Sum(row => row.TotalAmount), daily.Sum(row => row.TotalAmount));
+				Assert.Equal(rows.Sum(row => row.TotalAmount), (await service.GetUsageTotalAsync(actor, new(2029, 1, 1), new(2029, 1, 3), scope, group, null)).Value!.Amount);
 			}
 		}
 	}
@@ -254,6 +256,7 @@ public sealed class ExpenseAggregationTests : PostgresFixture
 		{
 			var row = Assert.Single((await service.GetDailyExpenseTotalsAsync(UserId, day, day, ExpenseAggregationScope.Group, Group, [Food])).Value!);
 			Assert.Equal(new ExpenseDailyTotalsItem(day, amount), row);
+			Assert.Equal(amount, (await service.GetUsageTotalAsync(UserId, day, day, ExpenseAggregationScope.Group, Group, null)).Value!.Amount);
 		}
 		var periods = (await service.GetExpenseTotalsByPeriodAndCategoryAsync(UserId, DateOnly.MaxValue, DateOnly.MaxValue,
 			ExpenseAggregationScope.Group, Group, [Food], ExpenseTotalsGranularity.Year)).Value!;
@@ -282,6 +285,8 @@ public sealed class ExpenseAggregationTests : PostgresFixture
 		}
 		Assert.Equal(160m, Assert.Single((await service.GetCategoryBreakdownAsync(UserId, From, To,
 			ExpenseAggregationScope.Group, Group, [Food])).Value!).TotalAmount);
+		Assert.Equal(160m, (await service.GetUsageTotalAsync(UserId, From, To, ExpenseAggregationScope.Group, Group, Food)).Value!.Amount);
+		Assert.Equal(200m, (await service.GetUsageTotalAsync(UserId, From, To, ExpenseAggregationScope.Group, Group, null)).Value!.Amount);
 	}
 
 	private ExpenseDbContext OpenExpense() => new(new DbContextOptionsBuilder<ExpenseDbContext>().UseNpgsql(ConnectionString).Options);
