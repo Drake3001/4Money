@@ -4,9 +4,15 @@ This directory contains the Terraform configuration for the Proxmox lab.
 Git records the declared configuration, HCP Terraform stores the shared state,
 and GitHub Actions checks pull requests and deploys approved master commits.
 
-Terraform reads the available Proxmox nodes and declares one test VM: a full
-clone of Debian template 140 on `dell`, with VMID 250. Existing VMs and LXC
-containers remain outside this configuration.
+Terraform reads the available Proxmox nodes and declares two VMs: full clones
+of Debian Docker template 300 on `dell`. VM 250 hosts the application and VM
+255 hosts OCR. Other VMs and LXC containers remain outside this configuration.
+This step defines the machines only; it does not deploy Docker services.
+
+Local verification (2026-11-17): `terraform fmt -check -recursive` and
+`git diff --check` passed. `terraform validate` was blocked by a checksum
+mismatch between the cached Windows provider and the existing lockfile.
+No plan, apply, state change or server operation was performed.
 
 ## Configuration and state
 
@@ -15,14 +21,16 @@ containers remain outside this configuration.
 | `backend.tf` | Selects the HCP organization `zpi-proxmox-server` and workspace `proxmox-lab`. |
 | `providers.tf` | Declares the Terraform version constraint and the `bpg/proxmox` provider; connection settings come from environment variables. |
 | `main.tf` | Declares the node data source and its output. |
-| `test-vm.tf` | Declares the test VM and its cloud-init settings. |
-| `outputs.tf` | Exposes the test VM's ID, name, and node. |
+| `app-vm.tf` | Declares application VM 250 and moves the former test resource address. |
+| `ocr-vm.tf` | Declares OCR VM 255. |
+| `outputs.tf` | Exposes both VMs' IDs, names, nodes and configured addresses. |
 | `variables.tf` | Declares and validates the public SSH key supplied at runtime. |
 | `scripts/configure-test-access.py` | Reviews or applies the limited test ACLs on the Proxmox host; it is not part of CI. |
 | `scripts/check-plan.py` | Validates plan JSON against the approved VM scope without printing its values. |
 | `.terraform.lock.hcl` | Records the selected provider version and checksums; keep it in Git. |
 | `../.github/workflows/terraform.yml` | Defines PR checks and a speculative plan. |
 | `../.github/workflows/terraform-deploy.yml` | Plans and applies the exact master commit after merge. |
+| `../.github/workflows/deployment.yml` | Coordinates CI/images, Terraform, and optional application deployment through reusable workflows and needs. |
 
 The HCP workspace uses **Local execution mode**. Terraform commands execute on
 the developer's computer or the self-hosted runner; HCP stores and locks the
@@ -33,28 +41,40 @@ CI uses Terraform CLI `1.15.9`. The provider constraint is `~> 0.112.0`, with
 version `0.112.0` selected by the lockfile. Provider upgrades should be reviewed
 along with the resulting lockfile changes.
 
-## Test VM
+## Application and OCR VMs
 
 | Setting | Value |
 | --- | --- |
-| VMID / name | `250` / `terraform-test-250` |
-| Host / source | `dell` / full clone of Debian template `140` |
-| CPU / memory | 2 cores / 2048 MiB |
-| Disk | 8 GiB on `local-lvm`, `scsi0` |
-| Network | VirtIO on `vmbr0`, IPv4 via DHCP |
+| VMID / name | `250` / `4money-app`; `255` / `4money-ocr` |
+| Host / source | `dell` / full clones of Debian Docker template `300` |
+| CPU / memory | Each: 2 cores / 4096 MiB (initial values matching template configuration) |
+| Disk | Each: 60 GiB on `local-lvm`, `scsi0` |
+| Network | VirtIO on `vmbr0`; app `192.168.0.220/24`, OCR `192.168.0.221/24` |
+| Gateway / DNS | `192.168.0.1` (assumes the existing LAN router also provides DNS) |
 | Guest login | `debian`, using the public key from `TEST_VM_SSH_PUBLIC_KEY` |
-| Power state | Stopped after creation; host autostart disabled |
+| Power state | Started after creation; host autostart enabled |
+
+The `moved` block maps the previous `proxmox_virtual_environment_vm.test`
+resource to `proxmox_virtual_environment_vm.app`. Moving the state address
+does not itself recreate the VM, but changing the clone source from 140 to
+300 is expected to require replacement. The old `terraform-test-250` VM is
+explicitly disposable; review its deletion/recreation in the plan. Do not
+manually delete it or remove its state. VM 255 must remain available.
+
+Before apply, reserve .220/.221 outside the DHCP pool and confirm host capacity
+for both full clones. These are configured static addresses, not observed IPs.
+Cloud-init and the guest agent must be installed in template 300; enabling
+their Proxmox configuration does not prove they work inside the clones.
 
 The shared access key belongs to VM 205. Store its public part in the GitHub
 repository variable `TEST_VM_SSH_PUBLIC_KEY`; keep its private part on VM 205.
-Contributors connect to VM 205 through Tailscale, then use SSH to the test VMs
-over the LAN. The test VMs do not need their own Tailscale registration for this
+Contributors connect to VM 205 through Tailscale, then use SSH to the new VMs
+over the LAN. The VMs do not need their own Tailscale registration for this
 access path, provided VM 205 can reach them and their SSH service is available.
-Guest agent support is enabled, but IP discovery is disabled so provisioning a
-stopped VM does not wait for a guest agent. Enabling discovery later requires
+Guest agent support is enabled, but IP discovery is disabled because addresses
+are configured statically. Enabling discovery later requires
 verifying the guest installation and reviewing the required API permissions.
-To start the VM through Terraform, change `started` to `true` and review and
-apply the resulting plan. Expanding the virtual disk may also require guest
+Expanding the virtual disk may also require guest
 partition and filesystem expansion, depending on the image's cloud-init setup.
 
 ## Everyday change workflow
@@ -67,8 +87,9 @@ partition and filesystem expansion, depending on the image's cloud-init setup.
 4. Review the **Terraform checks and plan** job, especially the proposed changes
    in the **Terraform Plan** log. Review any proposed creation, replacement, or
    deletion of resources before approving the change.
-5. After approval, merge the PR. The push to `master` starts **Terraform Deploy**:
-   it creates a fresh plan, checks its scope, and applies that saved plan. There
+5. After approval, merge the PR. The push to `master` starts **Deployment**:
+   after successful CI and image publication it calls **Terraform Deploy**, which
+   creates a fresh plan, checks its scope, and applies that saved plan. There
    is no second deployment approval. Review deletions and replacements in the PR.
 
 ## GitHub Actions pipelines
@@ -79,8 +100,14 @@ check. It checks runner tools, runs the deployment safeguard tests, formatting,
 initialization, validation, and planning, then validates the plan scope. It does
 not apply changes. Manual execution remains available for trusted branches.
 
-**Terraform Deploy** runs on every push to `master`, including merges, without a
-path filter. It supports **Actions → Terraform Deploy → Run workflow**, but
+**Deployment** runs on every push to `master`, including merges, without a
+path filter. It calls **Publish images** (including Backend CI), then
+**Terraform Deploy**, then its own optional **Deploy OCR and APP** job. The first
+two stages use workflow_call; needs orders all stages. Terraform Deploy has no independent push trigger, so it is not run
+twice for the same push. Infrastructure runs even while SERVER_DEPLOY_ENABLED
+is unset; that variable gates only application containers. There is no polling
+job waiting for infrastructure. Terraform Deploy still supports
+**Actions → Terraform Deploy → Run workflow** for infrastructure alone, but
 only when `master` is selected. Manual execution requires the workflow to be
 present on the default branch. Both workflows use `self-hosted`, `Linux`, and
 `X64` labels, matching `dell-runner` on VM 205, and run from `proxmox-infra/`.
@@ -123,8 +150,10 @@ and developer computers; a PR may need rerunning if the lock wait expires.
 Protect `master` with one PR approval, stale approvals dismissed after new
 commits, the required `Terraform checks and plan` check, an up-to-date branch,
 and enforcement for administrators. Force pushes and branch deletion remain
-blocked. The first merge containing the deployment workflow activates it and
-will provision VM 250 if that is still the reviewed plan.
+blocked. The first merge containing the server workflow activates it and,
+after successful CI and image publication, applies the reviewed configuration.
+In particular, merging these VM changes
+can replace test VM 250 and create VM 255; no separate apply approval follows.
 
 ## Runtime credentials and connection settings
 
@@ -178,7 +207,8 @@ the secret. Its value must be the token itself, without a `Bearer` prefix.
 
 ## Deployment failures and recovery
 
-After merge, inspect **Terraform Deploy**, not just the PR check. Success with
+After merge, inspect the **Infrastructure** stage of **Deployment**,
+including the called **Terraform Deploy**, not just the PR check. Success with
 an applied plan means Terraform completed and wrote state to HCP; success with
 no changes means the workspace already matches the configuration. A superseded
 run is also successful but explicitly reports that it skipped application.
@@ -206,7 +236,7 @@ sudo privileges to provision VMs. Administrative ACL setup remains separate.
 
 ## Test API permissions
 
-The configured principal is `terraform@pve!lab`. Its approved test scope is:
+The configured principal is `terraform@pve!lab`. Its existing test scope is:
 
 | ACL path | Role | Access |
 | --- | --- | --- |
@@ -222,12 +252,21 @@ Existing `PVEAuditor` access is retained; write access is not granted to existin
 production VM IDs. ACLs are assigned to both the user and token without propagation.
 The current token uses `privsep=0`, so its effective privileges follow the user.
 
+**Before using template 300**, an administrator must verify/grant
+`PVETemplateUser` on `/vms/300` to the user/token as appropriate to token
+privilege separation. The existing ACL on `/vms/140` does not grant access to
+300. This configuration-only step does not change server ACLs. VMIDs 250 and
+255 are already within the existing 250–255 policy scope.
+
 This reserves an automation permission scope, not the VMIDs themselves: an
 administrator can still allocate a VMID in this range. Check the inventory
-before creating a new VM. The Terraform configuration currently declares only
-VM 250; adding ACLs for 251–255 does not create those VMs.
+before creating a new VM. The Terraform configuration declares VM 250 and
+VM 255; adding ACLs does not create VMs.
 
-Review the commands from the repository root without making changes:
+The following script documents the original setup for template 140 and an
+empty VM range. Do not rerun it for this migration: VM 250 already exists,
+and it does not configure cloning access to template 300.
+For reference, its review-only invocation from the repository root is:
 
 ```bash
 ssh -F /dev/null root@192.168.0.232 python3 - < proxmox-infra/scripts/configure-test-access.py

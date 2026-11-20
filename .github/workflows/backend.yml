@@ -5,6 +5,7 @@ on:
     branches: [master]
     types: [opened, reopened, synchronize]
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -16,7 +17,7 @@ concurrency:
 jobs:
   hygiene:
     name: Repository hygiene
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     container:
       image: ghcr.io/astral-sh/uv:0.9.4-python3.12-bookworm
@@ -57,7 +58,7 @@ jobs:
 
   backend:
     name: Backend checks
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     container:
       image: mcr.microsoft.com/dotnet/sdk:10.0

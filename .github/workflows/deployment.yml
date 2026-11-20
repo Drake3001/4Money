@@ -1,0 +1,61 @@
+name: Deployment
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Keep the entire release sequence in order without cancelling an active deployment.
+concurrency:
+  group: server-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  images:
+    name: CI and images
+    if: github.ref == 'refs/heads/master'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/images.yml
+
+  infrastructure:
+    name: Infrastructure
+    needs: images
+    uses: ./.github/workflows/terraform-deploy.yml
+    secrets:
+      TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+      PROXMOX_VE_API_TOKEN: ${{ secrets.PROXMOX_VE_API_TOKEN }}
+
+  deploy:
+    name: Deploy OCR and APP
+    needs: infrastructure
+    if: github.ref == 'refs/heads/master' && vars.SERVER_DEPLOY_ENABLED == 'true'
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Check current master before SSH
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 proxmox-infra/scripts/check-current-master.py
+      - name: Transfer configuration and deploy
+        if: steps.current.outputs.current == 'true'
+        env:
+          SERVER_SSH_KEY_PATH: ${{ vars.SERVER_SSH_KEY_PATH }}
+          SERVER_KNOWN_HOSTS_PATH: ${{ vars.SERVER_KNOWN_HOSTS_PATH }}
+        run: bash containers/server/scripts/deploy-remote.sh "sha-$GITHUB_SHA"
+      - name: Summarize deployment
+        if: steps.current.outputs.current == 'true' && success()
+        run: echo "Deployed OCR and APP with image tag sha-$GITHUB_SHA." >> "$GITHUB_STEP_SUMMARY"

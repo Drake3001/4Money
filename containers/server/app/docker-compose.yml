@@ -1,0 +1,151 @@
+name: zpi4m-app
+
+services:
+  backend:
+    image: ${IMAGE_PREFIX:?Set IMAGE_PREFIX in .env}-backend:${IMAGE_TAG:?Set IMAGE_TAG in .env}
+    environment:
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:?Set ASPNETCORE_ENVIRONMENT in .env}
+      REVERSE_PROXY_IP: 172.30.10.2
+      POSTGRES_HOST: postgres-db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      USERAUTHENTICATION__SIGNINGKEY: ${USERAUTHENTICATION__SIGNINGKEY:?Set USERAUTHENTICATION__SIGNINGKEY in .env}
+      RECEIPTOCRPROOF__SIGNINGKEY: ${RECEIPTOCRPROOF__SIGNINGKEY:?Set RECEIPTOCRPROOF__SIGNINGKEY in .env}
+      GOOGLEAUTHENTICATION__CLIENTID: ${GOOGLEAUTHENTICATION__CLIENTID?Set GOOGLEAUTHENTICATION__CLIENTID in .env}
+      SMTP__HOST: ${SMTP__HOST?Set SMTP__HOST in .env}
+      SMTP__USERNAME: ${SMTP__USERNAME?Set SMTP__USERNAME in .env}
+      SMTP__PASSWORD: ${SMTP__PASSWORD?Set SMTP__PASSWORD in .env}
+      TINK__CLIENTID: ${TINK__CLIENTID?Set TINK__CLIENTID in .env}
+      TINK__CLIENTSECRET: ${TINK__CLIENTSECRET?Set TINK__CLIENTSECRET in .env}
+      OCR__BASEURL: http://192.168.0.221:${EXTRACTION_PORT:?Set EXTRACTION_PORT in .env}
+      STORAGE__ENDPOINT: http://seaweedfs:8333
+      STORAGE__BUCKET: ${STORAGE__BUCKET:?Set STORAGE__BUCKET in .env}
+      STORAGE__ACCESSKEY: ${STORAGE__ACCESSKEY:?Set STORAGE__ACCESSKEY in .env}
+      STORAGE__SECRETKEY: ${STORAGE__SECRETKEY:?Set STORAGE__SECRETKEY in .env}
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_started
+    networks:
+      api:
+        aliases:
+          - backend-api
+      database:
+      storage:
+      outbound:
+    restart: unless-stopped
+
+  postgres-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+    volumes:
+      - zpi4m_pgdata:/var/lib/postgresql/data
+      - ../../../database/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - database
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrations:
+    image: ${IMAGE_PREFIX:?Set IMAGE_PREFIX in .env}-migrations:${IMAGE_TAG:?Set IMAGE_TAG in .env}
+    profiles: [maintenance]
+    environment:
+      POSTGRES_HOST: postgres-db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    networks:
+      - database
+    restart: "no"
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.48
+    command:
+      - mini
+      - -dir=/data
+      - -ip=127.0.0.1
+      - -ip.bind=0.0.0.0
+      - -webdav=false
+      - -admin.ui=false
+      - -s3.autoCreateBucket=false
+      - -bucket=${STORAGE__BUCKET:?Set STORAGE__BUCKET in .env}
+      - -master.volumeSizeLimitMB=128
+      - -volume.max=8
+    environment:
+      AWS_ACCESS_KEY_ID: ${STORAGE__ACCESSKEY:?Set STORAGE__ACCESSKEY in .env}
+      AWS_SECRET_ACCESS_KEY: ${STORAGE__SECRETKEY:?Set STORAGE__SECRETKEY in .env}
+    volumes:
+      - storage_data:/data
+    networks:
+      - storage
+    restart: unless-stopped
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  frontend:
+    image: ${IMAGE_PREFIX:?Set IMAGE_PREFIX in .env}-frontend:${IMAGE_TAG:?Set IMAGE_TAG in .env}
+    environment:
+      EDGE_PROXY_IP: ${EDGE_PROXY_IP:?Set EDGE_PROXY_IP in .env}
+      STORAGE_BUCKET: ${STORAGE__BUCKET:?Set STORAGE__BUCKET in .env}
+      NGINX_ENVSUBST_FILTER: '^(EDGE_PROXY_IP|STORAGE_BUCKET)'
+    ports:
+      - "${FRONTEND_BIND_IP:?Set FRONTEND_BIND_IP in .env}:${FRONTEND_PORT:?Set FRONTEND_PORT in .env}:8080"
+    volumes:
+      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+    networks:
+      api:
+        ipv4_address: 172.30.10.2
+      storage:
+      ingress:
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+networks:
+  api:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.10.0/24
+  database:
+    internal: true
+  storage:
+    internal: true
+  outbound:
+  ingress:
+
+volumes:
+  zpi4m_pgdata:
+    name: ${POSTGRES_VOLUME_NAME:?Set POSTGRES_VOLUME_NAME in .env}
+  storage_data:
+    name: ${STORAGE_VOLUME_NAME:?Set STORAGE_VOLUME_NAME in .env}

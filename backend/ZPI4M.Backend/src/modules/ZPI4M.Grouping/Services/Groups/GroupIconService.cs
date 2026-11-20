@@ -5,7 +5,7 @@ namespace ZPI4M.Grouping.Services.Groups;
 public sealed class GroupIconService(IObjectStorage storage, Microsoft.Extensions.Configuration.IConfiguration config,
  Microsoft.Extensions.Logging.ILogger<GroupIconService> logger) : IGroupIconService
 {
-	private string Prefix => config["GROUP_ICON_PRESET_PREFIX"] ?? "icons/presets/groups/";
+	private string Prefix => config["Storage:GroupIconPresetPrefix"] ?? "icons/presets/groups/";
 	private static bool Image(string key) => new[] { ".png", ".jpg", ".jpeg", ".webp" }.Contains(Path.GetExtension(key).ToLowerInvariant());
 	public async Task<bool> IsPresetAsync(string key, CancellationToken ct) => (await storage.ListKeysAsync(Prefix, ct)).Any(k => k == key && Image(k));
 	public async Task<IReadOnlyList<GroupIconPreset>> GetPresetsAsync(CancellationToken ct)

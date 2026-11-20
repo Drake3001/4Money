@@ -584,7 +584,7 @@ public sealed class ReceiptServiceTests
 				.Options;
 			Context = new ReceiptDbContext(ContextOptions);
 			Service = new ReceiptService(new ReceiptRepository(Context), Context, analysis ?? Analysis, Storage, Logger, Clock,
-				new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["RECEIPT_STORAGE_PREFIX"] = prefix }).Build());
+				new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Storage:ReceiptStoragePrefix"] = prefix }).Build());
 		}
 
 		public async Task<Models.Receipt> SeedAsync()

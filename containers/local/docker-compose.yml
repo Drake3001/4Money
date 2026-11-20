@@ -1,27 +1,50 @@
 name: zpi4m
 
 services:
-  frontend:
+  backend:
     build:
-      context: ../../frontend
-      dockerfile: ../containers/local/Dockerfile.frontend
+      context: ../../backend/ZPI4M.Backend
+      dockerfile: ../../containers/dockerfiles/Dockerfile.backend
     environment:
-      FRONTEND_USE_POLLING: ${FRONTEND_USE_POLLING:-true}
-      API_PROXY_TARGET: http://backend:8080
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:?Set ASPNETCORE_ENVIRONMENT in containers/local/.env}
+      POSTGRES_HOST: postgres-db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in containers/local/.env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in containers/local/.env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in containers/local/.env}
+      USERAUTHENTICATION__SIGNINGKEY: ${USERAUTHENTICATION__SIGNINGKEY:?Set USERAUTHENTICATION__SIGNINGKEY in containers/local/.env}
+      RECEIPTOCRPROOF__SIGNINGKEY: ${RECEIPTOCRPROOF__SIGNINGKEY:?Set RECEIPTOCRPROOF__SIGNINGKEY in containers/local/.env}
+      GOOGLEAUTHENTICATION__CLIENTID: ${GOOGLEAUTHENTICATION__CLIENTID?Set GOOGLEAUTHENTICATION__CLIENTID in containers/local/.env}
+      SMTP__HOST: ${SMTP__HOST?Set SMTP__HOST in containers/local/.env}
+      SMTP__USERNAME: ${SMTP__USERNAME?Set SMTP__USERNAME in containers/local/.env}
+      SMTP__PASSWORD: ${SMTP__PASSWORD?Set SMTP__PASSWORD in containers/local/.env}
+      TINK__CLIENTID: ${TINK__CLIENTID?Set TINK__CLIENTID in containers/local/.env}
+      TINK__CLIENTSECRET: ${TINK__CLIENTSECRET?Set TINK__CLIENTSECRET in containers/local/.env}
+      OCR__BASEURL: http://extraction-worker:8000
+      STORAGE__ENDPOINT: http://seaweedfs:8333
+      STORAGE__BUCKET: ${STORAGE__BUCKET:?Set STORAGE__BUCKET in containers/local/.env}
+      STORAGE__ACCESSKEY: ${STORAGE__ACCESSKEY:?Set STORAGE__ACCESSKEY in containers/local/.env}
+      STORAGE__SECRETKEY: ${STORAGE__SECRETKEY:?Set STORAGE__SECRETKEY in containers/local/.env}
     ports:
-      - "${FRONTEND_BIND_IP:-127.0.0.1}:${FRONTEND_PORT:-5173}:5173"
-    volumes:
-      - ../../frontend:/app
-      - frontend_node_modules:/app/node_modules
+      - "${BACKEND_BIND_IP:?Set BACKEND_BIND_IP in containers/local/.env}:${BACKEND_PORT:?Set BACKEND_PORT in containers/local/.env}:8080"
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_started
+      extraction-worker:
+        condition: service_started
+    restart: unless-stopped
 
   postgres-db:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in containers/local/.env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in containers/local/.env}
-      POSTGRES_DB: ${POSTGRES_DB:-zpi4m_db}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in containers/local/.env}
     ports:
-      - "${POSTGRES_BIND_IP:-127.0.0.1}:${POSTGRES_PORT:-5434}:5432"
+      - "${POSTGRES_BIND_IP:?Set POSTGRES_BIND_IP in containers/local/.env}:${POSTGRES_PORT:?Set POSTGRES_PORT in containers/local/.env}:5432"
     volumes:
       - zpi4m_pgdata:/var/lib/postgresql/data
       - ../../database/init:/docker-entrypoint-initdb.d
@@ -42,14 +65,14 @@ services:
       - -webdav=false
       - -admin.ui=false
       - -s3.autoCreateBucket=false
-      - -bucket=${STORAGE_BUCKET:-receipts}
+      - -bucket=${STORAGE__BUCKET:?Set STORAGE__BUCKET in containers/local/.env}
       - -master.volumeSizeLimitMB=128
       - -volume.max=8
     environment:
-      AWS_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY:?Set STORAGE_ACCESS_KEY in containers/local/.env}
-      AWS_SECRET_ACCESS_KEY: ${STORAGE_SECRET_KEY:?Set STORAGE_SECRET_KEY in containers/local/.env}
+      AWS_ACCESS_KEY_ID: ${STORAGE__ACCESSKEY:?Set STORAGE__ACCESSKEY in containers/local/.env}
+      AWS_SECRET_ACCESS_KEY: ${STORAGE__SECRETKEY:?Set STORAGE__SECRETKEY in containers/local/.env}
     ports:
-      - "${STORAGE_BIND_IP:-127.0.0.1}:${STORAGE_PORT:-8333}:8333"
+      - "${STORAGE_BIND_IP:?Set STORAGE_BIND_IP in containers/local/.env}:${STORAGE_PORT:?Set STORAGE_PORT in containers/local/.env}:8333"
     volumes:
       - storage_data:/data
     restart: unless-stopped
@@ -60,26 +83,39 @@ services:
         max-size: "5m"
         max-file: "2"
 
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: ../containers/dockerfiles/Dockerfile.frontend.local
+    environment:
+      FRONTEND_USE_POLLING: ${FRONTEND_USE_POLLING:?Set FRONTEND_USE_POLLING in containers/local/.env}
+      API_PROXY_TARGET: http://backend:8080
+    ports:
+      - "${FRONTEND_BIND_IP:?Set FRONTEND_BIND_IP in containers/local/.env}:${FRONTEND_PORT:?Set FRONTEND_PORT in containers/local/.env}:5173"
+    volumes:
+      - ../../frontend:/app
+      - frontend_node_modules:/app/node_modules
+
   extraction-worker:
     build:
       context: ../../workers/extraction_worker
-      dockerfile: ../../containers/local/Dockerfile.worker
+      dockerfile: ../../containers/dockerfiles/Dockerfile.worker
     environment:
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
-      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemini-3.1-flash-lite}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
-      EXTRACTION_WORKFLOW: ${EXTRACTION_WORKFLOW:-vision_ocr}
-      EXTRACTION_VISION_ROUTING: ${EXTRACTION_VISION_ROUTING:-throughput}
-      EXTRACTION_MAX_FILE_BYTES: ${EXTRACTION_MAX_FILE_BYTES:-20971520}
-      EXTRACTION_MAX_REQUEST_BYTES: ${EXTRACTION_MAX_REQUEST_BYTES:-52428800}
-      EXTRACTION_MAX_PAGE_PIXELS: ${EXTRACTION_MAX_PAGE_PIXELS:-50000000}
-      EXTRACTION_MAX_DOCUMENT_PIXELS: ${EXTRACTION_MAX_DOCUMENT_PIXELS:-100000000}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY?Set OPENROUTER_API_KEY in containers/local/.env}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:?Set OPENROUTER_BASE_URL in containers/local/.env}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:?Set OPENROUTER_MODEL in containers/local/.env}
+      GEMINI_API_KEY: ${GEMINI_API_KEY?Set GEMINI_API_KEY in containers/local/.env}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY?Set NVIDIA_API_KEY in containers/local/.env}
+      EXTRACTION_WORKFLOW: ${EXTRACTION_WORKFLOW:?Set EXTRACTION_WORKFLOW in containers/local/.env}
+      EXTRACTION_VISION_ROUTING: ${EXTRACTION_VISION_ROUTING:?Set EXTRACTION_VISION_ROUTING in containers/local/.env}
+      EXTRACTION_MAX_FILE_BYTES: ${EXTRACTION_MAX_FILE_BYTES:?Set EXTRACTION_MAX_FILE_BYTES in containers/local/.env}
+      EXTRACTION_MAX_REQUEST_BYTES: ${EXTRACTION_MAX_REQUEST_BYTES:?Set EXTRACTION_MAX_REQUEST_BYTES in containers/local/.env}
+      EXTRACTION_MAX_PAGE_PIXELS: ${EXTRACTION_MAX_PAGE_PIXELS:?Set EXTRACTION_MAX_PAGE_PIXELS in containers/local/.env}
+      EXTRACTION_MAX_DOCUMENT_PIXELS: ${EXTRACTION_MAX_DOCUMENT_PIXELS:?Set EXTRACTION_MAX_DOCUMENT_PIXELS in containers/local/.env}
     ports:
-      - "${EXTRACTION_BIND_ADDRESS:-127.0.0.1}:${EXTRACTION_PORT:-8000}:8000"
+      - "${EXTRACTION_BIND_ADDRESS:?Set EXTRACTION_BIND_ADDRESS in containers/local/.env}:${EXTRACTION_PORT:?Set EXTRACTION_PORT in containers/local/.env}:8000"
     volumes:
-      - model-cache:/app/.cache
+      - model_cache:/app/.cache
     tmpfs:
       - /tmp
     restart: unless-stopped
@@ -90,61 +126,11 @@ services:
       start_period: 180s
       retries: 3
 
-  backend:
-    build:
-      context: ../../backend/ZPI4M.Backend
-      dockerfile: ../../containers/local/Dockerfile.backend
-    environment:
-      ASPNETCORE_HTTP_PORTS: "8080"
-      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
-      FRONTEND_URL: ${FRONTEND_URL:?Set FRONTEND_URL in containers/local/.env}
-      DB_LOCAL_CONNECTION_STRING: 'Host=postgres-db;Port=5432;Database=${POSTGRES_DB:-zpi4m_db};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}'
-      USERAUTHENTICATION__SIGNINGKEY: ${USERAUTHENTICATION__SIGNINGKEY:?Set USERAUTHENTICATION__SIGNINGKEY in containers/local/.env}
-      RECEIPTOCRPROOF__SIGNINGKEY: ${RECEIPTOCRPROOF__SIGNINGKEY:?Set RECEIPTOCRPROOF__SIGNINGKEY in containers/local/.env}
-      GOOGLEAUTHENTICATION__ENABLED: ${GOOGLEAUTHENTICATION__ENABLED:-false}
-      GOOGLEAUTHENTICATION__CLIENTID: ${GOOGLEAUTHENTICATION__CLIENTID:-}
-      TINK__CLIENTID: ${TINK__CLIENTID:-}
-      TINK__CLIENTSECRET: ${TINK__CLIENTSECRET:-}
-      TINK__REDIRECTURI: ${TINK__REDIRECTURI:-http://localhost:5283/api/banking/tink/callback}
-      TINK__CONTINUOUSACCESSVERIFIED: ${TINK__CONTINUOUSACCESSVERIFIED:-false}
-      BANKING__ATTEMPTLIFETIMEMINUTES: ${BANKING__ATTEMPTLIFETIMEMINUTES:-15}
-      SMTP__HOST: ${SMTP__HOST:-smtp.example.com}
-      SMTP__PORT: ${SMTP__PORT:-587}
-      SMTP__SECURITYMODE: ${SMTP__SECURITYMODE:-StartTls}
-      SMTP__CHECKCERTIFICATEREVOCATION: ${SMTP__CHECKCERTIFICATEREVOCATION:-true}
-      SMTP__USERNAME: ${SMTP__USERNAME:-}
-      SMTP__PASSWORD: ${SMTP__PASSWORD:-}
-      SMTP__SENDEREMAIL: ${SMTP__SENDEREMAIL:-noreply@example.com}
-      SMTP__SENDERNAME: ${SMTP__SENDERNAME:-4Money}
-      SMTP__TIMEOUTSECONDS: ${SMTP__TIMEOUTSECONDS:-30}
-      OCR_BASE_URL: http://extraction-worker:8000
-      OCR_TIMEOUT_SECONDS: ${OCR_TIMEOUT_SECONDS:-120}
-      STORAGE_ENDPOINT: http://seaweedfs:8333
-      STORAGE_PUBLIC_ENDPOINT: ${STORAGE_PUBLIC_ENDPOINT:-http://localhost:8333}
-      STORAGE_BUCKET: ${STORAGE_BUCKET:-receipts}
-      STORAGE_REGION: ${STORAGE_REGION:-us-east-1}
-      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
-      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
-      STORAGE_URL_EXPIRATION_MINUTES: ${STORAGE_URL_EXPIRATION_MINUTES:-15}
-      USER_ICON_PRESET_PREFIX: ${USER_ICON_PRESET_PREFIX:-icons/presets/users/}
-      GROUP_ICON_PRESET_PREFIX: ${GROUP_ICON_PRESET_PREFIX:-icons/presets/groups/}
-      RECEIPT_STORAGE_PREFIX: ${RECEIPT_STORAGE_PREFIX:-receipts/}
-    ports:
-      - "${BACKEND_BIND_IP:-127.0.0.1}:${BACKEND_PORT:-5283}:8080"
-    depends_on:
-      postgres-db:
-        condition: service_healthy
-      seaweedfs:
-        condition: service_started
-      extraction-worker:
-        condition: service_started
-    restart: unless-stopped
-
 volumes:
   frontend_node_modules:
   zpi4m_pgdata:
-    name: ${POSTGRES_VOLUME_NAME:-zpi4m_zpi4m_pgdata}
+    name: ${POSTGRES_VOLUME_NAME:?Set POSTGRES_VOLUME_NAME in containers/local/.env}
   storage_data:
-    name: ${STORAGE_VOLUME_NAME:-zpi4m_storage_data}
-  model-cache:
-    name: ${EXTRACTION_VOLUME_NAME:-extraction_worker_model-cache}
+    name: ${STORAGE_VOLUME_NAME:?Set STORAGE_VOLUME_NAME in containers/local/.env}
+  model_cache:
+    name: ${EXTRACTION_VOLUME_NAME:?Set EXTRACTION_VOLUME_NAME in containers/local/.env}

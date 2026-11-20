@@ -10,7 +10,7 @@ public sealed class UserIconService(
 	IConfiguration config,
 	ILogger<UserIconService> logger) : IUserIconService
 {
-	private string PresetPrefix => config["USER_ICON_PRESET_PREFIX"] ?? "icons/presets/users/";
+	private string PresetPrefix => config["Storage:UserIconPresetPrefix"] ?? "icons/presets/users/";
 
 	public async Task<IReadOnlyList<UserIconPreset>> GetPresetsAsync(CancellationToken cancellationToken = default)
 	{

@@ -19,7 +19,7 @@ if (args.Length == 0 || args is ["--help"] or ["-h"])
 
 		Defaults: ZPI4M.Database, startup ZPI4M.Api, context AppDbContext.
 		Explicit --project/-p, --startup-project/-s and --context/-c replace defaults.
-		EF runs in the API directory, where its .env is loaded by the host.
+		EF runs in the API directory; the context factory loads containers/local/.env outside Docker.
 		migrations list checks the database; has-pending-model-changes checks the model.
 		database update changes the configured database. No migration runs by default.
 		Use a subcommand's --help to see EF options. Exit codes are passed through.

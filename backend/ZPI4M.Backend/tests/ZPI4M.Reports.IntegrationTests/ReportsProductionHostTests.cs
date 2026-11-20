@@ -1,11 +1,13 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Npgsql;
 using Xunit;
 using ZPI4M.Expense.IntegrationTests;
 
@@ -39,23 +41,29 @@ public sealed class ReportsProductionHostTests : PostgresFixture
 		start.ArgumentList.Add(assembly);
 		start.ArgumentList.Add("--contentRoot");
 		start.ArgumentList.Add(apiDirectory);
+		var database = new NpgsqlConnectionStringBuilder(ConnectionString);
 		var environment = new Dictionary<string, string>
 		{
 			["ASPNETCORE_ENVIRONMENT"] = "Development",
-			["FRONTEND_URL"] = "http://localhost:5173",
+			["Frontend__Url"] = "http://localhost:5173",
 			["ASPNETCORE_URLS"] = $"http://127.0.0.1:{port}",
-			["DB_LOCAL_CONNECTION_STRING"] = ConnectionString,
+			["POSTGRES_HOST"] = database.Host!,
+			["POSTGRES_PORT"] = database.Port.ToString(CultureInfo.InvariantCulture),
+			["POSTGRES_DB"] = database.Database!,
+			["POSTGRES_USER"] = database.Username!,
+			["POSTGRES_PASSWORD"] = database.Password ?? "",
 			["UserAuthentication__SigningKey"] = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)),
 			["UserAuthentication__Issuer"] = "ReportsVerification",
 			["UserAuthentication__Audience"] = "ReportsVerification",
 			["ReceiptOcrProof__SigningKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
-			["STORAGE_ENDPOINT"] = "http://127.0.0.1:1",
-			["STORAGE_PUBLIC_ENDPOINT"] = "http://127.0.0.1:1",
-			["STORAGE_ACCESS_KEY"] = "synthetic-test-access",
-			["STORAGE_SECRET_KEY"] = "synthetic-test-secret",
-			["STORAGE_BUCKET"] = "test-receipts",
-			["STORAGE_REGION"] = "us-east-1",
-			["OCR_BASE_URL"] = "http://127.0.0.1:1",
+			["GoogleAuthentication__Enabled"] = "false",
+			["Storage__Endpoint"] = "http://127.0.0.1:1",
+			["Storage__PublicEndpoint"] = "http://127.0.0.1:1",
+			["Storage__AccessKey"] = "synthetic-test-access",
+			["Storage__SecretKey"] = "synthetic-test-secret",
+			["Storage__Bucket"] = "test-receipts",
+			["Storage__Region"] = "us-east-1",
+			["Ocr__BaseUrl"] = "http://127.0.0.1:1",
 			["Smtp__Host"] = "127.0.0.1",
 			["Smtp__Port"] = "1",
 			["Smtp__SenderEmail"] = "reports@example.test",

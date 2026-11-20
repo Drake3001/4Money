@@ -11,8 +11,8 @@ public static class ReceiptAnalysisServiceCollectionExtensions
 		services.AddSingleton<IValidateOptions<ReceiptAnalysisOptions>, ReceiptAnalysisOptionsValidator>();
 		services.AddOptions<ReceiptAnalysisOptions>().Configure(options =>
 		{
-			options.BaseUrl = configuration["OCR_BASE_URL"] ?? string.Empty;
-			var timeout = configuration["OCR_TIMEOUT_SECONDS"];
+			options.BaseUrl = configuration["Ocr:BaseUrl"] ?? string.Empty;
+			var timeout = configuration["Ocr:TimeoutSeconds"];
 			options.TimeoutSeconds = timeout is null ? 120
 				: int.TryParse(timeout, out var seconds) ? seconds : 0;
 		}).ValidateOnStart();

@@ -2,16 +2,13 @@
 
 ## Podstawa i sposób czytania
 
-Bieżący opis obejmuje rebase Limits na master `860f421`, integrację agregacji
-Expense oraz niezależne Custom i jedną migrację AddLimits z 2026-11-19.
-Podstawa: kod, rejestracje hosta, konfiguracja, migracje i testy; zakres wykonanej
-weryfikacji jest w ostatniej sekcji.
+Podstawą opisu są kod, rejestracje hosta, konfiguracja, migracje i zakres testów.
+Obecność implementacji nie potwierdza działania środowiska serwerowego ani
+rzeczywistych dostawców zewnętrznych.
 
-Ten plik odpowiada na pytania „co działa w kodzie?” i „czego brakuje?”, nie
-zastępuje wymagań [produktu](product.md), reguł [domeny](domain.md) ani README
-modułów. Nie dopisuj tu dziennika każdej sesji. Aktualizuj właściwy wiersz,
-pozostawiając krótki opis ograniczenia, podstawę i zakres faktycznej kontroli.
-Sukces testu z atrapą nie potwierdza prawdziwego dostawcy.
+Możliwości i braki nie zastępują wymagań [produktu](product.md), reguł
+[domeny](domain.md) ani kontraktów modułów. Aktualizuj właściwy wiersz zamiast
+dopisywać historię sesji.
 
 ## Bieżące możliwości
 
@@ -27,9 +24,11 @@ Sukces testu z atrapą nie potwierdza prawdziwego dostawcy.
 | Banking | Próby/połączenia Tink, odczyty lokalne, worker refresh, paginacja i rejestr przypisań | Brak odłączania banku i odnawiania zgód; flaga konfiguracji nie potwierdza uprawnień dostawcy |
 | Notifications | NotifyAsync, aktywni odbiorcy, inbox, odczyt pojedynczy/zbiorczy; zdarzenia Grouping i alerty Limits | Push poza zakresem; nieaktywne konta nie dostają nowych przypisań |
 | Limits | Osobiste/grupowe definicje PLN, kalendarz Warsaw i niezależne nakładające się Custom=4, wykorzystanie, wersje, wykluczenia kalendarzowych, alerty i sweep | Brak webowego zarządzania budżetami; brak benchmarku długich zakresów; zużycie korzysta ze wspólnych agregacji SQL Expense |
-| Reports | Cztery raporty HTTP przez IExpenseAggregationService z agregacjami SQL Expense | Brak raportowania w UI; kontrakt i wcześniejsza weryfikacja w notes/REPORTS_API.md oraz notes/REPORTS_FINAL_VERIFICATION.md |
-| Web | Konto/Google, grupy, zaproszenia, rozliczenia, Expense/OCR, Banking i inbox z rzeczywistym API | Brak ekranów Limits/Reports i produkcyjnego obrazu/hostingu; testy Node nie są testami przeglądarki |
+| Reports | Cztery raporty HTTP przez IExpenseAggregationService z agregacjami SQL Expense | Brak raportowania w UI; kontrakt w [Reports](../notes/REPORTS_API.md) |
+| Web | Konto/Google, grupy, zaproszenia, rozliczenia, Expense/OCR, Banking i inbox; produkcyjny obraz statyczny z Nginx | Brak ekranów Limits/Reports; hosting niepotwierdzony, testy Node nie są testami przeglądarki |
 | Mobile | Uzgodniony kierunek React + Capacitor | Brak projektu aplikacji mobilnej i weryfikacji na urządzeniu |
+| Konfiguracja | Wspólny env lokalnego Compose/API/EF, sekcje appsettings i nadpisania Compose; osobne env serwerowe APP/OCR | Prawidłowe sekrety i adresy są wymagane; szablony nie potwierdzają gotowości środowiska |
+| Wdrożenie | deployment.yml: CI → cztery obrazy GHCR → klony VM APP/OCR przez Terraform → opcjonalne SSH/CD, efbundle przed aktualizacją API | Pierwsze wdrożenie niepotwierdzone; VM/env/GHCR/SSH i firewall wymagają przygotowania; dostęp początkowo przez Tailscale |
 
 Frontend `src/mocks/` zawiera typy i pomocniki, nie symulator danych HTTP.
 Bankowy pulpit, zależność biblioteki wykresów ani HTTP 501 nie są dowodem
@@ -49,9 +48,9 @@ ukończenia Reports. Lista braków nie upoważnia do rozszerzenia zakresu zadani
 - Konteksty Expense/Grouping/Notifications/Receipt/Limits i scoped Banking
   współdzielą połączenie. Dołączenie do transakcji nadal jest jawne; User i
   fabryka Banking pozostają osobno. Reguły rollbacku są w [architekturze](architecture.md#transakcje-między-modułami).
-- Ostatnia migracja to `20261119182900_AddLimits`, po
-  `NormalizeExpenseCategoriesAndAddDeposit`, nie bezpośrednio po przypisaniach
-  Banking. Pliki po rebase nie naprawiają już zastosowanego schematu starej bazy.
+- Łańcuch migracji kończy AddLimits po NormalizeExpenseCategoriesAndAddDeposit.
+  Osłony danych oraz postępowanie z rozbieżnym schematem opisuje
+  [development](development.md#modele-i-migracje); seed nie jest naprawą migracji.
 - Seed ma syntetyczne klucze storage i zachowuje kategorie zarządzane migracjami.
   Nie tworzy odpowiadających obrazów, nie odtwarza zgód Tink i nie potwierdza
   dostępności zewnętrznych usług. Reset nie jest migracją ani częścią testu dokumentacji.
@@ -65,7 +64,7 @@ ukończenia Reports. Lista braków nie upoważnia do rozszerzenia zakresu zadani
 
 Przy nowym zadaniu potwierdź potrzebę i priorytet: web Limits/Reports, aplikacja
 mobilna, uzgadnianie agregatów, bankowe źródła rozliczeń, zarządzanie zgodami,
-odłączanie banku, wdrożenie frontendu i pomiar jakości OCR. To nie jest obietnica
+odłączanie banku, pierwsze wdrożenie serwerowe i pomiar jakości OCR. To nie jest obietnica
 ich realizacji ani lista automatycznych blockerów wszystkich zmian.
 
 Rozszerzenie walut, podziału produktów i reguł nowych źródeł finansowych wymaga
@@ -78,34 +77,13 @@ lokalne limity IP i brak trwałego outboxa/cleanup workera. Nie deklaruj gotowo�
 produkcyjnej na podstawie samych testów lokalnych. Rzeczywiste Google, SMTP,
 Tink, OpenRouter/OCR i S3 wymagają odrębnej kontroli z bezpiecznymi danymi.
 
-## Ostatnia weryfikacja backendu
+## Granice potwierdzenia
 
-2026-11-19, niezależne Custom i konsolidacja migracji do
-`20261119182900_AddLimits`: Release build całej solucji bez błędów i ostrzeżeń,
-style/whitespace bez zapisu i `git diff --check` zaliczone. Regeneracja designera
-oraz snapshotu względem wspólnego modelu potwierdziła ten sam końcowy model EF;
-migracje mastera pozostały bez zmian. Cztery wykluczenia SQL dotyczą tylko
-włączonych okresów 1/2/3. Nie ma automatycznego wyłączania innych limitów.
+Konfiguracja kodowa obejmuje GHCR, migracje i kolejność CD, ale nie potwierdza
+istnienia VM, ustawień GitHuba ani działania DNS/HTTPS i firewalla. Uzgodniony
+wariant to 4money.com.pl osiągalne przez Tailscale; JSON nie konfiguruje sieci.
+Przed pierwszym uruchomieniem trzeba sprawdzić logowanie, zapis wydatku,
+upload/podpisany odczyt plików i OCR na rzeczywistym środowisku.
 
-Wykonano **1272 testy, 0 błędów, 0 pominięć**: wszystkie 12 śledzonych projektów
-jednostkowych oraz integracyjne Limits (33/33), Expense (128/128) i Banking
-(152/152). Limits.UnitTests: 82/82. Po poprawieniu scope'ów w nowym scenariuszu
-create/edit/delete ponowiono cały Limits.IntegrationTests; podana suma uwzględnia
-wyłącznie końcowe wyniki poszczególnych zestawów, bez podwójnego liczenia.
-
-Sprawdzono współistnienie i ponowne włączanie identycznych Custom przy limicie
-kalendarzowym, niezmienność pozostałych wersji/flag, niezależne sumy i alerty,
-deduplikację per definicja oraz rollback wcześniejszych alertów wraz z wydatkiem.
-HTTP osobistych/grupowych, SQL poza serwisami i współbieżne tworzenie potwierdzają
-nową regułę. Zachowano walidację dat, uprawnienia, zamrożenie zakończonych Custom
-i konflikty kalendarzowych. Testy migracji obejmują pusty Up/Down/Up, odmowę przy
-danych w każdej zmienianej tabeli, zachowanie wcześniejszego schematu/danych
-oraz zgodność runtime/snapshotu. SQL init → migracje → seed i ponowienie seedera
-przeszły; seed ma 8 grupowych i 6 osobistych definicji oraz puste alert-state.
-
-Raporty TRX: `/tmp/zpi-custom-unit-all/` i `/tmp/zpi-custom-results/`
-(końcowy Limits: `limits-integration-final.trx`). Pozostałych integracji,
-frontendu i pytest nie uruchamiano; nie weryfikowano dostawców zewnętrznych.
-Jednorazowy PostgreSQL 15 służył wyłącznie testom. Nie zmieniano bazy aplikacji,
-nie konwertowano istniejących limitów ani historii EF.
-Polecenia kontroli: [development](development.md#kontrole-backendu).
+Testy PostgreSQL wymagają disposable bazy, S3 jawnego włączenia, a atrapy nie
+potwierdzają usług zewnętrznych. Polecenia: [development](development.md#kontrole-backendu).

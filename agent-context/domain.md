@@ -4,7 +4,7 @@ Właściciel pojęć, relacji i niezmienników wspólnych dla modułów. Zakres 
 opisuje [produkt](product.md), transakcje [architektura](architecture.md), a braki
 [status](implementation-status.md). Szczegółowe DTO i reguły HTTP utrzymuj w
 kontrakcie modułu, nie w tym zestawieniu. Poniższy model odnosi się do bieżącego
-kodu po rebase, nie do samego historycznego SQL init.
+kodu i reguł biznesowych, nie do samego bazowego SQL init.
 
 ## Pojęcia i encje
 

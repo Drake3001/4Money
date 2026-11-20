@@ -1,0 +1,58 @@
+# Signed file URLs and email tokens must not appear in request logs.
+log_format safe '$remote_addr $request_method $uri $status';
+
+# Accept the original HTTPS scheme only from the existing edge proxy.
+map "$realip_remote_addr:$http_x_forwarded_proto" $original_scheme {
+    default $scheme;
+    "${EDGE_PROXY_IP}:https" https;
+}
+
+server {
+    listen 8080;
+    server_name _;
+    root /usr/share/nginx/html;
+    access_log /var/log/nginx/access.log safe;
+    client_max_body_size 50m;
+
+    set_real_ip_from ${EDGE_PROXY_IP};
+    real_ip_header X-Forwarded-For;
+    real_ip_recursive on;
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
+    location = /health {
+        access_log off;
+        return 200 'ok';
+    }
+
+    location /api/ {
+        # This alias exists only on the API network, giving a stable proxy IP.
+        set $api http://backend-api:8080;
+        proxy_pass $api$request_uri;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-Proto $original_scheme;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_read_timeout 180s;
+        proxy_send_timeout 180s;
+    }
+
+    # Same origin/path/Host/query preserve the existing signed S3 GET URLs.
+    location ^~ /${STORAGE_BUCKET}/ {
+        if ($request_method != GET) { return 405; }
+        if ($arg_x_amz_signature = '') { return 403; }
+        if ($uri = '/${STORAGE_BUCKET}/') { return 403; }
+        set $storage http://seaweedfs:8333;
+        proxy_pass $storage$request_uri;
+        proxy_set_header Host $http_host;
+        proxy_set_header Authorization '';
+        proxy_hide_header Set-Cookie;
+        add_header Cache-Control 'private, no-store' always;
+    }
+
+    location = /index.html {
+        add_header Cache-Control 'no-cache';
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

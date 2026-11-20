@@ -36,7 +36,7 @@ public sealed class ReceiptService : IReceiptService
 		_storage = storage;
 		_logger = logger;
 		_timeProvider = timeProvider;
-		var storagePrefix = configuration["RECEIPT_STORAGE_PREFIX"];
+		var storagePrefix = configuration["Storage:ReceiptStoragePrefix"];
 		_storagePrefix = string.IsNullOrWhiteSpace(storagePrefix) ? "receipts/" : storagePrefix.Trim().TrimEnd('/') + "/";
 	}
 

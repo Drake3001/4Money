@@ -19,9 +19,9 @@ dotnet run --file tools/ef.cs -- database update
 ```
 
 The wrapper supplies `ZPI4M.Database`, startup `ZPI4M.Api` and `AppDbContext`.
-It runs EF in the API directory so the host can load its `.env`; exported
-configuration is inherited, but the host's current `Env.Load()` overwrites
-matching variables from `.env`. To select another database reliably for
+It runs EF in the API directory so the host can load `containers/local/.env`
+using a fixed relative path outside Docker. Exported variables take precedence
+over that file (`NoClobber`). To select another database for
 `migrations list` or `database update`, pass EF's explicit `--connection` option.
 Relative EF paths, including explicit project
 paths, are resolved from that directory. When calling from a subdirectory,

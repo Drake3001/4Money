@@ -1,0 +1,19 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY . .
+RUN dotnet tool install dotnet-ef --version 10.0.4 --tool-path /tools
+RUN dotnet restore src/ZPI4M.Api/ZPI4M.Api.csproj
+# Building the bundle creates the model without connecting to a database.
+RUN POSTGRES_PORT=5432 /tools/dotnet-ef migrations bundle \
+    --project src/ZPI4M.Database/ZPI4M.Database.csproj \
+    --startup-project src/ZPI4M.Api/ZPI4M.Api.csproj \
+    --context AppDbContext --configuration Release \
+    --target-runtime linux-x64 --output /app/efbundle
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+COPY --from=build --chmod=755 /app/efbundle ./efbundle
+ENV ASPNETCORE_ENVIRONMENT=Production
+ENV DOTNET_BUNDLE_EXTRACT_BASE_DIR=/tmp/dotnet-bundle
+USER $APP_UID
+ENTRYPOINT ["./efbundle"]

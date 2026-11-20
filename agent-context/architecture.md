@@ -161,7 +161,7 @@ Kontrakt i konfiguracja: [Limits](../backend/ZPI4M.Backend/src/modules/ZPI4M.Lim
 
 IObjectStorage jest wspólnym adapterem Shared.Storage; moduł jest właścicielem
 kluczy i cyklu życia swoich obiektów. Nie utrwalaj podpisanego URL jako klucza.
-STORAGE_ENDPOINT służy operacjom wewnętrznym, STORAGE_PUBLIC_ENDPOINT adresowi
+Storage:Endpoint służy operacjom wewnętrznym, Storage:PublicEndpoint adresowi
 podpisanego GET widocznego z przeglądarki. To może być ten sam bucket przy
 różnych endpointach. Podpisanie URL bez HEAD nie potwierdza istnienia obiektu.
 
@@ -238,10 +238,36 @@ Pierwsza migracja jest pusta i zakłada SQL init, a nie samodzielny pełny basel
 Modele, migracje i seed mają różne role: seed usuwa dane, nie naprawia schematu.
 
 Aktualny łańcuch kończą UserImprovements, NormalizeExpenseCategoriesAndAddDeposit
-i AddLimits. Konsolidacja Limits zachowuje wcześniejsze migracje;
+i AddLimits. Migracja AddLimits zachowuje pozostałe migracje;
 Up/Down odmawiają danych w zmienianych tabelach. Procedury, rzeczywiste ID i
 postępowanie z bazą po usuniętych migracjach: [migracje](development.md#modele-i-migracje).
 Nie odtwarzaj wolumenu ani nie edytuj historii EF jako elementu zwykłego review.
+
+## Konfiguracja i wdrożenie
+
+API łączy appsettings.json, appsettings środowiska i zmienne procesu. Sekcje
+Storage/Ocr/Frontend odpowiadają env z `__`, np. STORAGE__ACCESSKEY; kod czyta
+`Storage:AccessKey`. Niesekretne domyślne opcje są w JSON, poświadczenia w env,
+a adresy usług w Dockerze ustawia Compose. API i fabryka EF poza Dockerem
+ładują wspólny containers/local/.env z katalogu API; osobny env API nie jest używany.
+DatabaseConfiguration współdzieli składanie połączenia POSTGRES_* i opcje Npgsql.
+AppDbContextFactory tworzy kontekst dla EF bez uruchamiania API i integracji.
+
+Serwer przewiduje dwie VM, klony template 300: APP 250 (.220) i OCR 255 (.221).
+APP uruchamia frontend/Nginx, API, PostgreSQL, SeaweedFS i jednorazowy efbundle
+z istniejących migracji. Tylko frontend publikuje port APP; OCR publikuje 8000
+na drugiej VM. Firewall ma ograniczyć frontend do NPM na VM 205, a OCR do APP;
+Compose sam nie egzekwuje tych ograniczeń. Backend ufa forwarded headers tylko
+od frontendu, a frontend od skonfigurowanego EDGE_PROXY_IP.
+
+deployment.yml wywołuje CI i publikację czterech obrazów GHCR, potem Terraform,
+następnie opcjonalne CD przez SSH z runnera VM 205. Skrypty wdrażają OCR przed
+APP, migracje przed nowym API, przekazują tag sha-<commit> i zachowują prywatne env.
+Seedy są ręczne; cofnięcie obrazu nie cofa schematu. Pierwsze uruchomienie wymaga
+przygotowania VM, env, GHCR i SSH; SERVER_DEPLOY_ENABLED steruje tylko CD.
+Uzgodniony dostęp początkowy jest przez Tailscale. JSON Production wskazuje
+4money.com.pl, ale nie ustanawia DNS, HTTPS ani publicznego dostępu.
+Schemat i pliki: [server](../containers/server/README.md), [Proxmox](../proxmox-infra/README.md).
 
 ## Agregacje Expense
 

@@ -56,18 +56,18 @@ public sealed class S3StorageOptionsTests
 	}
 
 	[Theory]
-	[InlineData("STORAGE_BUCKET")]
-	[InlineData("STORAGE_REGION")]
-	[InlineData("STORAGE_ACCESS_KEY")]
-	[InlineData("STORAGE_SECRET_KEY")]
-	[InlineData("STORAGE_ENDPOINT")]
-	public void Missing_configuration_fails_startup_without_exposing_credentials(string missing)
+	[InlineData("Storage:Bucket", "STORAGE_BUCKET")]
+	[InlineData("Storage:Region", "STORAGE_REGION")]
+	[InlineData("Storage:AccessKey", "STORAGE_ACCESS_KEY")]
+	[InlineData("Storage:SecretKey", "STORAGE_SECRET_KEY")]
+	[InlineData("Storage:Endpoint", "STORAGE_ENDPOINT")]
+	public void Missing_configuration_fails_startup_without_exposing_credentials(string missing, string diagnostic)
 	{
 		var values = Values();
 		values.Remove(missing);
 		using var provider = Provider(values);
 		var error = Assert.Throws<OptionsValidationException>(() => provider.GetRequiredService<IStartupValidator>().Validate());
-		Assert.Contains(missing, error.Message);
+		Assert.Contains(diagnostic, error.Message);
 		Assert.DoesNotContain("synthetic-access", error.Message);
 		Assert.DoesNotContain("synthetic-secret", error.Message);
 	}
@@ -80,7 +80,7 @@ public sealed class S3StorageOptionsTests
 	public void Invalid_expiration_fails_startup(string expiration)
 	{
 		var values = Values();
-		values["STORAGE_URL_EXPIRATION_MINUTES"] = expiration;
+		values["Storage:UrlExpirationMinutes"] = expiration;
 		using var provider = Provider(values);
 		var error = Assert.Throws<OptionsValidationException>(() => provider.GetRequiredService<IStartupValidator>().Validate());
 		Assert.Contains("STORAGE_URL_EXPIRATION_MINUTES", error.Message);
@@ -95,7 +95,7 @@ public sealed class S3StorageOptionsTests
 	{
 		var values = Values();
 		if (expiration is not null)
-			values["STORAGE_URL_EXPIRATION_MINUTES"] = expiration;
+			values["Storage:UrlExpirationMinutes"] = expiration;
 		using var provider = Provider(values);
 		provider.GetRequiredService<IStartupValidator>().Validate();
 		Assert.Equal(expected, provider.GetRequiredService<IOptions<S3StorageOptions>>().Value.UrlExpirationMinutes);
@@ -108,11 +108,11 @@ public sealed class S3StorageOptionsTests
 
 	private static Dictionary<string, string?> Values() => new()
 	{
-		["STORAGE_ENDPOINT"] = "http://127.0.0.1:8333",
-		["STORAGE_BUCKET"] = "receipts",
-		["STORAGE_REGION"] = "us-east-1",
-		["STORAGE_ACCESS_KEY"] = "synthetic-access",
-		["STORAGE_SECRET_KEY"] = "synthetic-secret"
+		["Storage:Endpoint"] = "http://127.0.0.1:8333",
+		["Storage:Bucket"] = "receipts",
+		["Storage:Region"] = "us-east-1",
+		["Storage:AccessKey"] = "synthetic-access",
+		["Storage:SecretKey"] = "synthetic-secret"
 	};
 
 	private static ServiceProvider Provider(Dictionary<string, string?> values)

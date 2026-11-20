@@ -61,9 +61,9 @@ public sealed class ReceiptAnalysisOptionsTests
 
 	private static ServiceProvider Provider(string? origin, string? timeout = null)
 	{
-		var values = new Dictionary<string, string?> { ["OCR_BASE_URL"] = origin };
+		var values = new Dictionary<string, string?> { ["Ocr:BaseUrl"] = origin };
 		if (timeout is not null)
-			values["OCR_TIMEOUT_SECONDS"] = timeout;
+			values["Ocr:TimeoutSeconds"] = timeout;
 		var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
 		return new ServiceCollection().AddReceiptAnalysis(configuration).BuildServiceProvider();
 	}

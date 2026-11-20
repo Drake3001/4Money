@@ -1,8 +1,11 @@
+using System.Net;
 using DotNetEnv;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
 using Npgsql;
+using ZPI4M.Api.Configuration;
 using ZPI4M.Api.OpenApi;
 using ZPI4M.Banking.ApiControllers;
 using ZPI4M.Banking.Database;
@@ -58,12 +61,27 @@ using ZPI4M.User.Services.RateLimiting;
 using ZPI4M.User.Services.Registration;
 using ZPI4M.User.Services.Tokens;
 
-// Load environment variables from .env file
-Env.Load();
+// Local runs and EF use the shared env; containers receive variables from Compose.
+if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") != "true")
+	Env.Load("../../../../containers/local/.env");
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables();
-var frontendUrl = builder.Configuration["FRONTEND_URL"] ?? "";
+var frontendUrl = builder.Configuration["Frontend:Url"] ?? "";
+
+// Deployment trusts forwarded HTTPS/client information only from its frontend.
+if (builder.Configuration["REVERSE_PROXY_IP"] is { Length: > 0 } proxyAddress)
+{
+	var proxyIp = IPAddress.Parse(proxyAddress);
+	builder.Services.Configure<ForwardedHeadersOptions>(options =>
+	{
+		options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+		options.KnownIPNetworks.Clear();
+		options.KnownProxies.Clear();
+		options.KnownProxies.Add(proxyIp);
+		options.ForwardLimit = 1;
+	});
+}
 
 // Add services to the container.
 
@@ -122,10 +140,10 @@ builder.Services.AddOpenApi(options => options.AddOperationTransformer((operatio
 builder.Services.AddUserRateLimiting(builder.Configuration);
 
 // Add database context
-var dbConnectionString = Environment.GetEnvironmentVariable("DB_LOCAL_CONNECTION_STRING");
+var dbConnectionString = builder.Configuration.GetPostgresConnectionString();
 builder.Services.AddScoped<NpgsqlConnection>(_ => new NpgsqlConnection(dbConnectionString));
 builder.Services.AddDbContext<AppDbContext>(options =>
-	options.UseNpgsql(dbConnectionString, npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "public")));
+	DatabaseConfiguration.ConfigurePostgres(options, dbConnectionString));
 
 // Grouping module
 builder.Services.AddScoped<ZPI4M.Grouping.Services.ExpenseMetadata.IGroupExpenseMetadataLookup, ZPI4M.Grouping.Services.ExpenseMetadata.GroupExpenseMetadataLookup>();
@@ -239,6 +257,7 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 

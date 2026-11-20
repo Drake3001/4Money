@@ -154,7 +154,7 @@ public sealed class UserIconTests
 	}
 
 	private static UserIconService Create(Storage storage, string? prefix = null) => new(storage,
-		new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["USER_ICON_PRESET_PREFIX"] = prefix }).Build(),
+		new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Storage:UserIconPresetPrefix"] = prefix }).Build(),
 		NullLogger<UserIconService>.Instance);
 
 	private sealed class Storage : IObjectStorage

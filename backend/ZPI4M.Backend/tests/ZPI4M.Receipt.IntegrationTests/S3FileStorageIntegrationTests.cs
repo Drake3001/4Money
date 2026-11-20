@@ -19,11 +19,14 @@ public sealed class S3FileStorageIntegrationTests
 			directory = directory.Parent;
 		if (directory is not null)
 		{
-			var envPath = Path.Combine(directory.FullName, "src", "ZPI4M.Api", ".env");
+			var apiPath = Path.Combine(directory.FullName, "src", "ZPI4M.Api");
+			configurationBuilder.AddJsonFile(Path.Combine(apiPath, "appsettings.json"))
+				.AddJsonFile(Path.Combine(apiPath, "appsettings.Development.json"));
+			var envPath = Path.GetFullPath(Path.Combine(directory.FullName, "..", "..", "containers", "local", ".env"));
 			if (File.Exists(envPath))
 				configurationBuilder.AddInMemoryCollection(Env.NoEnvVars().Load(envPath)
-					.Where(pair => pair.Key.StartsWith("STORAGE_", StringComparison.Ordinal))
-					.ToDictionary(pair => pair.Key, pair => (string?)pair.Value));
+					.Where(pair => pair.Key.StartsWith("STORAGE__", StringComparison.Ordinal))
+					.ToDictionary(pair => pair.Key.Replace("__", ":", StringComparison.Ordinal), pair => (string?)pair.Value));
 		}
 		var configuration = configurationBuilder.AddEnvironmentVariables().Build();
 		using var provider = new ServiceCollection().AddObjectStorage(configuration).BuildServiceProvider();
@@ -69,7 +72,7 @@ public sealed class StorageIntegrationFactAttribute : FactAttribute
 	public StorageIntegrationFactAttribute()
 	{
 		if (Environment.GetEnvironmentVariable("STORAGE_INTEGRATION_TESTS") != "1")
-			Skip = "Manual test: start SeaweedFS and set STORAGE_INTEGRATION_TESTS=1; storage settings load from the API .env.";
+			Skip = "Manual test: start SeaweedFS and set STORAGE_INTEGRATION_TESTS=1; storage settings load from containers/local/.env and API appsettings.";
 	}
 }
 

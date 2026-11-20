@@ -30,12 +30,12 @@ def main():
     try:
         current = current_master(os.environ["GITHUB_REPOSITORY"], os.environ["GITHUB_SHA"], os.environ["GH_TOKEN"])
     except (KeyError, ValueError, TypeError, urllib.error.URLError, TimeoutError):
-        print("::error::Could not verify current master; apply is disabled.", file=sys.stderr)
+        print("::error::Could not verify current master; deployment is disabled.", file=sys.stderr)
         return 1
     with Path(os.environ["GITHUB_OUTPUT"]).open("a") as handle:
         handle.write("current=" + str(current).lower() + "\n")
     if not current:
-        message = "This commit has been superseded on master; apply was skipped."
+        message = "This commit has been superseded on master; deployment was skipped."
         print(message)
         with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as handle:
             handle.write(message + "\n")

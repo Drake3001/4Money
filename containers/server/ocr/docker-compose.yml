@@ -1,0 +1,34 @@
+name: zpi4m-ocr
+
+services:
+  extraction-worker:
+    image: ${IMAGE_PREFIX:?Set IMAGE_PREFIX in .env}-ocr:${IMAGE_TAG:?Set IMAGE_TAG in .env}
+    environment:
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY?Set OPENROUTER_API_KEY in .env}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:?Set OPENROUTER_BASE_URL in .env}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:?Set OPENROUTER_MODEL in .env}
+      GEMINI_API_KEY: ${GEMINI_API_KEY?Set GEMINI_API_KEY in .env}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY?Set NVIDIA_API_KEY in .env}
+      EXTRACTION_WORKFLOW: ${EXTRACTION_WORKFLOW:?Set EXTRACTION_WORKFLOW in .env}
+      EXTRACTION_VISION_ROUTING: ${EXTRACTION_VISION_ROUTING:?Set EXTRACTION_VISION_ROUTING in .env}
+      EXTRACTION_MAX_FILE_BYTES: ${EXTRACTION_MAX_FILE_BYTES:?Set EXTRACTION_MAX_FILE_BYTES in .env}
+      EXTRACTION_MAX_REQUEST_BYTES: ${EXTRACTION_MAX_REQUEST_BYTES:?Set EXTRACTION_MAX_REQUEST_BYTES in .env}
+      EXTRACTION_MAX_PAGE_PIXELS: ${EXTRACTION_MAX_PAGE_PIXELS:?Set EXTRACTION_MAX_PAGE_PIXELS in .env}
+      EXTRACTION_MAX_DOCUMENT_PIXELS: ${EXTRACTION_MAX_DOCUMENT_PIXELS:?Set EXTRACTION_MAX_DOCUMENT_PIXELS in .env}
+    ports:
+      - "${EXTRACTION_BIND_ADDRESS:?Set EXTRACTION_BIND_ADDRESS in .env}:${EXTRACTION_PORT:?Set EXTRACTION_PORT in .env}:8000"
+    volumes:
+      - model_cache:/app/.cache
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", ".venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).close()"]
+      interval: 30s
+      timeout: 5s
+      start_period: 180s
+      retries: 3
+
+volumes:
+  model_cache:
+    name: ${EXTRACTION_VOLUME_NAME:?Set EXTRACTION_VOLUME_NAME in .env}

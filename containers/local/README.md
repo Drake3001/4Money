@@ -1,4 +1,4 @@
-# Default port mappings
+# Default local port mappings
 | Service | Host address | Container port |
 | --- | --- | --- |
 | Frontend | `http://localhost:5173` | `5173` |

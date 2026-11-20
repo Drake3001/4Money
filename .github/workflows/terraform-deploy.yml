@@ -1,9 +1,13 @@
 name: Terraform Deploy
 
 on:
-  push:
-    branches: [master]
   workflow_dispatch:
+  workflow_call:
+    secrets:
+      TF_API_TOKEN:
+        required: true
+      PROXMOX_VE_API_TOKEN:
+        required: true
 
 permissions:
   contents: read

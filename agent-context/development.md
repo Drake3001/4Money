@@ -2,7 +2,7 @@
 
 Właściciel poleceń uruchomienia, konfiguracji i kontroli. Reguły modelu opisuje
 [domena](domain.md), transakcje [architektura](architecture.md), faktyczny zakres
-implementacji i dowody testów [status](implementation-status.md). Instrukcja nie
+implementacji i ograniczenia weryfikacji [status](implementation-status.md). Instrukcja nie
 jest potwierdzeniem uruchomienia każdej komendy; operacje na bazie wykonuj tylko
 w zakresie zadania. Wszystkie przykłady zakładają katalog główny repozytorium,
 chyba że wyraźnie podano inny katalog roboczy.
@@ -18,23 +18,26 @@ Diagramy opisuje [tools](../tools/README.md#architecture-diagrams-projgraph).
 
 | Konfiguracja | Przeznaczenie |
 | --- | --- |
-| `containers/local/.env` | Jedyny plik środowiska całego lokalnego Compose |
-| `backend/ZPI4M.Backend/src/ZPI4M.Api/.env` | API uruchomione bez Dockera |
+| `containers/local/.env` | Lokalny Compose oraz API i EF uruchamiane poza Dockerem |
+| `containers/server/app/.env`, `containers/server/ocr/.env` | Prywatna konfiguracja na odpowiednich VM |
 | `workers/extraction_worker/.env` | Worker uruchomiony bez Dockera |
-| `appsettings.json` hosta | Niesekretne wartości domyślne i opcje usług |
+| `tools/.env` | Narzędzia Tink: osobne Tink__* i FOURMONEY_DATABASE_DSN; nie jest env hosta API |
+| `appsettings.json`, `appsettings.{Environment}.json` hosta | Domyślne opcje oraz adresy zależne od środowiska |
 | `.env.example` właściwego programu | Szablon; nie kopia realnych sekretów |
 
-Zachowuj istniejące lokalne pliki; nie nadpisuj ich szablonem. Host wywołuje
-Env.Load przed zbudowaniem konfiguracji, następnie dodaje środowisko. Lokalny
-.env może nadpisać wcześniej ustawioną zmienną procesu o tej samej nazwie.
-Przy diagnozie sprawdź efektywną konfigurację bez wypisywania poświadczeń.
-ASP.NET używa `__` dla zagnieżdżonych opcji, ale OCR/STORAGE są istniejącymi
-płaskimi kluczami. Nie przenoś ich samodzielnie do nowej sekcji JSON.
+Zachowuj istniejące lokalne pliki; nie nadpisuj ich szablonem. API i fabryka EF
+poza Dockerem wykonują Env.Load("../../../../containers/local/.env") z katalogu
+ZPI4M.Api. Env.Load może nadpisać zmienne procesu; w kontenerze ładowanie pliku
+jest pomijane przez DOTNET_RUNNING_IN_CONTAINER, a zmienne przekazuje Compose.
+Osobny .env API nie jest odczytywany. ASP.NET mapuje `__` na zagnieżdżenie:
+STORAGE__ACCESSKEY → Storage:AccessKey, OCR__BASEURL → Ocr:BaseUrl.
+Parametry Docker/Python, np. POSTGRES_* i OPENROUTER_*, zachowują własne nazwy.
 
 Start API wymaga poprawnej bazy, klucza JWT, opcji storage, klucza dowodu OCR
-oraz FRONTEND_URL. Walidacja storage działa także przy pracy tylko nad kontem;
+oraz Frontend:Url. GoogleAuthentication.Enabled=true wymaga poprawnego ClientId
+z env. Walidacja storage działa także przy pracy tylko nad kontem;
 brak uploadu w zadaniu nie wyłącza wymagań startowych. SMTP jest sprawdzany przy
-wysyłce, więc sam start hosta nie potwierdza działania skrzynki. FRONTEND_URL
+wysyłce, więc sam start hosta nie potwierdza działania skrzynki. Frontend:Url
 musi być absolutnym HTTP/HTTPS bez danych logowania, query i fragmentu i wskazywać
 frontend dostępny odbiorcy maila. Szczegóły JWT, Google, SMTP i ikon są w
 [User](../backend/ZPI4M.Backend/src/modules/ZPI4M.User/README.md).
@@ -72,8 +75,10 @@ Pełny stos po przygotowaniu schematu:
 docker compose --env-file containers/local/.env -f containers/local/docker-compose.yml up --build -d
 ```
 
-Przy API bez Dockera ustaw DB_LOCAL_CONNECTION_STRING do bazy na hoście;
-poświadczenia przechowuj tylko lokalnie. Z katalogu `backend/ZPI4M.Backend/src/ZPI4M.Api`:
+Przy API bez Dockera te same POSTGRES_DB/USER/PASSWORD i port z lokalnego env
+składają connection string; domyślny host to 127.0.0.1. Compose nadpisuje host
+na postgres-db i port na 5432. DB_LOCAL_CONNECTION_STRING nie jest odczytywany.
+Z katalogu `backend/ZPI4M.Backend/src/ZPI4M.Api`:
 
 ```bash
 dotnet run --launch-profile http
@@ -83,7 +88,7 @@ Profil http używa 5283, https także 7278; oba są Development. Bez profilu adr
 i środowisko pochodzą z pozostałej konfiguracji. OpenAPI w Development jest pod
 `/openapi/v1.json`, bez wbudowanego Swagger UI. Postman baseUrl, frontend proxy
 i callback Tink muszą odpowiadać rzeczywiście uruchomionemu profilowi. Samo
-.env z adresem callbacku nie zmienia rejestracji aplikacji po stronie dostawcy.
+Zmiana callbacku w konfiguracji nie zmienia rejestracji aplikacji u dostawcy.
 
 Do obsługi logowania i inboxa nie potrzeba wykonującego OCR workera, ale nadal
 potrzeba poprawnych opcji hosta. S3 jest potrzebne operacjom na plikach. Nie
@@ -108,14 +113,16 @@ TypeScript i zapisuje `dist/`. `npm test` uruchamia testy Node z Vite,
 syntetycznym HTTP, renderowaniem serwerowym i kontrolą logiki formularzy;
 nie uruchamia przeglądarki ani rzeczywistych usług. Osobny pakiet konwersji
 HEIC ładuje się na żądanie i powoduje ostrzeżenie rozmiaru podczas builda.
-Workflow backendu nie wykonuje testów ani builda frontendu.
+Backend CI nie wykonuje testów ani builda frontendu; etap obrazów wykonuje
+produkcyjny build frontendu wraz z TypeScript, bez testów Node/przeglądarki.
 
 Domyślnie przeglądarka wysyła `/api` do proxy dev/preview: `API_PROXY_TARGET`
 wskazuje `http://localhost:5283`, w Compose `http://backend:8080`.
 `VITE_API_BASE_URL` nadpisuje adres w przeglądarce i przy innym origin wymaga
 CORS, którego host obecnie nie rejestruje. Nie umieszczaj sekretów w `VITE_*`.
-Produkcja wymaga osobnego serwowania `dist/` i routingu `/api`; lokalny obraz
-Compose uruchamia Vite. Mobile/Capacitor nie ma jeszcze własnego projektu.
+Serwerowy Dockerfile.frontend.deploy serwuje dist przez Nginx i proxy /api;
+Dockerfile.frontend.local uruchamia Vite z montowaniem źródeł. Mobile/Capacitor
+nie ma jeszcze własnego projektu.
 Szczegóły: [frontend](../frontend/README.md), [Compose](../containers/local/README.md).
 
 ## Modele i migracje
@@ -132,45 +139,24 @@ dotnet run --file tools/ef.cs -- migrations add NazwaZmiany
 ```
 
 Wrapper wybiera Database, startup Api i AppDbContext, uruchamiając EF w katalogu
-API. `has-pending-model-changes` porównuje model bez stosowania migracji; `add`
-zmienia pliki. `migrations list` może łączyć się z bazą i ładuje .env hosta.
+API. AppDbContextFactory ładuje wspólny lokalny env i tworzy kontekst bez hosta
+API; używa tego samego DatabaseConfiguration co API. `has-pending-model-changes`
+porównuje model bez stosowania migracji; `add` zmienia pliki. `migrations list`
+może łączyć się z bazą.
 `database update` zmienia bazę. Do wyboru innego połączenia dla operacji bazowych
 użyj jawnego `--connection`, nie zakładaj pierwszeństwa zmiennej nad .env.
 Szczegóły wrappera i jawnego wyboru wersji narzędzia: [tools](../tools/README.md#ef-core-migrations).
 
-Aktualną końcówką łańcucha jest:
-
-| Migracja | Znaczenie dla kolejnej zmiany |
-| --- | --- |
-| `20261102215301_AddGroupingModel` | Zatwierdzone grupy i członkostwa; osłony danych |
-| `20261103165622_CompleteExpenseModel` | Płatnik, udziały procentowe, pozycje i wersje; wymaga pustych wydatków przy zmianie schematu |
-| `20261103203528_AddBankTransactionAssignments` | Wspólny rejestr konsumentów transakcji |
-| `20261109191600_UserImprovements` | Aktywny e-mail, Google, ikony i trigger grupy startowej |
-| `20261116211631_NormalizeExpenseCategoriesAndAddDeposit` | Normalizacja słownika i Kaucja |
-| `20261119182900_AddLimits` | Końcowy model Limits po wspólnej migracji normalizacji |
-
-AddLimits blokuje legacy group_limit i category_group_limit i wymaga
-ich pustych przed DDL. To jedyna migracja Limits dodana w PR; zastępuje dawną
-`20261117155636_AddBudgetDefinitions`. Tworzy finalne definicje oraz alert-state;
-wykluczenia obejmują wyłącznie włączone okresy 1/2/3, a Custom mogą się nakładać.
-Down wymaga
-pustych wszystkich czterech końcowych tabel Limits. Nie usuwa ani nie konwertuje
-danych. Rola migracyjna musi móc utworzyć btree_gist; Down zachowuje rozszerzenie,
-które może być współdzielone. DDL ma dotyczyć tylko Limits i tego rozszerzenia.
-
-Bazy, które zastosowały usunięte migracje gałęzi, nie mogą po prostu wykonać
-nowej migracji na istniejącym schemacie. Należy wrócić do odpowiadającej im
-wspólnej bazy używając starych plików i uwzględniając ich osłony, albo uzgodnić
-osobno odtworzenie danych lokalnych. Nie usuwaj samych wpisów historii EF i nie
-używaj seeda jako naprawy. Historyczne migracje wspólne i SQL init pozostają
-bazą, nie materiałem do dowolnego przepisywania przy nowej funkcji.
-
-Przy kolejnym rebase sprawdź rzeczywistą granicę wspólnych migracji. Jeśli model
-bazowy się zmienił, wygeneruj ponownie designer/snapshot konsolidowanej migracji,
-porównaj DDL i sprawdź round-trip na pustej bazie oraz odmowę utraty danych.
-Przy zmianie timestampów sprawdź znaczenie starych wartości, nie tylko typ C#.
-Pliki migracji nie są dowodem zastosowania ich w bazie deweloperskiej.
-Instrukcja pomocnicza: [migracje](../notes/MIGRATIONS.md).
+Łańcuch kończy AddLimits po NormalizeExpenseCategoriesAndAddDeposit;
+źródłem ID i DDL jest [katalog migracji](../backend/ZPI4M.Backend/src/ZPI4M.Database/Migrations).
+AddLimits wymaga pustych legacy group_limit/category_group_limit przed Up
+i czterech końcowych tabel Limits przed Down. Rola musi móc utworzyć btree_gist;
+Down zachowuje rozszerzenie. Wykluczenia obejmują włączone okresy 1/2/3,
+Custom mogą się nakładać. Nie omijaj osłon ani nie poprawiaj samej historii EF.
+Rozbieżny schemat lub zastosowane nieobecne migracje wymagają osobnego planu
+odzyskania danych; seed nie naprawia schematu. Zmiany modelu sprawdzaj round-trip
+i odmową utraty danych na odizolowanej bazie, nie bazie aplikacji.
+Instrukcja: [migracje](../notes/MIGRATIONS.md).
 
 ## Kontrole backendu
 
@@ -196,20 +182,19 @@ bash tools/ci/backend_checks.sh unit --results .cache/backend-results
 bash tools/ci/backend_checks.sh integration --results .cache/backend-results
 ```
 
-Użyj świeżego katalogu wyników przy kolejnych uruchomieniach. Pomocnik wybiera
-śledzone projekty `.UnitTests.csproj` i `.Tests.csproj` dla zestawu unit oraz
-`.IntegrationTests.csproj` dla integration. Solucja zawiera po trzy projekty
-User, Banking i Notifications, po dwa Receipt, Expense, Reports i Limits oraz Grouping i Shared (łącznie dziewiętnaście projektów). Komunikat
-„not configured” nie oznacza wykonania testów.
+Użyj świeżego katalogu wyników. Pomocnik wybiera śledzone projekty
+`.UnitTests.csproj` i `.Tests.csproj` dla unit oraz `.IntegrationTests.csproj`
+dla integration. Komunikat „not configured” nie oznacza wykonania testów.
 
 Workflow backendu uruchamia PostgreSQL i ustawia `TEST_POSTGRES_CONNECTION_STRING`
-dla integracyjnych testów User, Banking, Notifications i Expense. Wszystkie zestawy tworzą
+dla testów integracyjnych modułów, w tym Reports i Limits. Zestawy tworzą
 własne bazy o losowych nazwach na serwerze testowym.
 Host nadal ładuje `.env` przez `Env.Load()`; testy HTTP używają własnych hostów.
 
 Receipt.IntegrationTests zawiera ręczny test rzeczywistego S3, niezależny od
 PostgreSQL. Wymaga działającego magazynu i `STORAGE_INTEGRATION_TESTS=1`;
-odczytuje ustawienia `STORAGE_*` z lokalnego `.env` API oraz zmiennych środowiskowych.
+odczytuje appsettings, zagnieżdżone STORAGE__* ze wspólnego lokalnego env oraz
+zmienne procesu.
 Tworzy i usuwa syntetyczny obiekt. Nie włączaj go przy samej kontroli dokumentacji.
 Obecny workflow backendu nie uruchamia SeaweedFS, workera ani testów pytest.
 
@@ -218,7 +203,7 @@ Obecny workflow backendu nie uruchamia SeaweedFS, workera ani testów pytest.
 Dobieraj kontrolę do zachowania, nie tylko projektu, w którym zmieniono plik.
 Zmiana zapisu Expense/Limits może wymagać regresji Grouping, Banking i inboxa.
 Testy z bazą używają disposable serwera i własnych losowych baz; nie podawaj
-DB_LOCAL_CONNECTION_STRING jako połączenia testowego. Lokalny brak konfiguracji
+połączenia do bazy aplikacji jako połączenia testowego. Lokalny brak konfiguracji
 pomija PostgreSQL, w CI jest błędem. Raport „not configured” lub skipped nie
 jest zaliczeniem testu. Instrukcje: [tests](../backend/ZPI4M.Backend/tests/README.md).
 
@@ -256,10 +241,10 @@ uv run --extra test pytest -q --basetemp .cache/test-temp/pytest
 ```
 
 Host .NET waliduje opcje OCR i S3 przez `ValidateOnStart`. Oprócz JWT wymaga
-poprawnych `STORAGE_ACCESS_KEY` i `STORAGE_SECRET_KEY` oraz pozostałych opcji S3.
-Domyślne opcje są w `appsettings.json`; API `.env` zawiera poświadczenia.
+poprawnych STORAGE__ACCESSKEY i STORAGE__SECRETKEY oraz pozostałych opcji S3.
+Domyślne opcje są w appsettings; containers/local/.env zawiera poświadczenia.
 W Compose używane jest wyłącznie `containers/local/.env` i adresy usług wewnętrznych.
-`STORAGE_PUBLIC_ENDPOINT` musi być dostępny dla odbiorcy podpisanego URL;
+Storage:PublicEndpoint musi być dostępny dla odbiorcy podpisanego URL;
 domyślne `http://localhost:8333` odpowiada lokalnemu mapowaniu portu S3.
 Po zmianie portu lub przy dostępie z innego urządzenia dopasuj ten adres.
 
@@ -323,10 +308,22 @@ Gałąź powiązana z zadaniem używa oryginalnego identyfikatora ClickUp, np.
 Bez identyfikatora ostrzega i pozostawia wiadomość; nie wymusza Conventional
 Commits i nie kontaktuje się z ClickUp. Szczegóły w [instrukcji narzędzi](../tools/README.md).
 
+## Wdrożenie serwerowe
+
+Pipeline i topologia: [server](../containers/server/README.md), zasady Terraform:
+[Proxmox](../proxmox-infra/README.md). Przed pierwszym CD przygotuj VM, SSH,
+Docker/GHCR i prywatne env w /home/debian/4money/containers/server/{app,ocr}/.
+Zmienne Actions SERVER_SSH_KEY_PATH i SERVER_KNOWN_HOSTS_PATH wskazują pliki na
+runnerze VM 205. SERVER_DEPLOY_ENABLED=true włącza tylko kontenery, bez tej
+wartości CI/obrazy i Terraform nadal działają. Po przygotowaniu maszyn uruchom
+ręcznie Deployment dla master; nie potrzeba kolejnego PR. Seedy pozostają ręczne.
+Dostęp przez Tailscale, DNS/HTTPS/NPM i firewall konfiguruje się osobno;
+przy firewallu VM uwzględnij ruch forwardowany przez Dockera, nie tylko INPUT.
+
 ## Utrzymanie instrukcji
 
 Polecenia wykonuj z podanego katalogu i na jawnie wybranym środowisku. Nie zapisuj
-wyników każdej sesji w tej instrukcji; bieżący zakres i ostatni dowód weryfikacji
-należą do statusu. Jeśli procedura dotyczy tylko modułu, rozwijaj jego README,
+wyników każdej sesji, dat przeglądów ani historii zmian; bieżące możliwości
+i ograniczenia należą do statusu. Jeśli procedura dotyczy tylko modułu, rozwijaj jego README,
 a tutaj utrzymuj wejście i odsyłacz. Po zmianie portu lub nazwy opcji sprawdź
 jednocześnie konfigurację hosta, Compose, frontend proxy i szablony Postmana.

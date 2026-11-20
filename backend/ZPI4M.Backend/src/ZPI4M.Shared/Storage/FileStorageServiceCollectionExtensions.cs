@@ -13,13 +13,13 @@ public static class FileStorageServiceCollectionExtensions
 		services.AddSingleton<IValidateOptions<S3StorageOptions>, S3StorageOptionsValidator>();
 		services.AddOptions<S3StorageOptions>().Configure(options =>
 		{
-			options.Endpoint = configuration["STORAGE_ENDPOINT"] ?? string.Empty;
-			options.PublicEndpoint = configuration["STORAGE_PUBLIC_ENDPOINT"];
-			options.Bucket = configuration["STORAGE_BUCKET"] ?? string.Empty;
-			options.Region = configuration["STORAGE_REGION"] ?? string.Empty;
-			options.AccessKey = configuration["STORAGE_ACCESS_KEY"] ?? string.Empty;
-			options.SecretKey = configuration["STORAGE_SECRET_KEY"] ?? string.Empty;
-			var expiration = configuration["STORAGE_URL_EXPIRATION_MINUTES"];
+			options.Endpoint = configuration["Storage:Endpoint"] ?? string.Empty;
+			options.PublicEndpoint = configuration["Storage:PublicEndpoint"];
+			options.Bucket = configuration["Storage:Bucket"] ?? string.Empty;
+			options.Region = configuration["Storage:Region"] ?? string.Empty;
+			options.AccessKey = configuration["Storage:AccessKey"] ?? string.Empty;
+			options.SecretKey = configuration["Storage:SecretKey"] ?? string.Empty;
+			var expiration = configuration["Storage:UrlExpirationMinutes"];
 			options.UrlExpirationMinutes = expiration is null ? 15
 				: int.TryParse(expiration, out var minutes) ? minutes : 0;
 		}).ValidateOnStart();

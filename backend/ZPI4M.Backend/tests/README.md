@@ -234,7 +234,7 @@ dotnet test tests/ZPI4M.Receipt.IntegrationTests/ZPI4M.Receipt.IntegrationTests.
 `ZPI4M.Receipt.IntegrationTests` zawiera testy pomocnika sprzątania i ręczny test
 rzeczywistego S3: upload syntetycznego obrazu, podpisany GET, odmowa anonimowego
 GET i dwukrotne usunięcie. Test S3 wymaga działającego lokalnego magazynu,
-konfiguracji `STORAGE_*` z API `.env` lub środowiska oraz
+konfiguracji `STORAGE__*` z `containers/local/.env` lub środowiska i domyślnych appsettings oraz
 `STORAGE_INTEGRATION_TESTS=1`. Bez tej flagi jest pomijany. Nie potwierdza
 pełnego przepływu OCR → S3 → PostgreSQL ani integracji z Expense.
 ## Model grup, wydatków i rozliczeń

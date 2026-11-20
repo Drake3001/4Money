@@ -25,7 +25,7 @@ są odrębne; katalog lub model nie dowodzi ukończenia funkcji.
 | OCR / kategoryzacja | [Paragony](agent-context/domain.md#paragony-i-ocr), [worker](workers/extraction_worker/README.md); przy ewaluacji [eksperymenty](workers/extraction_worker/experiments/README.md) |
 | Modele / migracje | [Persystencja](agent-context/architecture.md#persystencja), [migracje](agent-context/development.md#modele-i-migracje), konfiguracje EF i SQL |
 | Testy / hooki / CI | [Kontrole](agent-context/development.md#kontrole-backendu), [narzędzia](tools/README.md), workflow dotyczący zadania |
-| Infrastruktura | [Proxmox](proxmox-infra/README.md), właściwy workflow; zasady lokalne w [development](agent-context/development.md) |
+| Infrastruktura / wdrożenie | [Server](containers/server/README.md), [Proxmox](proxmox-infra/README.md), [konfiguracja](agent-context/development.md#wymagania-i-konfiguracja) i właściwy workflow |
 
 ## Orientacja w repozytorium
 
@@ -35,11 +35,12 @@ są odrębne; katalog lub model nie dowodzi ukończenia funkcji.
 | `frontend/` | React/TypeScript/Vite, widoki i klient API |
 | `workers/extraction_worker/` | FastAPI/Python/uv, OCR, kategoryzacja, eksperymenty |
 | `containers/local/` | Compose pięciu usług, wspólne `.env` i szablon |
+| `containers/server/`, `containers/dockerfiles/` | Compose APP/OCR, jednorazowe migracje, skrypty SSH i obrazy local/server; pierwsze wdrożenie niepotwierdzone |
 | `database/` | Historyczny SQL init i destrukcyjny seed syntetyczny |
 | `postman/`, `tools/` | Kolekcje, środowiska, hooki, kontrole CI i narzędzia |
 | `agent-context/` | Krótki kontekst tematyczny; bieżące braki w statusie |
 | `notes/` | Szczegółowe kontrakty i instrukcje; datowane eksperymenty OCR |
-| `proxmox-infra/`, `.github/workflows/` | Terraform i automatyzacja infrastruktury/CI |
+| `proxmox-infra/`, `.github/workflows/` | Klony template 300; deployment.yml: CI/obrazy → Terraform → opcjonalne CD |
 | `../doc/` | Wymagania TXT i diagramy poza repozytorium; nie są kodem runtime |
 
 ## Obowiązujące zasady
@@ -70,8 +71,10 @@ architektura wzorców integracji, development sposobu pracy, a status możliwoś
 oraz braków. Szczegóły kontraktów i procedur utrzymuj w dokumentacji modułów.
 W innych miejscach dodaj odsyłacz zamiast kolejnej pełnej kopii.
 
-Aktualizuj odpowiedni dokument po zmianie kontraktu, konfiguracji lub architektury.
-W statusie podaj podstawę przeglądu i zakres faktycznej weryfikacji. Nie dopisuj
-historii każdej sesji, porzuconych wariantów ani wyników bez ich wykonania.
-Historia pozostaje w Git; zachowaj krótkie uzasadnienie tylko wtedy, gdy chroni
-aktualną decyzję lub ograniczenie. Otwarte decyzje rozstrzygaj w ramach zadania.
+Aktualizuj istniejący opis lub wiersz po zmianie kontraktu, konfiguracji lub
+architektury. Kontekst ma przedstawiać obecny stan, bez dat przeglądów, hashy
+rewizji, dziennika sesji i dawnych sum testów. Identyfikatory migracji oraz daty
+będące częścią kontraktu pozostają, gdy są potrzebne do pracy z kodem.
+W statusie rozróżniaj implementację od potwierdzenia działania usług; wyniki
+wykonanych kontroli podawaj w raporcie zadania. Historia pozostaje w Git.
+Nie dubluj instrukcji modułów; zachowaj tylko aktualne decyzje i ograniczenia.
